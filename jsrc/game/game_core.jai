@@ -25,7 +25,6 @@ GAME_State :: struct
   hr: HOT_RELOAD_State;
   font: FONT_State;
   obj: OBJ_State;
-  anim: ANIMATION_State;
   net: NET_State;
   client: CLIENT_State;
   server: SERVER_State;
@@ -82,7 +81,7 @@ GAME_Init :: ()
     GPU_Init();
     GPU_BATCH_Init();
     ASSET_InitPostGPU();
-    ANIMATION_Init();
+    ANIMATION_InitSkeletons();
     FONT_Init();
     UI_ClearRenderCounters();
     HOT_RELOAD_InitWatcher();

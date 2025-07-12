@@ -2,6 +2,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
+  animation_records: [#run EnumCount(ANIMATION_Type)] ANIMATION_Record;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
@@ -73,33 +74,25 @@ ANIMATION_Track :: struct
   weight: float;
 }
 
-ANIMATION_State :: struct
+ANIMATION_RecordFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *ANIMATION_Record
 {
-  arena: Arena;
-  records: [#run EnumCount(ANIMATION_Type)] ANIMATION_Record; // @todo should be attached to skeleton, yes or yes?
-}
-
-ANIMATION_RecordFromType :: (type: ANIMATION_Type) -> *ANIMATION_Record
-{
-  return *G.anim.records[type];
+  return *skeleton.animation_records[type];
 }
 
 ANIMATION_FromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
 {
-  return *skeleton.animations[ANIMATION_RecordFromType(type).animation_index];
+  return *skeleton.animations[ANIMATION_RecordFromType(skeleton, type).animation_index];
 }
 
 
-ANIMATION_Init :: ()
+ANIMATION_InitSkeletons :: ()
 {
-  using G.anim;
-
   skeleton := GetModel(ModelKey("Dude")).skeleton;
   if skeleton
   {
     for enum_values_as_enum(ANIMATION_Type)
     {
-      r := *records[it];
+      r := *skeleton.animation_records[it];
 
       temp_weights := NewArray(skeleton.joints_count, float,, temp);
       for *temp_weights it.* = 1.0;
@@ -142,7 +135,7 @@ ANIMATION_Init :: ()
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights,, arena);
+      if has_non_one then r.joint_weights = array_copy(temp_weights,, G.ast.arena);
     }
   }
 }
@@ -311,7 +304,7 @@ ANIMATION_AnimateObjects :: ()
           }
 
 
-          record := ANIMATION_RecordFromType(it.type);
+          record := ANIMATION_RecordFromType(model.skeleton, it.type);
           if record.joint_weights.count == 0 && it.weight == 1.0
             all_joints_are_masked = true;
         }
@@ -351,7 +344,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
       translations = array_copy(skeleton.bind_translations,, temp);
     }
 
-    record := ANIMATION_RecordFromType(param.type);
+    record := ANIMATION_RecordFromType(skeleton, param.type);
 
     // Overwrite translations, rotations, scales with values from animation
     {
@@ -468,7 +461,7 @@ ANIMATION_WrapTime :: (skeleton: Skeleton, anim_index: s32, time: float) -> floa
 }
 ANIMATION_WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, time: float) -> float
 {
-  return ANIMATION_WrapTime(skeleton, G.anim.records[type].animation_index, time);
+  return ANIMATION_WrapTime(skeleton, skeleton.animation_records[type].animation_index, time);
 }
 
 ANIMATION_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
