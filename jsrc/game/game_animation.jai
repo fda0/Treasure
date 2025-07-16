@@ -87,6 +87,11 @@ ANIMATION_FromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
 
 ANIMATION_InitSkeletons :: ()
 {
+  MaskJoints :: (joint_name: string, value: float) #expand
+  {
+    ANIMATION_WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
+  }
+
   skeleton := GetModel(ModelKey("Dude")).skeleton;
   if skeleton
   {
@@ -96,11 +101,6 @@ ANIMATION_InitSkeletons :: ()
 
       temp_weights := NewArray(skeleton.joints_count, float,, temp);
       for *temp_weights it.* = 1.0;
-
-      MaskJoints :: (joint_name: string, value: float) #expand
-      {
-        ANIMATION_WaterfallToChildren(.ASSIGN, skeleton, JointNameToIndex(skeleton, joint_name), temp_weights, value);
-      }
 
       if it == {
         case .IDLE;
@@ -116,13 +116,15 @@ ANIMATION_InitSkeletons :: ()
         case .PUNCH_HANDS;
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.003", 1.0);
-        #through; case .PUNCH;
+        #through;
+        case .PUNCH;
         r.animation_index = AnimationNameToIndex(skeleton, "Punch_Cross");
 
         case .JAB_HANDS;
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.003", 1.0);
-        #through; case .JAB;
+        #through;
+        case .JAB;
         r.animation_index = AnimationNameToIndex(skeleton, "Punch_Jab");
 
         case .HIT;
@@ -131,6 +133,42 @@ ANIMATION_InitSkeletons :: ()
         MaskJoints("DEF-spine.001", 1.0);
         MaskJoints("DEF-shoulder.L", 0.0);
         MaskJoints("DEF-shoulder.R", 0.0);
+      }
+
+      has_non_one := false;
+      for temp_weights if it != 1.0 then has_non_one = true;
+      if has_non_one then r.joint_weights = array_copy(temp_weights,, G.ast.arena);
+    }
+  }
+
+  skeleton = GetModel(ModelKey("Zombie")).skeleton;
+  if skeleton
+  {
+    for enum_values_as_enum(ANIMATION_Type)
+    {
+      r := *skeleton.animation_records[it];
+
+      temp_weights := NewArray(skeleton.joints_count, float,, temp);
+      for *temp_weights it.* = 1.0;
+
+      if it == {
+        case .IDLE;
+        r.animation_index = AnimationNameToIndex(skeleton, "Idle");
+
+        case .WALK;
+        r.animation_index = AnimationNameToIndex(skeleton, "Walk");
+
+        case .RUN;
+        r.animation_index = AnimationNameToIndex(skeleton, "Run");
+
+        case .PUNCH_HANDS; #through;
+        case .PUNCH; #through;
+        case .JAB_HANDS; #through;
+        case .JAB;
+        r.animation_index = AnimationNameToIndex(skeleton, "Punch");
+
+        case .HIT;
+        r.animation_index = AnimationNameToIndex(skeleton, "HitReact");
       }
 
       has_non_one := false;
