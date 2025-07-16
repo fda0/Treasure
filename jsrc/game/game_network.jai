@@ -254,7 +254,8 @@ NET_IterateSend :: ()
         if !player_key.serial_number
         {
           model_keys := MODEL_Key.[
-            ModelKey("Dude"),
+            ModelKey("Zombie"),
+            // ModelKey("Dude"),
             // ModelKey("Worker"),
             // ModelKey("Formal"),
             // ModelKey("Casual"),

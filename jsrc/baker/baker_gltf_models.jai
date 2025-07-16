@@ -108,21 +108,21 @@ BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
       // Fill material name
       PIE_ListSetPrint(*pie_material.name, "%.m%.%", model.name, mesh_index, to_string(gltf_material.name));
 
-      diffuse_tex_path := "";
-      normal_tex_path := "";
-      specular_tex_path := "";
+      diffuse_tex: BK_TEX_Input;
+      normal_tex: BK_TEX_Input;
+      specular_tex: BK_TEX_Input;
 
       if gltf_material.normal_texture.texture
-      {
-        uri := to_string(gltf_material.normal_texture.texture.image.uri);
-        normal_tex_path = tprint("%/%", dir_path, uri);
-      }
+        normal_tex = BK_GLTF_ImageToTexInput(gltf_material.normal_texture.texture.image, dir_path);
 
       if gltf_material.has_pbr_metallic_roughness
       {
         metal := *gltf_material.pbr_metallic_roughness;
         pie_material.params.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
         pie_material.params.roughness = metal.roughness_factor;
+
+        if metal.base_color_texture.texture
+          diffuse_tex = BK_GLTF_ImageToTexInput(metal.base_color_texture.texture.image, dir_path);
       }
 
       if gltf_material.has_pbr_specular_glossiness
@@ -133,16 +133,10 @@ BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
         pie_material.params.roughness = 1.0 - gloss.glossiness_factor;
 
         if gloss.diffuse_texture.texture
-        {
-          uri := to_string(gloss.diffuse_texture.texture.image.uri);
-          diffuse_tex_path = tprint("%/%", dir_path, uri);
-        }
+          diffuse_tex = BK_GLTF_ImageToTexInput(gloss.diffuse_texture.texture.image, dir_path);
 
         if gloss.specular_glossiness_texture.texture
-        {
-          uri := to_string(gloss.specular_glossiness_texture.texture.image.uri);
-          specular_tex_path = tprint("%/%", dir_path, uri);
-        }
+          specular_tex = BK_GLTF_ImageToTexInput(gloss.specular_glossiness_texture.texture.image, dir_path);
       }
 
       if (gltf_material.alpha_mode != .cgltf_alpha_mode_opaque)
@@ -151,29 +145,29 @@ BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
       // Prepare tex_paths array
       // These are expected to be in a fixed order for now
       // So if any in the chain is missing we have to drop all subsequent textures.
-      tex_paths: [3] string;
-      tex_paths_count := 0;
+      tex_inputs: [3] BK_TEX_Input;
+      tex_inputs_count := 0;
 
-      if diffuse_tex_path
+      if diffuse_tex.str
       {
-        tex_paths[tex_paths_count] = diffuse_tex_path;
-        tex_paths_count += 1;
+        tex_inputs[tex_inputs_count] = diffuse_tex;
+        tex_inputs_count += 1;
       }
 
-      if tex_paths_count == 1 && normal_tex_path
+      if tex_inputs_count == 1 && normal_tex.str
       {
-        tex_paths[tex_paths_count] = normal_tex_path;
-        tex_paths_count += 1;
+        tex_inputs[tex_inputs_count] = normal_tex;
+        tex_inputs_count += 1;
       }
 
-      if tex_paths_count == 2 && specular_tex_path
+      if tex_inputs_count == 2 && specular_tex.str
       {
-        tex_paths[tex_paths_count] = specular_tex_path;
-        tex_paths_count += 1;
+        tex_inputs[tex_inputs_count] = specular_tex;
+        tex_inputs_count += 1;
       }
 
-      if tex_paths_count
-        BK_TEX_LoadPaths(pie_material, ArrayPrefix(tex_paths, tex_paths_count));
+      if tex_inputs_count
+        BK_TEX_LoadPaths(pie_material, ArrayPrefix(tex_inputs, tex_inputs_count));
     }
   }
 
@@ -735,4 +729,24 @@ BK_GLTF_UnpackAccessor :: (accessor: *cgltf_accessor, buffer: *[..] $T) -> slice
   }
 
   return numbers_slice;
+}
+
+BK_GLTF_ImageToTexInput :: (image: *cgltf_image, dir_path: string) -> BK_TEX_Input
+{
+  result: BK_TEX_Input;
+  if !image then return result;
+
+  if image.uri
+  {
+    result.type = .PATH;
+    uri := to_string(image.uri);
+    result.str = sprint("%/%", dir_path, uri);
+  }
+  else if image.buffer_view
+  {
+    result.type = .DATA;
+    result.str.count = xx image.buffer_view.size;
+    result.str.data = cgltf_buffer_view_data(image.buffer_view);
+  }
+  return result;
 }

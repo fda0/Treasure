@@ -1,4 +1,10 @@
-BK_TEX_LoadPaths :: (pie_material: *PIE_Material, paths: [] string)
+BK_TEX_Input :: struct
+{
+  str: string;
+  type: enum {PATH; DATA;};
+}
+
+BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
 {
   auto_release_temp();
   push_allocator(temp);
@@ -8,18 +14,32 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, paths: [] string)
     BK_MIPMAPS_MAX :: 16;
     surfs: [BK_MIPMAPS_MAX] *SDL_Surface;
   };
-  files := NewArray(paths.count, BK_TexFile);
+  files := NewArray(inputs.count, BK_TexFile);
 
   errors := false;
   for * files
   {
-    path := paths[it_index];
-    it.surfs[0] = IMG_Load(temp_c_string(path));
-    if !it.surfs[0]
+    input := inputs[it_index];
+    if input.type == .PATH
     {
-      log_error("Failed to open texture file %", path);
-      errors = true;
-      break;
+      it.surfs[0] = IMG_Load(temp_c_string(input.str));
+      if !it.surfs[0]
+      {
+        log_error("Failed to open texture file %", input.str);
+        errors = true;
+        break;
+      }
+    }
+    else
+    {
+      mem_io := SDL_IOFromMem(input.str.data, xx input.str.count);
+      it.surfs[0] = IMG_Load_IO(mem_io, true);
+      if !it.surfs[0]
+      {
+        log_error("Failed to open texture file IO");
+        errors = true;
+        break;
+      }
     }
   }
 
@@ -75,7 +95,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, paths: [] string)
     pie_material.tex.width = orig_width;
     pie_material.tex.height = orig_height;
     pie_material.tex.lods = lods_count;
-    pie_material.tex.layers = xx paths.count;
+    pie_material.tex.layers = xx inputs.count;
 
     pie_textures_count := pie_material.tex.lods * pie_material.tex.layers;
     pie_texture_sections := PIE_ListAllocArray(*pie_material.tex.sections, pie_textures_count, PIE_MaterialTexSection);
@@ -224,10 +244,10 @@ BK_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
       "NormalGL.jpg",
       "Roughness.jpg",
     ];
-    file_paths: [postfixes.count] string;
+    file_paths: [postfixes.count] BK_TEX_Input;
 
     for postfixes
-      file_paths[it_index] = tprint("../res/tex/%1/%1_1K-JPG_%", tex_name, it);
+      file_paths[it_index].str = tprint("../res/tex/%1/%1_1K-JPG_%", tex_name, it);
 
     // Load textures
     BK_TEX_LoadPaths(pie_material, file_paths);
