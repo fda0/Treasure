@@ -251,7 +251,7 @@ NET_IterateSend :: ()
       {
         player_key := *G.server.player_keys[user_index];
 
-        if !player_key.serial_number
+        if OBJ_KeyIsZero(player_key)
         {
           model_keys := MODEL_Key.[
             ModelKey("Zombie"),

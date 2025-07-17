@@ -1,5 +1,5 @@
 OBJ_MAX_NETWORK_OBJECTS :: 24;
-OBJ_MAX_OFFLINE_OBJECTS :: 512;
+OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
 OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
 OBJ_MAX_COLLIDER_VERTS :: 4;
@@ -30,9 +30,25 @@ OBJ_Storage :: enum_flags u32
 
 OBJ_Key :: struct
 {
-  index: u16;
-  serial_number: u16;
+  index24_serial8: u32;
 };
+
+OBJ_IndexOfKey :: (key: OBJ_Key) -> u32
+{
+  return key.index24_serial8 & 0xff_ff_ff;
+}
+OBJ_SerialOfKey :: (key: OBJ_Key) -> u32
+{
+  return key.index24_serial8 >> 24;
+}
+OBJ_CreateKey :: (index: u32, serial: u32) -> OBJ_Key
+{
+  return OBJ_Key.{(serial << 24) | (index & 0xff_ff_ff)};
+}
+OBJ_KeyIsZero :: (key: OBJ_Key) -> bool
+{
+  return !key.index24_serial8;
+}
 
 OBJ_Flags :: enum_flags u32
 {
@@ -129,33 +145,21 @@ OBJ_Init :: ()
 
   // Ground
   {
-    ground := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
-    ground.s.collider = OBJ_ColliderFromRect(.{100, 100});
-    ground.s.material = MaterialKey("tex.Grass004");
-    ground.s.texture_texels_per_m = 1.0;
-  }
-
-  {
-    thickness := 0.2;
-    length := 8.0;
-    off := length*0.5 - thickness*0.5;
-    OBJ_CreateWall(V2.{ off, 0}, V2.{thickness, length}, 0.8);
-    OBJ_CreateWall(V2.{-off, 0}, V2.{thickness, length}, 2.);
-    OBJ_CreateWall(V2.{0,  off}, V2.{length, thickness}, 1.6);
-    OBJ_CreateWall(V2.{0, -off}, V2.{length*0.5, thickness}, 1.2);
-
+    r := 32;
+    d := 1.0;
+    for y: MakeRange(-r, r)
     {
-      rotated_wall := OBJ_CreateWall(V2.{0.75*off, -0.5*off}, V2.{thickness, 5.*thickness}, 1);
-      OBJ_RotateCollider(*rotated_wall.s.collider, 0.1);
-    }
-
-    {
-      flying_cube := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
-      flying_cube.s.p = V3.{0.5, 1.2, 1.};
-      flying_cube.s.material = MaterialKey("tex.Tiles101");
-      flying_cube.s.texture_texels_per_m = 1.;
-      flying_cube.s.height = 0.3;
-      flying_cube.s.collider = OBJ_ColliderFromRect(.{1., 1.});
+      for x: MakeRange(-r, r)
+      {
+        ground := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
+        if !OBJ_IsNil(ground)
+        {
+          ground.s.p = .{x = d * x, y = d * y};
+          ground.s.collider = OBJ_ColliderFromRect(.{d, d});
+          ground.s.material = MaterialKey("tex.Grass004");
+          ground.s.texture_texels_per_m = 1.0 / d;
+        }
+      }
     }
   }
 
@@ -163,10 +167,10 @@ OBJ_Init :: ()
   {
     for wall: 0..3
     {
-      len := 32;
+      len := 64;
       for i: MakeRange(len)
       {
-        d := 0.5;
+        d := 1.0;
         x := ifx wall <= 1 then i else (ifx wall == 2 then 0 else len);
         y := ifx wall >= 2 then i else (ifx wall == 0 then 0 else len);
 
@@ -177,6 +181,7 @@ OBJ_Init :: ()
           block.s.collider = OBJ_ColliderFromRect(.{d,d});
           block.s.height = d;
           block.s.material = MaterialKey("tex.Clay002");
+          block.s.texture_texels_per_m = 1.0 / d;
         }
       }
     }
@@ -262,29 +267,30 @@ OBJ_IsNil :: (obj: *Object) -> bool
 
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool
 {
-  return (a.serial_number == b.serial_number && a.index == b.index);
+  return (a.index24_serial8 == b.index24_serial8);
 }
 
 OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
 {
   result := OBJ_GetNil();
+  key_index := OBJ_IndexOfKey(key);
 
   index_in_valid_storage := false;
   {
     min: u32 = 0;
     max: u32 = OBJ_MAX_OFFLINE_OBJECTS;
     if (storage_mask & .OFFLINE)
-      index_in_valid_storage |= (key.index >= min && key.index < max);
+      index_in_valid_storage |= (key_index >= min && key_index < max);
 
     min = max;
     max += OBJ_MAX_NETWORK_OBJECTS;
     if (storage_mask & .NETWORK)
-      index_in_valid_storage |= (key.index >= min && key.index < max);
+      index_in_valid_storage |= (key_index >= min && key_index < max);
   }
 
   if index_in_valid_storage
   {
-    obj := *G.obj.all_objects[key.index];
+    obj := *G.obj.all_objects[key_index];
     if obj.s.key == key then result = obj;
   }
   return result;
@@ -362,11 +368,11 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
     return OBJ_GetNil();
 
   // init object
-  prev_serial_number := obj.s.key.serial_number;
+  prev_serial_number := OBJ_SerialOfKey(obj.s.key);
   Initialize(obj);
 
-  obj.s.key.serial_number = max(prev_serial_number + 1, 1);
-  obj.s.key.index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object));
+  obj.s.key = OBJ_CreateKey(serial = max(prev_serial_number + 1, 1),
+                            index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)));
 
   obj.s.flags = flags;
   obj.s.init = true;

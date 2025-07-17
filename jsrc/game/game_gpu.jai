@@ -407,7 +407,8 @@ GPU_Iterate :: ()
 
         // Uniforms
         WORLD_ApplyMaterialToUniform(*G.gpu.world_uniform, material, simplified_pipeline);
-        if MatchKey(material.key, MaterialKey("tex.Clay002"))
+        if MatchKey(material.key, MaterialKey("tex.Clay002")) ||
+           MatchKey(material.key, MaterialKey("tex.Grass004"))
         {
           G.gpu.world_uniform.flags |= .DrawBorderAtUVEdge;
         }
