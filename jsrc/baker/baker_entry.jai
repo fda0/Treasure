@@ -41,6 +41,7 @@ main :: ()
     BK_TEX_LoadPBRs("Grass004", spec_tiny);
     BK_TEX_LoadPBRs("Ground037", spec_tiny);
     BK_TEX_LoadPBRs("Ground068", spec_tiny);
+    BK_TEX_LoadPBRs("Ground075", spec_mid);
     BK_TEX_LoadPBRs("Ground078", spec_tiny);
     BK_TEX_LoadPBRs("Leather011", spec_big);
     BK_TEX_LoadPBRs("PavingStones067", spec_low);

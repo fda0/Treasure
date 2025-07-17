@@ -233,7 +233,7 @@ GAME_Iterate :: ()
       rot = RotationMatrixAroundAxis(AxisV3(.Z), G.camera_angles.z) * rot;
       rot = RotationMatrixAroundAxis(AxisV3(.Y), G.camera_angles.y) * rot;
       aspect := G.window_dim.x / G.window_dim.y;
-      projection := PerspectiveMatrix(G.camera_fov_y, aspect, 0.25, 25.0);
+      projection := PerspectiveMatrix(G.camera_fov_y, aspect, 0.25, 250.0);
       G.camera_transform = projection * (rot * transl);
     }
 

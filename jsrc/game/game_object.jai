@@ -147,17 +147,23 @@ OBJ_Init :: ()
   {
     r := 32;
     d := 1.0;
+    grass := MaterialKey("tex.Grass004");
+    ground1 := MaterialKey("tex.Ground075");
+
     for y: MakeRange(-r, r)
     {
       for x: MakeRange(-r, r)
       {
-        ground := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
-        if !OBJ_IsNil(ground)
+        tile := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
+        if !OBJ_IsNil(tile)
         {
-          ground.s.p = .{x = d * x, y = d * y};
-          ground.s.collider = OBJ_ColliderFromRect(.{d, d});
-          ground.s.material = MaterialKey("tex.Grass004");
-          ground.s.texture_texels_per_m = 1.0 / d;
+          tile.s.p = .{x = d * x, y = d * y};
+          tile.s.collider = OBJ_ColliderFromRect(.{d, d});
+          tile.s.texture_texels_per_m = 1.0 / d;
+          tile.s.material = grass;
+          if x < -r+5 || x >r-5 then tile.s.material = ground1;
+          if y < -r+5 || y >r-5 then tile.s.material = ground1;
+          if abs(x+y) < 4 then tile.s.material = ground1;
         }
       }
     }
@@ -189,8 +195,8 @@ OBJ_Init :: ()
 
   // Add trees
   {
-    x_count := 8;
-    y_count := 8;
+    x_count := 4;
+    y_count := 4;
 
     for y: MakeRange(y_count)
     {
