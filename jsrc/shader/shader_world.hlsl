@@ -235,14 +235,17 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     float u = frac(frag.uv.x);
     float v = frac(frag.uv.y);
 
-    float border = 1.f;
-    border *= smoothstep(0.01f, 0.02f, u); // u min
-    border *= smoothstep(0.01f, 0.02f, v); // v min
-    border *= smoothstep(0.99f, 0.98f, u); // u max
-    border *= smoothstep(0.99f, 0.98f, v); // v max
+    float border = 1.0f;
+    border = min(border, smoothstep(0.f, 0.01f, u)); // u min
+    border = min(border, smoothstep(0.f, 0.01f, v)); // v min
+    border = min(border, smoothstep(1.f, 0.99f, u)); // u max
+    border = min(border, smoothstep(1.f, 0.99f, v)); // v max
 
-    border = 0.5f*border + 0.5f;
-    color *= border;
+    float mask = 1.f;
+    mask *= smoothstep(0.0f, 0.02f, border);
+    mask *= (border*0.5 + 0.5);
+    // mask *= border;
+    color *= mask;
   }
 
   // Apply fog
