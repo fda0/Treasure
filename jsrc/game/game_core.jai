@@ -163,7 +163,7 @@ GAME_Iterate :: ()
       if (KEY_Held(.LSHIFT) || KEY_Held(.RSHIFT)) move_dir.z -= 1;
       move_dir = normalize(move_dir);
       move_dir = Math.rotate(move_dir, RotationAroundAxis(-AxisV3(.Z)/* @todo why negation fixes things? */, G.camera_angles.z));
-      G.camera_p += move_dir * 4.0 * G.dt;
+      G.camera_p += move_dir * 12.0 * G.dt;
     }
     else
     {

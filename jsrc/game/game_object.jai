@@ -177,13 +177,19 @@ OBJ_Init :: ()
       for i: MakeRange(len)
       {
         d := 1.0;
-        x := ifx wall <= 1 then i else (ifx wall == 2 then 0 else len);
-        y := ifx wall >= 2 then i else (ifx wall == 0 then 0 else len);
+
+        x, y: float;
+        if wall == 0 y = d*i;
+        if wall == 1 {x = d*i; y = d * len;}
+        if wall == 2 {x = d * len; y = len - d*i;}
+        if wall == 3 x = len - d*i;
+        x -= (0.5*d*len);
+        y -= (0.5*d*len);
 
         block := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS|.COLLIDE);
         if !OBJ_IsNil(block)
         {
-          block.s.p = V3.{d*x - len*0.5*d, d*y - len*0.5*d, 0};
+          block.s.p = V3.{x, y, 0};
           block.s.collider = OBJ_ColliderFromRect(.{d,d});
           block.s.height = d;
           block.s.material = MaterialKey("tex.Clay002");
