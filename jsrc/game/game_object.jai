@@ -215,8 +215,8 @@ OBJ_Init :: ()
         if ((x^y)&1) pos.x = 4.70;
         else         pos.y = 6.90;
 
-        pos.x += 4.0*(x % x_half_count);
-        pos.y += 2.4*(y % y_half_count);
+        pos.x += 7 + 4.0*(x % x_half_count);
+        pos.y += 5 + 2.4*(y % y_half_count);
 
         pos.x *= ifx x < x_half_count then -1 else 1;
         pos.y *= ifx y < y_half_count then -1 else 1;
