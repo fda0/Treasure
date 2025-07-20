@@ -66,6 +66,7 @@ OBJ_Flags :: enum_flags u32
   HAS_HP;
   TARGETABLE;
   PLAY_SOUNDS;
+  IS_TURRET;
 };
 
 OBJ_Sync :: struct
@@ -81,10 +82,11 @@ OBJ_Sync :: struct
   // game stats
   max_hp: float;
   hp: float;
-  attack_speed: float = 1.5;
+  attack_speed: float = 0.25;
 
   // game state
   is_attacking: bool;
+  target: OBJ_Key;
   attack_t: float;
   attack_continous_t: float;
   animation_requests: Queue(3, ANIMATION_Request);
@@ -205,14 +207,25 @@ OBJ_Init :: ()
     {
       for tier: 0..2
       {
-        plank := OBJ_Create(.OFFLINE, .DRAW_MODEL);
+        if tier != 0 continue;
+
+        plank := OBJ_Create(.NETWORK,
+          .COLLIDE | .DRAW_MODEL |
+          .HAS_HP | .TARGETABLE | .PLAY_SOUNDS);
+
         if !OBJ_IsNil(plank)
         {
           p := 6.0 + 10.0*tier;
           if side == 0 then p = -p;
-
           plank.s.p = .{-p,p,0};
+
+          dim := 0.4;
+          plank.s.collider = OBJ_ColliderFromRect(.{dim,dim});
+
           plank.s.model = ModelKey("Plank");
+
+          plank.s.max_hp = 400;
+          plank.s.hp = 400;
         }
       }
     }
@@ -250,7 +263,12 @@ OBJ_Init :: ()
     }
   }
 
-  OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
+  {
+    h0 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
+    if !OBJ_IsNil(h0) h0.s.p.y = 1.0;
+    h1 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
+    if !OBJ_IsNil(h1) h1.s.p.y = 2.0;
+  }
 }
 
 lerp :: (prev: OBJ_Sync, next: OBJ_Sync, t: float) -> OBJ_Sync

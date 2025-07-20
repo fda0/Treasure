@@ -51,13 +51,35 @@ TICK_AdvanceSimulation :: ()
       if distance >= MINIMUM_MOVE_START_DISTANCE then player_move_dir = player_to_destination * (1.0 / distance);
     }
 
-    not_attacking := action.type != .ATTACK;
+    reset_attack_timers :: (obj: *Object)
+    {
+      obj.s.target = .{};
+      obj.s.attack_t = min(obj.s.attack_t, 0.0);
+      obj.s.attack_continous_t = 0.0;
+    }
+
+    // Advance attack timers
     attack_t_delta := TICK_FLOAT_STEP * player.s.attack_speed;
     player.s.attack_t += attack_t_delta;
     player.s.attack_continous_t += attack_t_delta;
 
+    if action.type != .ATTACK
+      player.s.is_attacking = false;
+
+    // Handle action type .ATTACK
     if action.type == .ATTACK
     {
+      if player.s.target != action.target_object
+      {
+        reset_attack_timers(player);
+        player.s.is_attacking = false;
+      }
+
+      player.s.target = action.target_object;
+
+      if player.s.attack_t >= 0.0
+        player.s.is_attacking = true;
+
       attacked := OBJ_Get(action.target_object, .NETWORK);
       if !OBJ_IsNil(attacked)
       {
@@ -66,7 +88,6 @@ TICK_AdvanceSimulation :: ()
 
         if distance < 0.8
         {
-          player.s.is_attacking = true;
           player.s.rotation = DirectionXYToRotationZ(attacked.s.p - player.s.p);
 
           attack_damage := 10.0;
@@ -91,22 +112,81 @@ TICK_AdvanceSimulation :: ()
         else if distance >= MINIMUM_MOVE_START_DISTANCE
         {
           player_move_dir = player_to_destination * (1.0 / distance);
-          not_attacking = true;
+          player.s.is_attacking = false;
         }
       }
     }
 
-    if not_attacking
-    {
-      player.s.is_attacking = false;
-      player.s.attack_t = min(player.s.attack_t, 0.0);
-      player.s.attack_continous_t = 0.0;
-    }
+    if !player.s.is_attacking
+      reset_attack_timers(player);
 
+    // Move player
     player_speed := 1.4 * TICK_FLOAT_STEP;
     player.s.desired_dp = V3.{xy = player_move_dir * player_speed, z = 0};
   }
 
+  for * turret: G.obj.network_objects
+  {
+    // if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
+
+    // current_target := OBJ_Get(turret.s.target_object, .NETWORK);
+
+    // // @speed query nearby objects instead of scanning the whole game
+    // nearest_target: *Object;
+    // {
+    //   distance_squared_to_nearest := FLOAT32_MAX;
+    //   for * enemy: G.obj.all_objects
+    //   {
+    //     if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
+
+    //     distance_squared := distance_squared(turret.s.p, enemy.s.p);
+    //     if distance_squared < distance_squared_to_nearest
+    //     {
+    //       nearest_target = enemy;
+    //       distance_squared = distance_squared_to_nearest;
+    //     }
+    //   }
+    // }
+
+    // SHOOT_RANGE :: 3.0;
+
+    // if OBJ_IsNil(current_target)
+    // {
+    //   dist_sq := distance_squared(turret.s.p, current_target.s.p);
+    //   if square(SHOOT_RANGE) < dist_sq then currrent_target = null;
+    // }
+
+    // if OBJ_IsNil(current_target) && !OBJ_IsNil(nearest_target)
+    // {
+    //   dist_sq := distance_squared(turret.s.p, nearest_target.s.p);
+    //   if square(SHOOT_RANGE) >= dist_sq then current_target = nearest_target;
+    // }
+
+    // turret.s.is_attacking = current_target != null;
+
+    // if turret.s.is_attacking
+    // {
+    // }
+    // else
+    // {
+    //   // turret.s.target_object =
+    // }
+  }
+
+  TICK_MoveAndCollideObjects();
+
+  for * obj: G.obj.all_objects
+  {
+    if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
+    {
+      if HasLength(obj.s.moved_dp)
+        obj.s.rotation = DirectionXYToRotationZ(obj.s.moved_dp);
+    }
+  }
+}
+
+TICK_MoveAndCollideObjects :: ()
+{
   for * obj: G.obj.all_objects
   {
     if !OBJ_HasAnyFlag(obj, .MOVE) continue;
@@ -203,15 +283,6 @@ TICK_AdvanceSimulation :: ()
     if length(obj.s.moved_dp) < MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
       obj.s.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
   } // obj loop
-
-  for * obj: G.obj.all_objects
-  {
-    if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
-    {
-      if HasLength(obj.s.moved_dp)
-        obj.s.rotation = DirectionXYToRotationZ(obj.s.moved_dp);
-    }
-  }
 }
 
 TICK_Playback :: ()
