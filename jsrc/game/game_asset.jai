@@ -189,6 +189,10 @@ GetModel :: (key: MODEL_Key) -> *Model
       break;
     }
   }
+
+  if asset == *G.ast.nil_model
+    log("Model % not found", key, flags = .WARNING|.CONTENT);
+
   return asset;
 }
 

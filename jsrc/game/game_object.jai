@@ -199,6 +199,25 @@ OBJ_Init :: ()
     }
   }
 
+  // Add planks
+  {
+    for side: 0..1
+    {
+      for tier: 0..2
+      {
+        plank := OBJ_Create(.OFFLINE, .DRAW_MODEL);
+        if !OBJ_IsNil(plank)
+        {
+          p := 6.0 + 10.0*tier;
+          if side == 0 then p = -p;
+
+          plank.s.p = .{-p,p,0};
+          plank.s.model = ModelKey("Plank");
+        }
+      }
+    }
+  }
+
   // Add trees
   {
     x_count := 4;

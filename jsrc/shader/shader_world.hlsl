@@ -230,6 +230,8 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
   V3 color_specular = specular_factor * sun_specular * material_specular;
   V3 color = color_ambient + (color_diffuse + color_specular) * (1.f - shadow);
 
+  float pixel_distance = distance(frag.world_p, UP.camera_position);
+
   if (UP.flags & WORLD_FLAG_DrawBorderAtUVEdge)
   {
     float u = frac(frag.uv.x);
@@ -244,15 +246,20 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     float mask = 1.f;
     mask *= smoothstep(0.0f, 0.02f, border);
     mask *= (border*0.5 + 0.5);
-    // mask *= border;
+
+    float visibility_falloff_start = 10.f;
+    float visibility_falloff_end   = 30.f;
+    float visibility_t = 1.f - smoothstep(visibility_falloff_start, visibility_falloff_end, pixel_distance);
+    // visibility_t = 0.f;
+    mask = lerp(1.f, mask, visibility_t);
+
     color *= mask;
   }
 
   // Apply fog
   {
-    float pixel_distance = distance(frag.world_p, UP.camera_position);
-    float fog_min = 1000.f;
-    float fog_max = 2000.f;
+    float fog_min = 100.f;
+    float fog_max = 200.f;
 
     float fog_t = smoothstep(fog_min, fog_max, pixel_distance);
     color = lerp(color, fog_color, fog_t);

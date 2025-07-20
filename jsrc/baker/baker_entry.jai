@@ -23,6 +23,8 @@ main :: ()
     BK_GLTF_Load("../res/models/UniversalAnimationLibrary[Standard]/Dude.glb", spec);
     BK_GLTF_Load("../res/models/ZombieApocalypseKit/Zombie.gltf", .{height = 1.0, rot = rot_xz});
 
+    BK_GLTF_Load("../res/models/MedievalVillageMegaKit[Standard]/Corner_ExteriorWide_Wood.gltf", .{height = 3.0, rot = rot_xz, name = "Plank"});
+
     BK_GLTF_Load("../res/models/Flag.glb", .{height = 1.0, rot = rot_x});
     BK_GLTF_Load("../res/models/tree_low-poly/scene.gltf", .{disable_z0 = true, height = 5.0, name = "Tree"});
     Timer("GLTF models loaded");
