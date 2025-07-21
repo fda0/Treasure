@@ -254,8 +254,8 @@ NET_IterateSend :: ()
         if OBJ_KeyIsZero(player_key)
         {
           model_keys := MODEL_Key.[
+            ModelKey("Dude"),
             ModelKey("Zombie"),
-            // ModelKey("Dude"),
             // ModelKey("Worker"),
             // ModelKey("Formal"),
             // ModelKey("Casual"),

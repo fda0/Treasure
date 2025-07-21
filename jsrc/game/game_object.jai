@@ -82,7 +82,7 @@ OBJ_Sync :: struct
   // game stats
   max_hp: float;
   hp: float;
-  attack_speed: float = 0.25;
+  attack_speed: float = 0.75;
 
   // game state
   is_attacking: bool;
@@ -201,7 +201,7 @@ OBJ_Init :: ()
     }
   }
 
-  // Add planks
+  // Add turrets
   {
     for side: 0..1
     {
@@ -209,23 +209,25 @@ OBJ_Init :: ()
       {
         if tier != 0 continue;
 
-        plank := OBJ_Create(.NETWORK,
+        turret := OBJ_Create(.NETWORK,
           .COLLIDE | .DRAW_MODEL |
-          .HAS_HP | .TARGETABLE | .PLAY_SOUNDS);
+          .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET);
 
-        if !OBJ_IsNil(plank)
+        if !OBJ_IsNil(turret)
         {
           p := 6.0 + 10.0*tier;
           if side == 0 then p = -p;
-          plank.s.p = .{-p,p,0};
+          turret.s.p = .{-p,p,0};
 
           dim := 0.4;
-          plank.s.collider = OBJ_ColliderFromRect(.{dim,dim});
+          turret.s.collider = OBJ_ColliderFromRect(.{dim,dim});
 
-          plank.s.model = ModelKey("Plank");
+          turret.s.model = ModelKey("Plank");
 
-          plank.s.max_hp = 400;
-          plank.s.hp = 400;
+          turret.s.attack_speed = 0.75;
+          turret.s.max_hp = 400;
+          turret.s.hp = 400;
         }
       }
     }
@@ -304,20 +306,12 @@ OBJ_ColorToKey :: (color: Color32, from_bgra := true) -> OBJ_Key
   return byte_array.data.(*OBJ_Key).*;
 }
 
-OBJ_GetNil :: () -> *Object
-{
-  return *OBJ_NIL;
-}
+OBJ_Distance2DSquared :: (a: *Object, b: *Object) -> float { return distance_squared(a.s.p.xy, b.s.p.xy); }
+OBJ_Distance2D :: (a: *Object, b: *Object) -> float { return distance(a.s.p.xy, b.s.p.xy); }
 
-OBJ_IsNil :: (obj: *Object) -> bool
-{
-  return obj == *OBJ_NIL;
-}
-
-operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool
-{
-  return (a.index24_serial8 == b.index24_serial8);
-}
+OBJ_GetNil :: () -> *Object { return *OBJ_NIL; }
+OBJ_IsNil :: (obj: *Object) -> bool { return obj == *OBJ_NIL; }
+operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
 OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
 {

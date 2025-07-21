@@ -213,6 +213,11 @@ ANIMATION_AnimateObjects :: ()
       }
     }
 
+    if OBJ_HasAnyFlag(obj, .IS_TURRET)
+    {
+      obj.s.p.z = obj.s.attack_t;
+    }
+
     if OBJ_HasAnyFlag(obj, .ANIMATE_TRACKS)
     {
       model := GetModel(obj.s.model);

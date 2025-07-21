@@ -34,6 +34,13 @@ MINIMUM_MOVE_START_DISTANCE :: 0.05;
 
 TICK_AdvanceSimulation :: ()
 {
+  reset_attack_timers :: (obj: *Object)
+  {
+    obj.s.target = .{};
+    obj.s.attack_t = min(obj.s.attack_t, 0.0);
+    obj.s.attack_continous_t = 0.0;
+  }
+
   // apply player action
   for player_key, player_index: G.server.player_keys
   {
@@ -49,13 +56,6 @@ TICK_AdvanceSimulation :: ()
       player_to_destination := action.world_p.xy - player.s.p.xy;
       distance := length(player_to_destination);
       if distance >= MINIMUM_MOVE_START_DISTANCE then player_move_dir = player_to_destination * (1.0 / distance);
-    }
-
-    reset_attack_timers :: (obj: *Object)
-    {
-      obj.s.target = .{};
-      obj.s.attack_t = min(obj.s.attack_t, 0.0);
-      obj.s.attack_continous_t = 0.0;
     }
 
     // Advance attack timers
@@ -127,50 +127,73 @@ TICK_AdvanceSimulation :: ()
 
   for * turret: G.obj.network_objects
   {
-    // if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
+    if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
 
-    // current_target := OBJ_Get(turret.s.target_object, .NETWORK);
+    current_target := OBJ_Get(turret.s.target, .NETWORK);
 
-    // // @speed query nearby objects instead of scanning the whole game
-    // nearest_target: *Object;
-    // {
-    //   distance_squared_to_nearest := FLOAT32_MAX;
-    //   for * enemy: G.obj.all_objects
-    //   {
-    //     if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
+    // @speed query nearby objects instead of scanning the whole game?
+    nearest_target: *Object;
+    {
+      dist_sq_to_nearest := FLOAT32_MAX;
+      for * enemy: G.obj.network_objects
+      {
+        if enemy == turret continue;
+        if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
 
-    //     distance_squared := distance_squared(turret.s.p, enemy.s.p);
-    //     if distance_squared < distance_squared_to_nearest
-    //     {
-    //       nearest_target = enemy;
-    //       distance_squared = distance_squared_to_nearest;
-    //     }
-    //   }
-    // }
+        dist_sq := OBJ_Distance2DSquared(turret, enemy);
+        if dist_sq < dist_sq_to_nearest
+        {
+          nearest_target = enemy;
+          dist_sq_to_nearest = dist_sq;
+        }
+      }
+    }
 
-    // SHOOT_RANGE :: 3.0;
+    SHOOT_RANGE :: 4.0;
 
-    // if OBJ_IsNil(current_target)
-    // {
-    //   dist_sq := distance_squared(turret.s.p, current_target.s.p);
-    //   if square(SHOOT_RANGE) < dist_sq then currrent_target = null;
-    // }
+    if !OBJ_IsNil(current_target)
+    {
+      dist_sq := OBJ_Distance2DSquared(turret, current_target);
+      if square(SHOOT_RANGE) < dist_sq then current_target = null;
+    }
+    if OBJ_IsNil(current_target) && !OBJ_IsNil(nearest_target)
+    {
+      dist_sq := OBJ_Distance2DSquared(turret, nearest_target);
+      if square(SHOOT_RANGE) >= dist_sq then current_target = nearest_target;
+    }
 
-    // if OBJ_IsNil(current_target) && !OBJ_IsNil(nearest_target)
-    // {
-    //   dist_sq := distance_squared(turret.s.p, nearest_target.s.p);
-    //   if square(SHOOT_RANGE) >= dist_sq then current_target = nearest_target;
-    // }
+    turret.s.is_attacking = !OBJ_IsNil(current_target);
 
-    // turret.s.is_attacking = current_target != null;
+    attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
+    turret.s.attack_t += attack_t_delta;
+    turret.s.attack_continous_t += attack_t_delta;
 
-    // if turret.s.is_attacking
-    // {
-    // }
-    // else
-    // {
-    //   // turret.s.target_object =
-    // }
+    if turret.s.is_attacking
+    {
+      attack_damage := 16.0;
+
+      while turret.s.attack_t >= ATTACK_LANDED_T
+      {
+        turret.s.attack_t -= ATTACK_COOLDOWN_T;
+        current_target.s.hp -= attack_damage;
+
+        // hit_animation_request := ANIMATION_Request.{
+        //   start = GetTime(),
+        //   type = .HIT
+        // };
+        // QueuePush(*current_target.s.animation_requests, hit_animation_request);
+
+        hit_sound_request := AUDIO_Request.{
+          start = GetTime(),
+          type = .HIT
+        };
+        QueuePush(*current_target.s.sound_requests, hit_sound_request);
+      }
+    }
+    else
+    {
+      reset_attack_timers(turret);
+    }
   }
 
   TICK_MoveAndCollideObjects();
