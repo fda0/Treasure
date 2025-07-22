@@ -182,6 +182,57 @@ Smoothstep :: (t: float, min: float = 0, max: float = 1) -> float
   return t * t * (3.0 - 2.0 * t);
 }
 
+EasingType :: enum u32
+{
+  IN_SINE;
+  OUT_SINE;
+  OUT_BOUNCE;
+}
+Easing :: (x: float, type: EasingType) -> float
+{
+  if #complete type == {
+    case .IN_SINE;  return 1 - Cos(x * 0.25);
+    case .OUT_SINE; return 1 - Sin(x * 0.25);
+
+    case .OUT_BOUNCE;
+    n1 := 7.5625;
+    d1 := 2.75;
+    if x < 1.0 / d1 {
+        return n1 * x * x;
+    } else if x < 2.0 / d1 {
+        x -= 1.5 / d1;
+        return n1 * x * x + 0.75;
+    } else if x < 2.5 / d1 {
+        x -= 2.25 / d1;
+        return n1 * x * x + 0.9375;
+    } else {
+        x -= 2.625 / d1;
+        return n1 * x * x + 0.984375;
+    }
+  }
+
+  return x;
+}
+
+EasingInOut :: (x: float, out_threshold: float, in: EasingType, out: EasingType,
+                in_scale := 1.0, out_scale := 1.0) -> float
+{
+  if x < out_threshold
+  {
+    // in
+    in_range := out_threshold;
+    x = x / in_range;
+    return Easing(x, in) * in_scale;
+  }
+  else
+  {
+    // out
+    out_range := 1.0 - out_threshold;
+    x = (x - out_threshold) / out_range;
+    return in_scale - Easing(x, out)*out_scale;
+  }
+}
+
 Sign :: (x: float) -> float { return ifx x < 0.0 then -1.0 else 1.0; }
 
 CeilPow2 :: (v: u32) -> u32

@@ -123,7 +123,7 @@ PLATFORM_Iterate :: ()
         }
       }
 
-      SDL_SetWindowMouseGrab(G.window, !G.dev.show);
+      SDL_SetWindowMouseGrab(G.window, !G.dev.show && !G.dev.noclip);
 
       mouse_keys := SDL_GetMouseState(*G.mouse.x, *G.mouse.y);
       KEY_Update(.MOUSE_LEFT, !!(mouse_keys & SDL_BUTTON_LMASK));

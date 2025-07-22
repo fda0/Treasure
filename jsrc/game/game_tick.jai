@@ -47,6 +47,8 @@ TICK_AdvanceSimulation :: ()
     player := OBJ_Get(player_key, .NETWORK);
     if OBJ_IsNil(player) continue;
 
+    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 10.0, player.s.max_hp);
+
     player_move_dir: V2;
     action := SERVER_GetPlayerAction(xx player_index);
 

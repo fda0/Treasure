@@ -99,16 +99,8 @@ WORLD_DrawObjects :: ()
 
     if draw_model
     {
-      pos := obj.s.p;
-      if OBJ_HasAnyFlag(obj, .ANIMATE_POSITION)
-        pos = obj.l.animated_p;
-
-      transform := TranslationMatrix(pos);
-      if OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION)
-      {
-        rot_mat := RotationMatrix(obj.l.animated_rot);
-        transform = transform * rot_mat; // rotate first, translate second
-      }
+      transform := TranslationMatrix(obj.l.animated_p);
+      transform = transform * RotationMatrix(obj.l.animated_rot); // rotate first, translate second
 
       hover_color := ColorV4.{1,1,1,1};
       if obj.s.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);

@@ -58,6 +58,8 @@ OBJ_Flags :: enum_flags u32
   ANIMATE_ROTATION;
   ANIMATE_POSITION;
   ANIMATE_TRACKS;
+  MANUAL_ROTATION;
+  MANUAL_POSITION;
 
   DRAW_MODEL;
   DRAW_COLLIDERS;
@@ -212,7 +214,7 @@ OBJ_Init :: ()
         turret := OBJ_Create(.NETWORK,
           .COLLIDE | .DRAW_MODEL |
           .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET);
+          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION);
 
         if !OBJ_IsNil(turret)
         {
@@ -225,7 +227,7 @@ OBJ_Init :: ()
 
           turret.s.model = ModelKey("Plank");
 
-          turret.s.attack_speed = 0.75;
+          turret.s.attack_speed = 0.5;
           turret.s.max_hp = 400;
           turret.s.hp = 400;
         }

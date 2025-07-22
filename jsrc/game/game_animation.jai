@@ -182,7 +182,29 @@ ANIMATION_AnimateObjects :: ()
 {
   for *obj: G.obj.all_objects
   {
-    if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
+    animate_rotation := OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION);
+    animate_position := OBJ_HasAnyFlag(obj, .ANIMATE_POSITION);
+
+    if OBJ_HasAnyFlag(obj, .IS_TURRET)
+    {
+      t := WrapFloat(0.0, ATTACK_COOLDOWN_T, obj.s.attack_t);
+      pos_t := EasingInOut(t, ATTACK_LANDED_T, .IN_SINE, .OUT_BOUNCE);
+      rot_t := EasingInOut(t, ATTACK_LANDED_T, .IN_SINE, .OUT_BOUNCE, out_scale = -3.0);
+
+      obj.l.animated_p.xy = obj.s.p.xy;
+      if obj.s.is_attacking || obj.s.attack_t < 0.0
+      {
+        obj.l.animated_p.z = pos_t * 0.5;
+        obj.l.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
+      }
+      else
+      {
+        animate_rotation = true;
+        animate_position = true;
+      }
+    }
+
+    if animate_rotation
     {
       ROTATION_SPEED :: 16.0;
 
@@ -197,8 +219,12 @@ ANIMATION_AnimateObjects :: ()
 
       obj.l.animated_rot = normalize(Mix(q0, q1, w0, w1));
     }
+    else if !OBJ_HasAnyFlag(obj, .MANUAL_ROTATION)
+    {
+      obj.l.animated_rot = obj.s.rotation;
+    }
 
-    if OBJ_HasAnyFlag(obj, .ANIMATE_POSITION)
+    if animate_position
     {
       POSITION_SPEED :: 10.0;
 
@@ -212,10 +238,9 @@ ANIMATION_AnimateObjects :: ()
           it.* = obj.s.p.component[it_index];
       }
     }
-
-    if OBJ_HasAnyFlag(obj, .IS_TURRET)
+    else if !OBJ_HasAnyFlag(obj, .MANUAL_POSITION)
     {
-      obj.s.p.z = obj.s.attack_t;
+      obj.l.animated_p = obj.s.p;
     }
 
     if OBJ_HasAnyFlag(obj, .ANIMATE_TRACKS)
