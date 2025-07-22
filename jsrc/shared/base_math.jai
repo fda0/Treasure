@@ -190,6 +190,7 @@ EasingType :: enum u32
 }
 Easing :: (x: float, type: EasingType) -> float
 {
+  // easings.net
   if #complete type == {
     case .IN_SINE;  return 1 - Cos(x * 0.25);
     case .OUT_SINE; return 1 - Sin(x * 0.25);
