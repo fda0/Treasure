@@ -179,6 +179,14 @@ TICK_AdvanceSimulation :: ()
         turret.s.attack_t -= ATTACK_COOLDOWN_T;
         current_target.s.hp -= attack_damage;
 
+        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL);
+        if !OBJ_IsNil(projectile)
+        {
+          projectile.s.model = ModelKey("Potion");
+          projectile.s.p.xy = lerp(turret.s.p.xy, current_target.s.p.xy, 0.8);
+          projectile.s.p.z = 1.8;
+        }
+
         // hit_animation_request := ANIMATION_Request.{
         //   start = GetTime(),
         //   type = .HIT

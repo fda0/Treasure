@@ -21,6 +21,7 @@ build :: ()
     CGLTF;
     ALL :: ~0;
   };
+  run_baker := false;
 
   options := get_build_options();
   for options.compile_time_command_line
@@ -35,6 +36,7 @@ build :: ()
       case "sdl";         build_targets |= .SDL;
       case "cgltf";       build_targets |= .CGLTF;
       case "build_all";   build_targets |= .ALL;
+      case "run_baker";   run_baker = true;
       case; log_error("Unknown argument: %", it); exit(1);
     }
   }
@@ -127,7 +129,8 @@ build :: ()
     Build(.{workspace_name = "Baker",
             output_name = "Baker",
             entry_file = "jsrc/baker/baker_entry.jai",
-            icon_path = "res/ico/cook.ico"});
+            icon_path = "res/ico/cook.ico",
+            autorun = run_baker});
   }
 
   if build_targets & .TREASURE
@@ -147,6 +150,7 @@ BuildConfig :: struct
   output_name: string;
   entry_file: string;
   icon_path: string;
+  autorun: bool;
 };
 
 BuildInProgress :: struct
@@ -210,6 +214,11 @@ MessageLoop :: ()
             success := set_icon_by_filename(exe_filename, icon_path);
             if !success then log_error("Failed to set the icon for exe '%' to filename '%'.", exe_filename, icon_path);
           }
+        }
+
+        if autorun
+        {
+          Run(join(BUILD_DIRECTORY, "/", output_name), work_dir = BUILD_DIRECTORY);
         }
       }
     }
