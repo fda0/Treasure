@@ -296,6 +296,13 @@ OBJ_KeyToColor :: (key: OBJ_Key) -> Color32
   return byte_array.data.(*Color32).*;
 }
 
+OBJ_RngStateFromObjCreationTime :: (obj: *Object) -> Random_State
+{
+  rng: Random_State;
+  random_seed(*rng, obj.s.creation_time.(u64));
+  return rng;
+}
+
 OBJ_ColorToKey :: (color: Color32, from_bgra := true) -> OBJ_Key
 {
   r := ((color      ) & 0xff).(u8);

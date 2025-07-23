@@ -460,6 +460,7 @@ GAME_AutoLayoutApply :: (code: ..Code) #expand
 #import "Basic";
 #import "File";
 #import "Thread";
+#import "Random";
 String :: #import "String";
 
 #load "../shared/base_utils.jai";

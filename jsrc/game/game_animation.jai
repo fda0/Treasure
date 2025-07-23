@@ -204,6 +204,20 @@ ANIMATION_AnimateObjects :: ()
       }
     }
 
+    if OBJ_HasAnyFlag(obj, .TARGETED_PROJECTILE)
+    {
+      rng := OBJ_RngStateFromObjCreationTime(obj);
+      weight0 := random_get_zero_to_one(*rng);
+      weight1 := (1.0 - weight0)*0.5 + random_get_zero_to_one(*rng)*0.5;
+      offset0 := random_get_zero_to_one(*rng);
+      offset1 := random_get_zero_to_one(*rng);
+
+      t := ElapsedTimeS(obj.s.creation_time);
+      obj.l.animated_rot =
+        RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
+        RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
+    }
+
     if animate_rotation
     {
       ROTATION_SPEED :: 16.0;

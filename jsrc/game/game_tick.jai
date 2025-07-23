@@ -181,7 +181,7 @@ TICK_AdvanceSimulation :: ()
         turret.s.attack_t -= ATTACK_COOLDOWN_T;
         // current_target.s.hp -= attack_damage;
 
-        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE);
+        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
         {
           projectile.s.model = ModelKey("Potion");
