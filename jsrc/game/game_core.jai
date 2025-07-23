@@ -44,10 +44,12 @@ GAME_State :: struct
   window_on_top: bool;
   window_autolayout: bool;
   server_exit_on_disconnect: bool;
+  grab_mouse: bool;
   sdl_is_fullscreen: bool;
   // SDL audio
 
   // user input
+  window_has_focus: bool;
   mouse: V2;
   mouse_delta: V2;
   mouse_scroll: V2;
@@ -141,6 +143,11 @@ GAME_Iterate :: ()
 
   if !G.headless // @todo Some of this code should probably run in headless too.
   {
+    if G.dev.show || G.dev.noclip || !G.window_has_focus
+      G.grab_mouse = false;
+    else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse)
+      G.grab_mouse = true;
+
     UI_DeveloperKeyShortcuts();
 
     if G.dev.noclip
@@ -171,7 +178,7 @@ GAME_Iterate :: ()
       G.camera_angles = V3.{0, -0.138, 0};
 
       // Mouse window edge camera scroll
-      if !G.dev.show && OverlapsRange(MakeRange(G.window_dim), G.mouse)
+      if G.grab_mouse
       {
         window_margin := min(G.window_dim.x, G.window_dim.y) * 0.025;
         ratio := 1.0 / window_margin;

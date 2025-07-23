@@ -69,6 +69,7 @@ OBJ_Flags :: enum_flags u32
   TARGETABLE;
   PLAY_SOUNDS;
   IS_TURRET;
+  TARGETED_PROJECTILE;
 };
 
 OBJ_Sync :: struct
@@ -77,6 +78,7 @@ OBJ_Sync :: struct
   key: OBJ_Key;
   flags: OBJ_Flags;
   init: bool;
+  creation_time: TimestampMS;
   p: V3; // XY center, Z at bottom
   desired_dp: V3; // move that Object wanted to make
   moved_dp: V3; // move that Object did after collision simulation
@@ -84,7 +86,7 @@ OBJ_Sync :: struct
   // game stats
   max_hp: float;
   hp: float;
-  attack_speed: float = 0.75;
+  attack_speed: float = 1.75;
 
   // game state
   is_attacking: bool;
@@ -315,6 +317,11 @@ OBJ_GetNil :: () -> *Object { return *OBJ_NIL; }
 OBJ_IsNil :: (obj: *Object) -> bool { return obj == *OBJ_NIL; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
+OBJ_Delete :: (obj: *Object)
+{
+  obj.* = .{};
+}
+
 OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
 {
   result := OBJ_GetNil();
@@ -406,11 +413,9 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
   if matched_storages != 1
   {
     obj = null;
-    assert(matched_storages == 1,
-      tprint("Invalid OBJ_Storage (%) used in OBJ_Create", storage));
+    assert(matched_storages == 1, "Invalid OBJ_Storage (%) used in OBJ_Create", storage);
   }
-  if (!obj)
-    return OBJ_GetNil();
+  if !obj then return OBJ_GetNil();
 
   // init object
   prev_serial_number := OBJ_SerialOfKey(obj.s.key);
@@ -421,6 +426,7 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
 
   obj.s.flags = flags;
   obj.s.init = true;
+  obj.s.creation_time = GetTime();
   obj.s.color = Color32_RGBf(1,1,1);
   return obj;
 }

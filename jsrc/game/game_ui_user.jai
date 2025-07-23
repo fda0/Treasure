@@ -1,6 +1,6 @@
 DEV_State :: struct
 {
-  show := true;
+  show := false;
   win_p: V2;
 
   category: enum {stats; switches; assets; network; objects; };
@@ -19,7 +19,7 @@ DEV_State :: struct
   } = .ENABLED;
 
   // objects
-  show_joint_hierarchy := true;
+  show_joint_hierarchy := false;
 }
 
 UI_State :: struct

@@ -123,7 +123,7 @@ PLATFORM_Iterate :: ()
         }
       }
 
-      SDL_SetWindowMouseGrab(G.window, !G.dev.show && !G.dev.noclip);
+      SDL_SetWindowMouseGrab(G.window, G.grab_mouse);
 
       mouse_keys := SDL_GetMouseState(*G.mouse.x, *G.mouse.y);
       KEY_Update(.MOUSE_LEFT, !!(mouse_keys & SDL_BUTTON_LMASK));
@@ -133,6 +133,9 @@ PLATFORM_Iterate :: ()
       key_states := SDL_GetKeyboardState(*num_keys);
       for MakeRange(num_keys)
         KEY_Update(xx it, key_states[it]);
+
+      window_flags := SDL_GetWindowFlags(G.window);
+      G.window_has_focus = !!(window_flags & SDL_WINDOW_MOUSE_FOCUS);
     }
 
     GAME_Iterate();

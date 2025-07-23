@@ -31,6 +31,8 @@ TICK_Iterate :: ()
 ATTACK_LANDED_T :: 0.25;
 ATTACK_COOLDOWN_T :: 1.0;
 MINIMUM_MOVE_START_DISTANCE :: 0.05;
+MELEE_ATTACK_DISTANCE :: 0.8;
+PROJECTILE_HIT_DISTANCE :: 0.1;
 
 TICK_AdvanceSimulation :: ()
 {
@@ -127,7 +129,7 @@ TICK_AdvanceSimulation :: ()
     player.s.desired_dp = V3.{xy = player_move_dir * player_speed, z = 0};
   }
 
-  for * turret: G.obj.network_objects
+  for *turret: G.obj.network_objects
   {
     if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
 
@@ -177,14 +179,15 @@ TICK_AdvanceSimulation :: ()
       while turret.s.attack_t >= ATTACK_LANDED_T
       {
         turret.s.attack_t -= ATTACK_COOLDOWN_T;
-        current_target.s.hp -= attack_damage;
+        // current_target.s.hp -= attack_damage;
 
-        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL);
+        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE);
         if !OBJ_IsNil(projectile)
         {
           projectile.s.model = ModelKey("Potion");
-          projectile.s.p.xy = lerp(turret.s.p.xy, current_target.s.p.xy, 0.8);
-          projectile.s.p.z = 1.8;
+          projectile.s.p.xy = turret.s.p.xy;
+          projectile.s.p.z = 3.5;
+          projectile.s.target = current_target.s.key;
         }
 
         // hit_animation_request := ANIMATION_Request.{
@@ -203,6 +206,53 @@ TICK_AdvanceSimulation :: ()
     else
     {
       reset_attack_timers(turret);
+    }
+  }
+
+  for *projectile: G.obj.network_objects
+  {
+    if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
+
+    target := OBJ_Get(projectile.s.target, .NETWORK);
+    if !OBJ_IsNil(target)
+    {
+      apply_hit := false;
+
+      // move projectile
+      target_p := target.s.p;
+      target_p.z = 1.0;
+
+      gap := target_p - projectile.s.p;
+      gap_length := length(gap);
+
+      fly_speed := 1.0 + 5.0*min(1.0, ElapsedTimeS(projectile.s.creation_time));
+      fly_speed *= TICK_FLOAT_STEP;
+
+      if gap_length > 0.0
+      {
+        direction := gap * (1.0 / gap_length);
+        projectile_shift := direction * min(fly_speed, gap_length);
+        projectile.s.p += projectile_shift;
+      }
+      else apply_hit = true;
+
+      // test for hit in 2D
+      dist_2d_sq := OBJ_Distance2DSquared(target, projectile);
+      apply_hit |= dist_2d_sq <= square(PROJECTILE_HIT_DISTANCE);
+
+      if apply_hit
+      {
+        attack_damage := 25.0;
+        target.s.hp -= attack_damage;
+
+        hit_sound_request := AUDIO_Request.{
+          start = GetTime(),
+          type = .HIT
+        };
+        QueuePush(*target.s.sound_requests, hit_sound_request);
+
+        OBJ_Delete(projectile);
+      }
     }
   }
 
