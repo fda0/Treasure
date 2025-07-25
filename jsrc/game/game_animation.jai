@@ -187,14 +187,17 @@ ANIMATION_AnimateObjects :: ()
 
     if OBJ_HasAnyFlag(obj, .IS_TURRET)
     {
-      t := WrapFloat(0.0, ATTACK_COOLDOWN_T, obj.s.attack_t);
-      pos_t := EasingInOut(t, ATTACK_LANDED_T, .IN_SINE, .OUT_BOUNCE);
-      rot_t := EasingInOut(t, ATTACK_LANDED_T, .IN_SINE, .OUT_BOUNCE, out_scale = -3.0);
+      t := WrapFloat(0.0, obj.s.attack_cooldown_t, obj.s.attack_t);
+      max_t := min(1.25, obj.s.attack_cooldown_t);
+      t = min(t, max_t) / max_t;
+
+      pos_t := EasingInOut(t, obj.s.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
+      rot_t := EasingInOut(t, obj.s.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
       obj.l.animated_p.xy = obj.s.p.xy;
       if obj.s.is_attacking || obj.s.attack_t < 0.0
       {
-        obj.l.animated_p.z = pos_t * 0.5;
+        obj.l.animated_p.z = pos_t * 1.0;
         obj.l.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
       }
       else
@@ -287,9 +290,9 @@ ANIMATION_AnimateObjects :: ()
           (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
         AddClamp01(*obj.l.animation_full_punching_hot_t,
           (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
-        attack_normalized_t := WrapFloat(0.0, ATTACK_COOLDOWN_T, obj.s.attack_t);
-        attack_normalized_t /= ATTACK_COOLDOWN_T;
-        use_jab_animation := WrapFloat(0.0, ATTACK_COOLDOWN_T*2, obj.s.attack_continous_t) > ATTACK_COOLDOWN_T;
+        attack_normalized_t := WrapFloat(0.0, obj.s.attack_cooldown_t, obj.s.attack_t);
+        attack_normalized_t /= obj.s.attack_cooldown_t;
+        use_jab_animation := WrapFloat(0.0, obj.s.attack_cooldown_t*2, obj.s.attack_continous_t) > obj.s.attack_cooldown_t;
 
         // Fill animation tracks
         all_joints_are_masked := false;

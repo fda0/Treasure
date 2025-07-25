@@ -88,6 +88,9 @@ OBJ_Sync :: struct
   hp: float;
   attack_speed: float = 1.75;
 
+  attack_landed_t := 0.25;
+  attack_cooldown_t := 1.0;
+
   // game state
   is_attacking: bool;
   target: OBJ_Key;
@@ -232,6 +235,8 @@ OBJ_Init :: ()
           turret.s.attack_speed = 0.5;
           turret.s.max_hp = 400;
           turret.s.hp = 400;
+          turret.s.attack_landed_t = 0.1;
+          turret.s.attack_cooldown_t = 5.0;
         }
       }
     }

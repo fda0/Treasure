@@ -28,8 +28,6 @@ TICK_Iterate :: ()
   }
 }
 
-ATTACK_LANDED_T :: 0.25;
-ATTACK_COOLDOWN_T :: 1.0;
 MINIMUM_MOVE_START_DISTANCE :: 0.05;
 MELEE_ATTACK_DISTANCE :: 0.8;
 PROJECTILE_HIT_DISTANCE :: 0.1;
@@ -95,9 +93,9 @@ TICK_AdvanceSimulation :: ()
           player.s.rotation = DirectionXYToRotationZ(attacked.s.p - player.s.p);
 
           attack_damage := 10.0;
-          while player.s.attack_t >= ATTACK_LANDED_T
+          while player.s.attack_t >= player.s.attack_landed_t
           {
-            player.s.attack_t -= ATTACK_COOLDOWN_T;
+            player.s.attack_t -= player.s.attack_cooldown_t;
             attacked.s.hp -= attack_damage;
 
             hit_animation_request := ANIMATION_Request.{
@@ -176,9 +174,9 @@ TICK_AdvanceSimulation :: ()
     {
       attack_damage := 16.0;
 
-      while turret.s.attack_t >= ATTACK_LANDED_T
+      while turret.s.attack_t >= turret.s.attack_landed_t
       {
-        turret.s.attack_t -= ATTACK_COOLDOWN_T;
+        turret.s.attack_t -= turret.s.attack_cooldown_t;
         // current_target.s.hp -= attack_damage;
 
         projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
@@ -186,7 +184,7 @@ TICK_AdvanceSimulation :: ()
         {
           projectile.s.model = ModelKey("Potion");
           projectile.s.p.xy = turret.s.p.xy;
-          projectile.s.p.z = 3.5;
+          projectile.s.p.z = 4.1;
           projectile.s.target = current_target.s.key;
         }
 
