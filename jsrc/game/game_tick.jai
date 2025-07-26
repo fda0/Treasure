@@ -167,6 +167,15 @@ TICK_AdvanceSimulation :: ()
     turret.s.is_attacking = !OBJ_IsNil(current_target);
 
     attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
+    if OBJ_IsNil(OBJ_Get(turret.s.last_projectile, .NETWORK))
+    {
+      additional_delta := TICK_FLOAT_STEP * 100.0;
+      // delta is applied only if turret is on cooldown
+      additional_delta = min(additional_delta, -turret.s.attack_t);
+      additional_delta = max(additional_delta, 0.0);
+      attack_t_delta += additional_delta;
+    }
+
     turret.s.attack_t += attack_t_delta;
     turret.s.attack_continous_t += attack_t_delta;
 
@@ -186,6 +195,8 @@ TICK_AdvanceSimulation :: ()
           projectile.s.p.xy = turret.s.p.xy;
           projectile.s.p.z = 4.1;
           projectile.s.target = current_target.s.key;
+
+          turret.s.last_projectile = projectile.s.key;
         }
 
         // hit_animation_request := ANIMATION_Request.{

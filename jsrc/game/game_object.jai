@@ -94,6 +94,7 @@ OBJ_Sync :: struct
   // game state
   is_attacking: bool;
   target: OBJ_Key;
+  last_projectile: OBJ_Key;
   attack_t: float;
   attack_continous_t: float;
   animation_requests: Queue(3, ANIMATION_Request);
