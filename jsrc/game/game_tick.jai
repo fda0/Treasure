@@ -41,61 +41,74 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_continous_t = 0.0;
   }
 
-  // apply player action
+  // temporary - player health regen
+  for player_key: G.server.player_keys
+  {
+    player := OBJ_Get(player_key, .NETWORK);
+    if OBJ_IsNil(player) continue;
+    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 10.0, player.s.max_hp);
+    player.s.hp = max(player.s.hp, 0.0);
+  }
+
+  // transfer action to player objects
   for player_key, player_index: G.server.player_keys
   {
     player := OBJ_Get(player_key, .NETWORK);
     if OBJ_IsNil(player) continue;
-
-    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 10.0, player.s.max_hp);
-
-    player_move_dir: V2;
     action := SERVER_GetPlayerAction(xx player_index);
+    player.s.action = action;
+  }
 
-    if action.type == .PATHING ||
-       action.type == .PATHING_DIRECTION
+  // apply actions
+  for *obj: G.obj.network_objects
+  {
+    if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
+
+    obj_move_dir: V2;
+    if obj.s.action.type == .PATHING ||
+       obj.s.action.type == .PATHING_DIRECTION
     {
-      player_to_destination := action.world_p.xy - player.s.p.xy;
-      distance := length(player_to_destination);
-      if distance >= MINIMUM_MOVE_START_DISTANCE then player_move_dir = player_to_destination * (1.0 / distance);
+      obj_to_destination := obj.s.action.world_p.xy - obj.s.p.xy;
+      distance := length(obj_to_destination);
+      if distance >= MINIMUM_MOVE_START_DISTANCE then obj_move_dir = obj_to_destination * (1.0 / distance);
     }
 
     // Advance attack timers
-    attack_t_delta := TICK_FLOAT_STEP * player.s.attack_speed;
-    player.s.attack_t += attack_t_delta;
-    player.s.attack_continous_t += attack_t_delta;
+    attack_t_delta := TICK_FLOAT_STEP * obj.s.attack_speed;
+    obj.s.attack_t += attack_t_delta;
+    obj.s.attack_continous_t += attack_t_delta;
 
-    if action.type != .ATTACK
-      player.s.is_attacking = false;
+    if obj.s.action.type != .ATTACK
+      obj.s.is_attacking = false;
 
     // Handle action type .ATTACK
-    if action.type == .ATTACK
+    if obj.s.action.type == .ATTACK
     {
-      if player.s.target != action.target_object
+      if obj.s.target != obj.s.action.target_object
       {
-        reset_attack_timers(player);
-        player.s.is_attacking = false;
+        reset_attack_timers(obj);
+        obj.s.is_attacking = false;
       }
 
-      player.s.target = action.target_object;
+      obj.s.target = obj.s.action.target_object;
 
-      if player.s.attack_t >= 0.0
-        player.s.is_attacking = true;
+      if obj.s.attack_t >= 0.0
+        obj.s.is_attacking = true;
 
-      attacked := OBJ_Get(action.target_object, .NETWORK);
+      attacked := OBJ_Get(obj.s.action.target_object, .NETWORK);
       if !OBJ_IsNil(attacked)
       {
-        player_to_destination := attacked.s.p.xy - player.s.p.xy;
-        distance := length(player_to_destination);
+        obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
+        distance := length(obj_to_destination);
 
         if distance < 0.8
         {
-          player.s.rotation = DirectionXYToRotationZ(attacked.s.p - player.s.p);
+          obj.s.rotation = DirectionXYToRotationZ(attacked.s.p - obj.s.p);
 
           attack_damage := 10.0;
-          while player.s.attack_t >= player.s.attack_landed_t
+          while obj.s.attack_t >= obj.s.attack_landed_t
           {
-            player.s.attack_t -= player.s.attack_cooldown_t;
+            obj.s.attack_t -= obj.s.attack_cooldown_t;
             attacked.s.hp -= attack_damage;
 
             hit_animation_request := ANIMATION_Request.{
@@ -113,18 +126,18 @@ TICK_AdvanceSimulation :: ()
         }
         else if distance >= MINIMUM_MOVE_START_DISTANCE
         {
-          player_move_dir = player_to_destination * (1.0 / distance);
-          player.s.is_attacking = false;
+          obj_move_dir = obj_to_destination * (1.0 / distance);
+          obj.s.is_attacking = false;
         }
       }
     }
 
-    if !player.s.is_attacking
-      reset_attack_timers(player);
+    if !obj.s.is_attacking
+      reset_attack_timers(obj);
 
-    // Move player
-    player_speed := 1.4 * TICK_FLOAT_STEP;
-    player.s.desired_dp = V3.{xy = player_move_dir * player_speed, z = 0};
+    // Move obj
+    obj_speed := 1.4 * TICK_FLOAT_STEP;
+    obj.s.desired_dp = V3.{xy = obj_move_dir * obj_speed, z = 0};
   }
 
   for *turret: G.obj.network_objects

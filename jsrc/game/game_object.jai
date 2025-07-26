@@ -70,6 +70,7 @@ OBJ_Flags :: enum_flags u32
   PLAY_SOUNDS;
   IS_TURRET;
   TARGETED_PROJECTILE;
+  HAS_ACTION;
 };
 
 OBJ_Sync :: struct
@@ -99,6 +100,8 @@ OBJ_Sync :: struct
   attack_continous_t: float;
   animation_requests: Queue(3, ANIMATION_Request);
   sound_requests: Queue(3, AUDIO_Request);
+
+  action: Action;
 
   // visuals
   color: Color32; // unused?
@@ -464,7 +467,8 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key) -> *Object
   obj := OBJ_Create(storage,
     .MOVE | .COLLIDE | .DRAW_MODEL |
     .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS);
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+    .HAS_ACTION);
 
   if !OBJ_IsNil(obj)
   {
