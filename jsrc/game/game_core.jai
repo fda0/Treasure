@@ -307,7 +307,11 @@ GAME_Iterate :: ()
           Initialize(*G.action);
           G.action.type = .PATHING;
           G.action.world_p = G.world_mouse;
-          if move_pressed then G.action.pressed_timestamp = GetTime();
+          if move_pressed
+          {
+            marker := OBJ_Get(G.obj.pathing_marker, .OFFLINE);
+            if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
+          }
         }
       }
 
@@ -338,13 +342,7 @@ GAME_Iterate :: ()
         marker.s.flags |= .DRAW_MODEL;
         marker.s.model = ModelKey("Flag");
         marker.s.p = G.action.world_p;
-
-        marker.l.animated_p.x = marker.s.p.x;
-        marker.l.animated_p.y = marker.s.p.y;
-
-        if ElapsedTime(G.action.pressed_timestamp) == 0
-          marker.l.animated_p.z = 0.5;
-
+        marker.l.animated_p.xy = marker.s.p.xy;
         G.obj.pathing_marker_set = true;
       }
       else
