@@ -284,6 +284,27 @@ OBJ_Init :: ()
     h1 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
     if !OBJ_IsNil(h1) h1.s.p.y = 2.0;
   }
+
+
+  // Add sleepwalkers
+  {
+    sleeper := OBJ_Create(.NETWORK,
+      .MOVE | .COLLIDE | .DRAW_MODEL |
+      .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+      .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+      .HAS_ACTION);
+    if !OBJ_IsNil(sleeper)
+    {
+      sleeper.s.model = ModelKey("Zombie");
+      sleeper.s.hp = 60.0;
+      sleeper.s.max_hp = 60.0;
+
+      sleeper.s.action = .{
+        type = .ATTACK,
+        target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .IS_TURRET).s.key,
+      };
+    }
+  }
 }
 
 lerp :: (prev: OBJ_Sync, next: OBJ_Sync, t: float) -> OBJ_Sync
@@ -362,6 +383,36 @@ OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
     if obj.s.key == key then result = obj;
   }
   return result;
+}
+
+OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, flag_whitelist: OBJ_Flags = 0, flag_blacklist: OBJ_Flags = 0) -> *Object
+{
+  nearest := OBJ_GetNil();
+  nearest_distsq := FLOAT32_MAX;
+
+  test_for_nearest :: (maybe_nearest: *Object) #expand
+  {
+    if maybe_nearest == `obj return;
+    if OBJ_HasAnyFlag(maybe_nearest, `flag_blacklist) return;
+    if !OBJ_HasAllFlags(maybe_nearest, `flag_whitelist) return;
+
+    distsq := OBJ_Distance2DSquared(`obj, maybe_nearest);
+    if distsq < `nearest_distsq
+    {
+      `nearest = maybe_nearest;
+      `nearest_distsq = distsq;
+    }
+  }
+
+  if storage_mask & .OFFLINE
+    for *G.obj.offline_objects
+      test_for_nearest(it);
+
+  if storage_mask & .NETWORK
+    for *G.obj.network_objects
+      test_for_nearest(it);
+
+  return nearest;
 }
 
 OBJ_GetAny :: (key: OBJ_Key) -> *Object

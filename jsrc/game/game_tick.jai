@@ -144,40 +144,41 @@ TICK_AdvanceSimulation :: ()
   {
     if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
 
-    current_target := OBJ_Get(turret.s.target, .NETWORK);
+    attack_target := OBJ_Get(turret.s.target, .NETWORK);
 
+    nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, .TARGETABLE, .IS_TURRET);
     // @speed query nearby objects instead of scanning the whole game?
-    nearest_target: *Object;
-    {
-      dist_sq_to_nearest := FLOAT32_MAX;
-      for * enemy: G.obj.network_objects
-      {
-        if enemy == turret continue;
-        if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
+    // nearest_target: *Object;
+    // {
+    //   dist_sq_to_nearest := FLOAT32_MAX;
+    //   for * enemy: G.obj.network_objects
+    //   {
+    //     if enemy == turret continue;
+    //     if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
 
-        dist_sq := OBJ_Distance2DSquared(turret, enemy);
-        if dist_sq < dist_sq_to_nearest
-        {
-          nearest_target = enemy;
-          dist_sq_to_nearest = dist_sq;
-        }
-      }
-    }
+    //     dist_sq := OBJ_Distance2DSquared(turret, enemy);
+    //     if dist_sq < dist_sq_to_nearest
+    //     {
+    //       nearest_target = enemy;
+    //       dist_sq_to_nearest = dist_sq;
+    //     }
+    //   }
+    // }
 
     SHOOT_RANGE :: 4.0;
 
-    if !OBJ_IsNil(current_target)
+    if !OBJ_IsNil(attack_target)
     {
-      dist_sq := OBJ_Distance2DSquared(turret, current_target);
-      if square(SHOOT_RANGE) < dist_sq then current_target = null;
+      dist_sq := OBJ_Distance2DSquared(turret, attack_target);
+      if square(SHOOT_RANGE) < dist_sq then attack_target = null;
     }
-    if OBJ_IsNil(current_target) && !OBJ_IsNil(nearest_target)
+    if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
     {
       dist_sq := OBJ_Distance2DSquared(turret, nearest_target);
-      if square(SHOOT_RANGE) >= dist_sq then current_target = nearest_target;
+      if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
     }
 
-    turret.s.is_attacking = !OBJ_IsNil(current_target);
+    turret.s.is_attacking = !OBJ_IsNil(attack_target);
 
     attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
     if OBJ_IsNil(OBJ_Get(turret.s.last_projectile, .NETWORK))
@@ -199,7 +200,7 @@ TICK_AdvanceSimulation :: ()
       while turret.s.attack_t >= turret.s.attack_landed_t
       {
         turret.s.attack_t -= turret.s.attack_cooldown_t;
-        // current_target.s.hp -= attack_damage;
+        // attack_target.s.hp -= attack_damage;
 
         projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
@@ -207,7 +208,7 @@ TICK_AdvanceSimulation :: ()
           projectile.s.model = ModelKey("Potion");
           projectile.s.p.xy = turret.s.p.xy;
           projectile.s.p.z = 4.1;
-          projectile.s.target = current_target.s.key;
+          projectile.s.target = attack_target.s.key;
 
           turret.s.last_projectile = projectile.s.key;
         }
@@ -216,13 +217,13 @@ TICK_AdvanceSimulation :: ()
         //   start = GetTime(),
         //   type = .HIT
         // };
-        // QueuePush(*current_target.s.animation_requests, hit_animation_request);
+        // QueuePush(*attack_target.s.animation_requests, hit_animation_request);
 
         hit_sound_request := AUDIO_Request.{
           start = GetTime(),
           type = .HIT
         };
-        QueuePush(*current_target.s.sound_requests, hit_sound_request);
+        QueuePush(*attack_target.s.sound_requests, hit_sound_request);
       }
     }
     else
