@@ -301,7 +301,7 @@ OBJ_Init :: ()
 
       sleeper.s.action = .{
         type = .ATTACK,
-        target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .IS_TURRET).s.key,
+        target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .{flags_require = .IS_TURRET}).s.key,
       };
     }
   }
@@ -385,21 +385,46 @@ OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
   return result;
 }
 
-OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, flag_whitelist: OBJ_Flags = 0, flag_blacklist: OBJ_Flags = 0) -> *Object
+OBJ_TestParams :: struct
+{
+  flags_require: OBJ_Flags;
+  flags_reject: OBJ_Flags;
+  common: enum_flags {
+    IS_ALIVE;
+  };
+  filter: (candidate: *Object) -> bool = DefaultFilter;
+  DefaultFilter :: (obj: *Object) -> bool { return true; }
+}
+
+OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
+{
+  if OBJ_IsNil(obj) return false;
+  if OBJ_HasAnyFlag(obj, flags_reject) return false;
+  if !OBJ_HasAllFlags(obj, flags_require) return false;
+
+  if common & .IS_ALIVE
+  {
+    if obj.s.hp <= 0.0 return false;
+  }
+
+  if !filter(obj) return false;
+  return true;
+}
+
+OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_TestParams) -> *Object
 {
   nearest := OBJ_GetNil();
   nearest_distsq := FLOAT32_MAX;
 
-  test_for_nearest :: (maybe_nearest: *Object) #expand
+  test_for_nearest :: (candidate: *Object) #expand
   {
-    if maybe_nearest == `obj return;
-    if OBJ_HasAnyFlag(maybe_nearest, `flag_blacklist) return;
-    if !OBJ_HasAllFlags(maybe_nearest, `flag_whitelist) return;
+    if candidate == `obj return;
+    if !OBJ_Test(candidate, params) return;
 
-    distsq := OBJ_Distance2DSquared(`obj, maybe_nearest);
+    distsq := OBJ_Distance2DSquared(`obj, candidate);
     if distsq < `nearest_distsq
     {
-      `nearest = maybe_nearest;
+      `nearest = candidate;
       `nearest_distsq = distsq;
     }
   }

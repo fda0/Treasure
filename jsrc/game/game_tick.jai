@@ -144,33 +144,30 @@ TICK_AdvanceSimulation :: ()
   {
     if !OBJ_HasAnyFlag(turret, .IS_TURRET) continue;
 
+    alive_only_filter :: (o: *Object) -> bool
+    {
+      return o.s.hp > 0.0;
+    }
+
+    valid_enemy_test := OBJ_TestParams.{
+      flags_require = .TARGETABLE,
+      flags_reject = .IS_TURRET,
+      common = .IS_ALIVE,
+    };
+
     attack_target := OBJ_Get(turret.s.target, .NETWORK);
-
-    nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, .TARGETABLE, .IS_TURRET);
-    // @speed query nearby objects instead of scanning the whole game?
-    // nearest_target: *Object;
-    // {
-    //   dist_sq_to_nearest := FLOAT32_MAX;
-    //   for * enemy: G.obj.network_objects
-    //   {
-    //     if enemy == turret continue;
-    //     if !OBJ_HasAnyFlag(enemy, .TARGETABLE) continue;
-
-    //     dist_sq := OBJ_Distance2DSquared(turret, enemy);
-    //     if dist_sq < dist_sq_to_nearest
-    //     {
-    //       nearest_target = enemy;
-    //       dist_sq_to_nearest = dist_sq;
-    //     }
-    //   }
-    // }
+    nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, valid_enemy_test);
 
     SHOOT_RANGE :: 4.0;
 
+    if !OBJ_Test(attack_target, valid_enemy_test)
+    {
+      attack_target = OBJ_GetNil();
+    }
     if !OBJ_IsNil(attack_target)
     {
       dist_sq := OBJ_Distance2DSquared(turret, attack_target);
-      if square(SHOOT_RANGE) < dist_sq then attack_target = null;
+      if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_GetNil();
     }
     if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
     {
@@ -178,6 +175,7 @@ TICK_AdvanceSimulation :: ()
       if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
     }
 
+    turret.s.target = attack_target.s.key;
     turret.s.is_attacking = !OBJ_IsNil(attack_target);
 
     attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
