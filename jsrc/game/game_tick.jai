@@ -45,9 +45,8 @@ TICK_AdvanceSimulation :: ()
   for player_key: G.server.player_keys
   {
     player := OBJ_Get(player_key, .NETWORK);
-    if OBJ_IsNil(player) continue;
+    if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
     player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 10.0, player.s.max_hp);
-    player.s.hp = max(player.s.hp, 0.0);
   }
 
   // transfer action to player objects
@@ -62,7 +61,11 @@ TICK_AdvanceSimulation :: ()
   // apply actions
   for *obj: G.obj.network_objects
   {
+    if OBJ_IsNil(obj) continue;
     if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
+
+    obj.s.desired_dp = .{};
+    if !OBJ_Test(obj, .{common = .IS_ALIVE }) continue;
 
     obj_move_dir: V2;
     if obj.s.action.type == .PATHING ||
@@ -274,6 +277,19 @@ TICK_AdvanceSimulation :: ()
 
         OBJ_Delete(projectile);
       }
+    }
+  }
+
+  for *obj: G.obj.network_objects
+  {
+    if OBJ_IsNil(obj) continue;
+    if OBJ_Test(obj, .{common = .IS_ALIVE})
+    {
+      obj.s.death_time = 0;
+    }
+    else // IS_DEAD
+    {
+      if !obj.s.death_time then obj.s.death_time = GetTime();
     }
   }
 

@@ -58,7 +58,7 @@ ANIMATION_Type :: enum u8
   JAB;
   JAB_HANDS;
   HIT;
-  DIE;
+  DEATH;
 }
 
 ANIMATION_Request :: struct
@@ -133,6 +133,9 @@ ANIMATION_InitSkeletons :: ()
         MaskJoints("DEF-spine.001", 1.0);
         MaskJoints("DEF-shoulder.L", 0.0);
         MaskJoints("DEF-shoulder.R", 0.0);
+
+        case .DEATH;
+        r.animation_index = AnimationNameToIndex(skeleton, "Death01");
       }
 
       has_non_one := false;
@@ -169,6 +172,9 @@ ANIMATION_InitSkeletons :: ()
 
         case .HIT;
         r.animation_index = AnimationNameToIndex(skeleton, "HitReact");
+
+        case .DEATH;
+        r.animation_index = AnimationNameToIndex(skeleton, "Death");
       }
 
       has_non_one := false;
@@ -301,7 +307,7 @@ ANIMATION_AnimateObjects :: ()
           if all_joints_are_masked
             it.weight = 0.0;
 
-          anim_mode: ANIMATION_AdvanceMode;
+          anim_mode: ANIMATION_AdvanceMode = .MANUAL;
           time: float;
 
           // Select an animation per slot
@@ -341,7 +347,7 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 2);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 3.0;
+            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
@@ -350,7 +356,7 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 1);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 3.0;
+            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
@@ -359,10 +365,19 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 0);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 3.0;
+            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
+          }
+          else if it_index == 8
+          {
+            if obj.s.death_time
+            {
+              it.type = .DEATH;
+              it.t = ElapsedTimeS(obj.s.death_time, max_on_fail=true) * 1.0;
+              it.weight = min(1.0, it.t * 10.0);
+            }
           }
           else
           {

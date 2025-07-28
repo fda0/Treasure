@@ -80,6 +80,7 @@ OBJ_Sync :: struct
   flags: OBJ_Flags;
   init: bool;
   creation_time: TimestampMS;
+  death_time: TimestampMS;
   p: V3; // XY center, Z at bottom
   desired_dp: V3; // move that Object wanted to make
   moved_dp: V3; // move that Object did after collision simulation
@@ -236,9 +237,9 @@ OBJ_Init :: ()
 
           turret.s.model = ModelKey("Plank");
 
-          turret.s.attack_speed = 0.5;
           turret.s.max_hp = 400;
           turret.s.hp = 400;
+          turret.s.attack_speed = 2.5;
           turret.s.attack_landed_t = 0.1;
           turret.s.attack_cooldown_t = 5.0;
         }
