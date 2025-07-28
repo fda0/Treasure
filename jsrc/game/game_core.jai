@@ -71,6 +71,8 @@ GAME_State :: struct
   camera_angles: V3;
   camera_fov_y: float = 0.111;
   camera_transform: Mat4;
+
+  last_sleepwalker_spawn: TimestampMS;
 }
 
 GAME_Init :: ()

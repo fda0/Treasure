@@ -287,27 +287,6 @@ OBJ_Init :: ()
     h1 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
     if !OBJ_IsNil(h1) h1.s.p.y = 2.0;
   }
-
-
-  // Add sleepwalkers
-  {
-    sleeper := OBJ_Create(.NETWORK,
-      .MOVE | .COLLIDE | .DRAW_MODEL |
-      .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-      .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-      .HAS_ACTION | .DELETE_ON_DEATH);
-    if !OBJ_IsNil(sleeper)
-    {
-      sleeper.s.model = ModelKey("Zombie");
-      sleeper.s.hp = 60.0;
-      sleeper.s.max_hp = 60.0;
-
-      sleeper.s.action = .{
-        type = .ATTACK,
-        target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .{flags_require = .IS_TURRET}).s.key,
-      };
-    }
-  }
 }
 
 lerp :: (prev: OBJ_Sync, next: OBJ_Sync, t: float) -> OBJ_Sync

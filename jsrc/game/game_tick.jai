@@ -41,6 +41,34 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_continous_t = 0.0;
   }
 
+  if ElapsedTime(G.last_sleepwalker_spawn, max_on_fail = true) >= 5000
+  {
+    G.last_sleepwalker_spawn = GetTime();
+
+    for side: 0..1
+    {
+      sleeper := OBJ_Create(.NETWORK,
+        .MOVE | .COLLIDE | .DRAW_MODEL |
+        .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+        .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+        .HAS_ACTION | .DELETE_ON_DEATH);
+      if !OBJ_IsNil(sleeper)
+      {
+        sleeper.s.model = ModelKey("Zombie");
+        sleeper.s.hp = 60.0;
+        sleeper.s.max_hp = 60.0;
+
+        sign := ifx side == 0 then -1.0 else 1.0;
+        sleeper.s.p.xy = V2.{-sign, sign} * V2.{28, 28};
+
+        sleeper.s.action = .{
+          type = .ATTACK,
+          target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .{flags_require = .IS_TURRET}).s.key,
+        };
+      }
+    }
+  }
+
   // temporary - player health regen
   for player_key: G.server.player_keys
   {
