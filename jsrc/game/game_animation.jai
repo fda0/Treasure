@@ -375,9 +375,10 @@ ANIMATION_AnimateObjects :: ()
             if obj.s.death_time
             {
               it.type = .DEATH;
-              it.t = ElapsedTimeS(obj.s.death_time, max_on_fail=true) * 1.0;
+              it.t = ElapsedTimeS(obj.s.death_time) * 1.0;
               it.weight = min(1.0, it.t * 10.0);
             }
+            else it.weight = 0.0;
           }
           else
           {

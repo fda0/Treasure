@@ -238,7 +238,11 @@ TICK_AdvanceSimulation :: ()
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
 
     target := OBJ_Get(projectile.s.target, .NETWORK);
-    if !OBJ_IsNil(target)
+    if OBJ_IsNil(target)
+    {
+      OBJ_Delete(projectile);
+    }
+    else
     {
       apply_hit := false;
 
@@ -290,6 +294,26 @@ TICK_AdvanceSimulation :: ()
     else // IS_DEAD
     {
       if !obj.s.death_time then obj.s.death_time = GetTime();
+
+      death_t := ElapsedTimeS(obj.s.death_time);
+
+      if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
+      {
+        obj.s.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
+      }
+
+      if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
+      {
+        obj.s.p = .{};
+        obj.s.hp = obj.s.max_hp;
+        obj.s.death_time = 0;
+      }
+
+      if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
+      {
+        OBJ_Delete(obj);
+      }
+
     }
   }
 

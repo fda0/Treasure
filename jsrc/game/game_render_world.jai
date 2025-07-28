@@ -114,15 +114,24 @@ WORLD_DrawObjects :: ()
     {
       bar_height := 10.0;
       start_x := -obj.s.max_hp / 2;
+      alpha := 1.0;
+
+      if obj.s.death_time
+      {
+        death_t := ElapsedTimeS(obj.s.death_time);
+        death_t = clamp((death_t - 0.25) * 2.0, 0.0, 1.0);
+        alpha = 1.0 - death_t;
+      }
 
       max_hp_bar := UI_Shape.{
         rect = MakeRectMinDim(.{start_x, -bar_height*2}, .{obj.s.max_hp, bar_height}),
-        color = Color32_RGBf(0, 0, 0)
+        color = Color32_RGBAf(0, 0, 0, alpha)
       };
       active_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, -bar_height*2}, .{obj.s.hp, bar_height}),
-        color = Color32_RGBf(0.1, 1, 0)
+        rect = MakeRectMinDim(.{start_x, -bar_height*2}, .{max(0.0, obj.s.hp), bar_height}),
+        color = Color32_RGBAf(0.1, 1, 0, alpha)
       };
+
       UI_Draw3D(obj.s.p + .{0,0,1.75}, max_hp_bar);
       UI_Draw3D(obj.s.p + .{0,0,1.75}, active_hp_bar);
     }

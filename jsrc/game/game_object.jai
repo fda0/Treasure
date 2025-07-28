@@ -71,6 +71,8 @@ OBJ_Flags :: enum_flags u32
   IS_TURRET;
   TARGETED_PROJECTILE;
   HAS_ACTION;
+  DELETE_ON_DEATH;
+  RESPAWN;
 };
 
 OBJ_Sync :: struct
@@ -293,7 +295,7 @@ OBJ_Init :: ()
       .MOVE | .COLLIDE | .DRAW_MODEL |
       .ANIMATE_ROTATION | .ANIMATE_TRACKS |
       .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-      .HAS_ACTION);
+      .HAS_ACTION | .DELETE_ON_DEATH);
     if !OBJ_IsNil(sleeper)
     {
       sleeper.s.model = ModelKey("Zombie");
@@ -545,7 +547,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key) -> *Object
     .MOVE | .COLLIDE | .DRAW_MODEL |
     .ANIMATE_ROTATION | .ANIMATE_TRACKS |
     .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-    .HAS_ACTION);
+    .HAS_ACTION | .RESPAWN);
 
   if !OBJ_IsNil(obj)
   {
