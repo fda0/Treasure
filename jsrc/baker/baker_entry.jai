@@ -135,6 +135,11 @@ main :: ()
   {
     sound_names := string.[
       "punch_general_body_impact_03",
+      "Turret/Swish01",
+      "Turret/Swish02",
+      "Turret/Swish03",
+      "Turret/Swish04",
+      "Turret/Swish05",
     ];
 
     audio_spec := SDL_AudioSpec.{.SDL_AUDIO_S32LE, 2, 48000};

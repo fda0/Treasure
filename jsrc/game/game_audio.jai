@@ -7,6 +7,11 @@ AUDIO_State :: struct
 AUDIO_SoundType :: enum u32
 {
   HIT;
+  SWISH01;
+  SWISH02;
+  SWISH03;
+  SWISH04;
+  SWISH05;
 }
 
 AUDIO_Request :: struct

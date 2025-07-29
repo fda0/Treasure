@@ -61,6 +61,8 @@ GAME_State :: struct
   // gameplay actions
   action: Action;
 
+  rng: Entropy = .{~12234, 92389123}; // @todo Replace with specific purpose Entropy seeds.
+
   // sun
   sun_dir: V3; // normalized
   sun_camera_p: V3;
@@ -469,6 +471,7 @@ String :: #import "String";
 #load "../shared/base_memory.jai";
 #load "../shared/base_hash.jai";
 #load "../shared/base_math.jai";
+#load "../shared/base_random.jai";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
 #load "../shared/game_render_world_shared.jai";

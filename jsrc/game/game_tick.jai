@@ -47,6 +47,8 @@ TICK_AdvanceSimulation :: ()
 
     for side: 0..1
     {
+      if side == 1 continue;
+
       sleeper := OBJ_Create(.NETWORK,
         .MOVE | .COLLIDE | .DRAW_MODEL |
         .ANIMATE_ROTATION | .ANIMATE_TRACKS |
@@ -242,15 +244,9 @@ TICK_AdvanceSimulation :: ()
           turret.s.last_projectile = projectile.s.key;
         }
 
-        // hit_animation_request := ANIMATION_Request.{
-        //   start = GetTime(),
-        //   type = .HIT
-        // };
-        // QueuePush(*attack_target.s.animation_requests, hit_animation_request);
-
         hit_sound_request := AUDIO_Request.{
           start = GetTime(),
-          type = .HIT
+          type = xx (rng_u32(*G.rng, 5) + xx AUDIO_SoundType.SWISH01),
         };
         QueuePush(*attack_target.s.sound_requests, hit_sound_request);
       }
