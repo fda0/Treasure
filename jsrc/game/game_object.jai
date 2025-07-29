@@ -308,10 +308,11 @@ OBJ_KeyToColor :: (key: OBJ_Key) -> Color32
   return byte_array.data.(*Color32).*;
 }
 
-OBJ_RngStateFromObjCreationTime :: (obj: *Object) -> Random_State
+OBJ_EntropyFromObj :: (obj: *Object) -> Entropy
 {
-  rng: Random_State;
-  random_seed(*rng, obj.s.creation_time.(u64));
+  rng: Entropy;
+  rng.inc = obj.s.creation_time.(u64) | 1;
+  rng.state = obj.s.creation_time.(u64) ^ 0xdeadbeeffda01234;
   return rng;
 }
 

@@ -27,12 +27,14 @@ rng_u32 :: (rng: *Entropy, range: u32) -> u32
 
 rng_s32 :: (rng: *Entropy, min: s32, max: s32) -> s32
 {
-  return rng_u32(rng, xx (max - min)).(s32) + min;
+  range := (max - min).(u32);
+  return rng_u32(rng, range).(s32) + min;
 }
 
 rng_s32 :: (rng: *Entropy, radius: s32) -> s32
 {
-  return rng_u32(rng, xx (radius*2)).(s32) - radius;
+  range := (radius*2).(u32);
+  return rng_u32(rng, range).(s32) - radius;
 }
 
 rngf_01 :: (rng: *Entropy) -> float
