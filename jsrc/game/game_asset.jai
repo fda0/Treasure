@@ -22,7 +22,7 @@ ASSET_State :: struct
   // Blobs
   shaders: [] string;
   fonts: [] string;
-  sounds: [] string;
+  sounds: [] AUDIO_Sound;
 };
 
 ShaderType :: enum
@@ -136,7 +136,7 @@ ASSET_PieFile :: struct
   materials: [] PIE_Material;
   shaders: [] PIE_Blob;
   fonts: [] PIE_Blob;
-  sounds: [] PIE_Blob;
+  sounds: [] PIE_Sound;
 };
 
 MaterialIsNil :: (a: *Material) -> bool

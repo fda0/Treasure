@@ -14,6 +14,12 @@ AUDIO_SoundType :: enum u32
   SWISH05;
 }
 
+AUDIO_Sound :: struct
+{
+  data: string;
+  format: SDL_AudioSpec;
+}
+
 AUDIO_Request :: struct
 {
   start: TimestampMS = ~0; // @todo use type like ServerTick here; And add functions like TimeElapsedFromServerTick(tick)
@@ -45,6 +51,8 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 {
   if sound_type == .HIT return;
 
+  log("Playing sound %", sound_type);
+
   if xx sound_type >= G.ast.sounds.count
   {
     log_error("Can't play missing sound %", sound_type);
@@ -52,9 +60,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   }
 
   sound := G.ast.sounds[sound_type];
-
-  src_audio_spec := SDL_AudioSpec.{.SDL_AUDIO_S32LE, 2, 48000};
-  stream := SDL_CreateAudioStream(*src_audio_spec, null);
+  stream := SDL_CreateAudioStream(*sound.format, null);
   if stream == null
   {
     log_error("Failed to create audio stream");
@@ -62,7 +68,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   }
 
   SDL_BindAudioStream(G.audio.device, stream);
-  SDL_PutAudioStreamData(stream, sound.data, xx sound.count);
+  SDL_PutAudioStreamData(stream, sound.data.data, xx sound.data.count);
   SDL_ResumeAudioStreamDevice(stream);
   SDL_FlushAudioStream(stream);
 

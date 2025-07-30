@@ -64,9 +64,13 @@ ASSET_InitFonts :: ()
 
 ASSET_InitSounds :: ()
 {
-  G.ast.sounds = NewArray(G.ast.pie.sounds.count, string);
+  G.ast.sounds = NewArray(G.ast.pie.sounds.count, AUDIO_Sound);
   for G.ast.pie.sounds
-    G.ast.sounds[it_index] = PIE_LOAD_ListToString(it.data);
+  {
+    // @todo reduce boilerplate on the whole [.pie -> in game memory] transformations
+    G.ast.sounds[it_index].data = PIE_LOAD_ListToString(it.data);
+    G.ast.sounds[it_index].format = it.format;
+  }
 }
 
 // TEXTURE THREAD

@@ -116,6 +116,12 @@ PIE_Material :: struct
   };
 }
 
+PIE_Sound :: struct
+{
+  data: PIE_ListT(u8);
+  format: SDL_AudioSpec;
+}
+
 PIE_Blob :: struct
 {
   data: PIE_ListT(u8);
@@ -136,7 +142,7 @@ PIE_Links :: struct
 
   shaders: PIE_ListT(PIE_Blob);
   fonts: PIE_ListT(PIE_Blob);
-  sounds: PIE_ListT(PIE_Blob);
+  sounds: PIE_ListT(PIE_Sound);
 }
 
 PIE_MAGIC_HASH_SEED :: (0xB5EADC0D + 0); // @todo use 64 bits

@@ -235,9 +235,7 @@ TICK_AdvanceSimulation :: ()
           turret.s.last_projectile = projectile.s.key;
         }
 
-        // OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
-        // OBJ_PlaySound(attack_target, .SWISH03);
-        OBJ_PlaySound(attack_target, .SWISH05);
+        OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
       }
     }
     else
