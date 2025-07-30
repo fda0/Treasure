@@ -43,6 +43,8 @@ AUDIO_PlayObjectSounds :: ()
 
 AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 {
+  if sound_type == .HIT return;
+
   if xx sound_type >= G.ast.sounds.count
   {
     log_error("Can't play missing sound %", sound_type);

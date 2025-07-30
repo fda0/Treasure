@@ -76,7 +76,7 @@ TICK_AdvanceSimulation :: ()
   {
     player := OBJ_Get(player_key, .NETWORK);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
-    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 10.0, player.s.max_hp);
+    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 60.0, player.s.max_hp);
   }
 
   // transfer action to player objects
@@ -144,17 +144,8 @@ TICK_AdvanceSimulation :: ()
             obj.s.attack_t -= obj.s.attack_cooldown_t;
             attacked.s.hp -= attack_damage;
 
-            hit_animation_request := ANIMATION_Request.{
-              start = GetTime(),
-              type = .HIT
-            };
-            QueuePush(*attacked.s.animation_requests, hit_animation_request);
-
-            hit_sound_request := AUDIO_Request.{
-              start = GetTime(),
-              type = .HIT
-            };
-            QueuePush(*attacked.s.sound_requests, hit_sound_request);
+            OBJ_PlayAnimation(attacked, .HIT);
+            OBJ_PlaySound(attacked, .HIT);
           }
         }
         else if distance >= MINIMUM_MOVE_START_DISTANCE
@@ -244,11 +235,9 @@ TICK_AdvanceSimulation :: ()
           turret.s.last_projectile = projectile.s.key;
         }
 
-        hit_sound_request := AUDIO_Request.{
-          start = GetTime(),
-          type = xx (rng_u32(*G.rng, 5) + xx AUDIO_SoundType.SWISH01),
-        };
-        QueuePush(*attack_target.s.sound_requests, hit_sound_request);
+        // OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
+        // OBJ_PlaySound(attack_target, .SWISH03);
+        OBJ_PlaySound(attack_target, .SWISH05);
       }
     }
     else

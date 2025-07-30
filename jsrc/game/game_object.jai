@@ -455,6 +455,24 @@ OBJ_FromNetIndex :: (net_index: u32) -> *Object
   return *G.obj.network_objects[net_index];
 }
 
+OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
+{
+  req := AUDIO_Request.{
+    start = GetTime(),
+    type = type,
+  };
+  QueuePush(*obj.s.sound_requests, req);
+}
+
+OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
+{
+  ar := ANIMATION_Request.{
+    start = GetTime(),
+    type = type,
+  };
+  QueuePush(*obj.s.animation_requests, ar);
+}
+
 OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
 {
   obj: *Object;

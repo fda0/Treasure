@@ -216,10 +216,10 @@ ANIMATION_AnimateObjects :: ()
     if OBJ_HasAnyFlag(obj, .TARGETED_PROJECTILE)
     {
       rng := OBJ_EntropyFromObj(obj);
-      weight0 := rngf_01(*rng);
-      weight1 := (1.0 - weight0)*0.5 + rngf_01(*rng)*0.5;
-      offset0 := rngf_01(*rng);
-      offset1 := rngf_01(*rng);
+      weight0 := RngF_01(*rng);
+      weight1 := (1.0 - weight0)*0.5 + RngF_01(*rng)*0.5;
+      offset0 := RngF_01(*rng);
+      offset1 := RngF_01(*rng);
 
       t := ElapsedTimeS(obj.s.creation_time);
       obj.l.animated_rot =
