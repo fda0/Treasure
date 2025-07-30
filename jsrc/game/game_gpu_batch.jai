@@ -1,3 +1,6 @@
+// @todo Drawing colliders results in 21906 transfer buffers created vs 1501...
+//       And that's on the first frame alone! Even the regular 1501 is insane. Needs debugging!
+
 /* @todo
 - Do not free and allocate transfers and buffers all the time. Reuse them.
 - Think about overlapping GPU work. Now everything happens at the end of the frame in the final command buffer.

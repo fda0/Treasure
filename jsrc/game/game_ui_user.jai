@@ -11,7 +11,7 @@ DEV_State :: struct
   show_stats: bool;
   noclip: bool;
   sun_camera: bool;
-  show_colliders: bool = true;
+  show_colliders: bool;
   mouse_picking: enum_flags
   {
     ENABLED;
