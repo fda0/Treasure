@@ -30,6 +30,7 @@ GAME_State :: struct
   server: SERVER_State;
   ui: UI_State;
   dev: DEV_State;
+  stats: STATS_State;
 
   // SDL, window stuff
   window: *SDL_Window;
@@ -381,6 +382,7 @@ GAME_Iterate :: ()
   }
 
   // Post frame logic
+  STATS_PostFrame();
   reset_temporary_storage();
 
   if !G.time_finished_first_iterate
@@ -500,3 +502,4 @@ String :: #import "String";
 #load "game_util.jai";
 #load "game_tests.jai";
 #load "game_pie_loader.jai";
+#load "game_stats.jai";

@@ -136,6 +136,31 @@ UI_BuildDeveloperWindow :: ()
       CreateText(tprint("Camera - Player: %", G.camera_p - OBJ_Get(G.client.player_key, .NETWORK).s.p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
 
+      {
+        DisplayCounter :: (label: string, c: *STATS_Counter)
+        {
+          CreateText(label);
+          stats := tprint("total: %; frame: %; peak: % (on %)",
+            c.total, c.prev_frame, c.on_peak_frame, c.peak_frame_number);
+          CreateText(stats);
+        }
+
+        using G.stats;
+
+        #insert -> string {
+          tis := type_info(STATS_State);
+          sb: String_Builder;
+          for tis.members
+          {
+            if it.type == type_info(STATS_Counter)
+              print_to_builder(*sb, "DisplayCounter(\"%\", *%);\n", it.name, it.name);
+          }
+          result := builder_to_string(*sb);
+          // log("Inserted code: ```%```", result);
+          return result;
+        }
+      }
+
       case .switches;
       UI_Checkbox("Noclip camera", *noclip);
       UI_Checkbox("Sun camera", *sun_camera);
