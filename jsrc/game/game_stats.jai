@@ -1,3 +1,5 @@
+LOG_STAT_COUNTERS :: false;
+
 STATS_State :: struct
 {
   gpu_batch_transfer_buffers_created: STATS_Counter;
@@ -21,13 +23,21 @@ Increment :: (c: *STATS_Counter, to_add: s64)
 
 STATS_PostFrame :: ()
 {
-  ResetCounter :: (c: *STATS_Counter)
+  ResetCounter :: (label: string, c: *STATS_Counter)
   {
     if c.on_peak_frame < c.this_frame
     {
       c.on_peak_frame = c.this_frame;
       c.peak_frame_number = G.frame_number;
     }
+
+    if LOG_STAT_COUNTERS
+    {
+      log("[FRAME %; STATS %] total: %; this_frame: %; on_peak_frame: % (on %)",
+        G.frame_number, label,
+        c.total, c.this_frame, c.on_peak_frame, c.peak_frame_number,, logger = LOG_FileLogger);
+    }
+
     c.prev_frame = c.this_frame;
     c.this_frame = 0;
   }
@@ -43,7 +53,7 @@ STATS_PostFrame :: ()
     for tis.members
     {
       if it.type == type_info(STATS_Counter)
-      print_to_builder(*sb, "ResetCounter(*%);\n", it.name);
+      print_to_builder(*sb, "ResetCounter(\"%\", *%);\n", it.name, it.name);
     }
     result := builder_to_string(*sb);
     // log("Inserted code: ```%```", result);

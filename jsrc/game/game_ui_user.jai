@@ -1,4 +1,4 @@
-DEV_State :: struct
+DEV_State :: struct // @todo serialize this struct to disk
 {
   show := false;
   win_p: V2;
@@ -139,6 +139,7 @@ UI_BuildDeveloperWindow :: ()
       {
         DisplayCounter :: (label: string, c: *STATS_Counter)
         {
+          CreateText("");
           CreateText(label);
           stats := tprint("total: %; frame: %; peak: % (on %)",
             c.total, c.prev_frame, c.on_peak_frame, c.peak_frame_number);
