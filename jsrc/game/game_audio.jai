@@ -23,6 +23,8 @@ AUDIO_Sound :: struct
 AUDIO_ActiveSound :: struct
 {
   type: AUDIO_SoundType;
+  start_time: TimestampMS;
+  duration: TimestampMS;
   stream: *SDL_AudioStream;
 }
 
@@ -74,8 +76,13 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   SDL_ResumeAudioStreamDevice(stream);
   SDL_FlushAudioStream(stream);
 
+  format_bytesize := (sound.format.format & SDL_AUDIO_MASK_BITSIZE).(s32) / 8;
+  duration_divisor := sound.format.freq * sound.format.channels * format_bytesize;
+
   active := AUDIO_ActiveSound.{
     type = sound_type,
+    start_time = GetTime(),
+    duration = xx (sound.data.count*1000 / duration_divisor),
     stream = stream,
   };
   array_add(*G.audio.actives, active);

@@ -3,7 +3,7 @@ DEV_State :: struct
   show := false;
   win_p: V2;
 
-  category: enum {stats; switches; assets; network; sound; objects; };
+  category: enum {stats; switches; assets; network; sounds; objects; };
 
   selected_object: OBJ_Key;
 
@@ -153,13 +153,14 @@ UI_BuildDeveloperWindow :: ()
       Layers(UI_MONO_TEXT);
       CreateText("network stuff here");
 
-      case .sound;
+      case .sounds;
       Layers(UI_MONO_TEXT);
+      // @todo Master volume slider
       CreateText("Active sounds:");
       for G.audio.actives
       {
         // @todo not related to dev_ui but add data driver way to tweak volume, pitch etc
-        CreateText(tprint("%", it.type)); // @todo log current t and end_t
+        CreateText(tprint("%, %ms / %ms", it.type, ElapsedTime(it.start_time), it.duration));
       }
       // @todo log recently finished sounds too
 
