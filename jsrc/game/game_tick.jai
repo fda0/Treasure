@@ -59,6 +59,8 @@ TICK_AdvanceSimulation :: ()
         sleeper.s.model = ModelKey("Zombie");
         sleeper.s.hp = 60.0;
         sleeper.s.max_hp = 60.0;
+        dim := 0.3;
+        sleeper.s.collider = OBJ_ColliderFromRect(.{dim,dim});
 
         sign := ifx side == 0 then -1.0 else 1.0;
         sleeper.s.p.xy = V2.{-sign, sign} * V2.{28, 28};

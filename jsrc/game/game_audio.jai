@@ -1,7 +1,7 @@
 AUDIO_State :: struct
 {
   device: SDL_AudioDeviceID;
-  streams: [..] *SDL_AudioStream;
+  actives: [..] AUDIO_ActiveSound;
 }
 
 AUDIO_SoundType :: enum u32
@@ -18,6 +18,12 @@ AUDIO_Sound :: struct
 {
   data: string;
   format: SDL_AudioSpec;
+}
+
+AUDIO_ActiveSound :: struct
+{
+  type: AUDIO_SoundType;
+  stream: *SDL_AudioStream;
 }
 
 AUDIO_Request :: struct
@@ -49,10 +55,6 @@ AUDIO_PlayObjectSounds :: ()
 
 AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 {
-  if sound_type == .HIT return;
-
-  log("Playing sound %", sound_type);
-
   if xx sound_type >= G.ast.sounds.count
   {
     log_error("Can't play missing sound %", sound_type);
@@ -72,16 +74,20 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   SDL_ResumeAudioStreamDevice(stream);
   SDL_FlushAudioStream(stream);
 
-  array_add(*G.audio.streams, stream);
+  active := AUDIO_ActiveSound.{
+    type = sound_type,
+    stream = stream,
+  };
+  array_add(*G.audio.actives, active);
 }
 
 AUDIO_CloseFinishedStreams :: ()
 {
-  for G.audio.streams
+  for G.audio.actives
   {
-    if SDL_GetAudioStreamQueued(it) == 0
+    if SDL_GetAudioStreamQueued(it.stream) == 0
     {
-      SDL_DestroyAudioStream(it);
+      SDL_DestroyAudioStream(it.stream);
       remove it;
     }
   }
