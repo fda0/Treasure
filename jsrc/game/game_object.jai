@@ -1,4 +1,4 @@
-OBJ_MAX_NETWORK_OBJECTS :: 24;
+OBJ_MAX_NETWORK_OBJECTS :: 64;
 OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
 OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
@@ -75,12 +75,22 @@ OBJ_Flags :: enum_flags u32
   RESPAWN;
 };
 
+OBJ_Team :: enum u8
+{
+  NO_TEAM;
+  BLUE;
+  RED;
+}
+BOTH_TEAMS :: OBJ_Team.[.BLUE, .RED];
+
 OBJ_Sync :: struct
 {
   // Object data that's synced with the server
   key: OBJ_Key;
   flags: OBJ_Flags;
+  team: OBJ_Team;
   init: bool;
+
   creation_time: TimestampMS;
   death_time: TimestampMS;
   p: V3; // XY center, Z at bottom
@@ -107,7 +117,7 @@ OBJ_Sync :: struct
   action: Action;
 
   // visuals
-  color: Color32; // unused?
+  color: Color32 = 0xffff_ffff; // unused?
   rotation: Quat;
   model: MODEL_Key; // used by DrawModel
   material: MATERIAL_Key; // used by DrawCollision
@@ -202,7 +212,7 @@ OBJ_Init :: ()
         x -= (0.5*d*len);
         y -= (0.5*d*len);
 
-        block := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS|.COLLIDE);
+        block := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS | .COLLIDE);
         if !OBJ_IsNil(block)
         {
           block.s.p = V3.{x, y, 0};
@@ -217,21 +227,21 @@ OBJ_Init :: ()
 
   // Add turrets
   {
-    for side: 0..1
+    for team: BOTH_TEAMS
     {
       for tier: 0..2
       {
         if tier != 0 continue;
 
         turret := OBJ_Create(.NETWORK,
-          .COLLIDE | .DRAW_MODEL |
-          .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION);
+          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
+          team);
 
         if !OBJ_IsNil(turret)
         {
           p := 6.0 + 10.0*tier;
-          if side == 0 then p = -p;
+          if team == .RED then p = -p;
           turret.s.p = .{-p,p,0};
 
           dim := 0.4;
@@ -282,10 +292,24 @@ OBJ_Init :: ()
   }
 
   {
-    h0 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
-    if !OBJ_IsNil(h0) h0.s.p.y = 1.0;
-    h1 := OBJ_CreateHero(.NETWORK, ModelKey("Dude"));
-    if !OBJ_IsNil(h1) h1.s.p.y = 2.0;
+    hero := OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.s.p.x = 3.0;
+      hero.s.p.y = 1.0;
+    }
+    hero = OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.s.p.x = 3.2;
+      hero.s.p.y = 2.0;
+    }
+    hero = OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .BLUE);
+    if !OBJ_IsNil(hero)
+    {
+      hero.s.p.x = 3.4;
+      hero.s.p.y = 3.0;
+    }
   }
 }
 
@@ -370,13 +394,18 @@ OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
 
 OBJ_TestParams :: struct
 {
-  flags_require: OBJ_Flags;
-  flags_reject: OBJ_Flags;
-  common: enum_flags {
-    IS_ALIVE;
-  };
   filter: (candidate: *Object) -> bool = DefaultFilter;
   DefaultFilter :: (obj: *Object) -> bool { return true; }
+
+  flags_require: OBJ_Flags;
+  flags_reject: OBJ_Flags;
+
+  common: enum_flags u8 {
+    IS_ALIVE;
+  }
+  common2: enum_flags u8 { // for 2 object tests
+    ARE_ENEMIES;
+  }
 }
 
 OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
@@ -394,6 +423,17 @@ OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
   return true;
 }
 
+OBJ_Test2 :: (tested: *Object, reference: *Object, using params: OBJ_TestParams) -> bool
+{
+  if !OBJ_Test(tested, params) return false;
+
+  if common2 & .ARE_ENEMIES
+  {
+    if tested.s.team == reference.s.team return false;
+  }
+  return true;
+}
+
 OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_TestParams) -> *Object
 {
   nearest := OBJ_GetNil();
@@ -401,14 +441,14 @@ OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_Te
 
   test_for_nearest :: (candidate: *Object) #expand
   {
-    if candidate == `obj return;
-    if !OBJ_Test(candidate, params) return;
+    if candidate == obj return;
+    if !OBJ_Test2(candidate, obj, params) return;
 
-    distsq := OBJ_Distance2DSquared(`obj, candidate);
-    if distsq < `nearest_distsq
+    distsq := OBJ_Distance2DSquared(obj, candidate);
+    if distsq < nearest_distsq
     {
-      `nearest = candidate;
-      `nearest_distsq = distsq;
+      nearest = candidate;
+      nearest_distsq = distsq;
     }
   }
 
@@ -473,7 +513,7 @@ OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
   QueuePush(*obj.s.animation_requests, ar);
 }
 
-OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
+OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 {
   obj: *Object;
   matched_storages := 0;
@@ -517,16 +557,16 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags) -> *Object
   obj.s.key = OBJ_CreateKey(serial = max(prev_serial_number + 1, 1),
                             index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)));
 
-  obj.s.flags = flags;
   obj.s.init = true;
   obj.s.creation_time = GetTime();
-  obj.s.color = Color32_RGBf(1,1,1);
+  obj.s.flags = flags;
+  obj.s.team = team;
   return obj;
 }
 
 OBJ_CreateWall :: (p: V2, dim: V2, height: float) -> *Object
 {
-  obj := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS|.COLLIDE);
+  obj := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS | .COLLIDE);
   if !OBJ_IsNil(obj)
   {
     obj.s.p = V3.{xy = p};
@@ -539,13 +579,11 @@ OBJ_CreateWall :: (p: V2, dim: V2, height: float) -> *Object
   return obj;
 }
 
-OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key) -> *Object
+OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *Object
 {
   obj := OBJ_Create(storage,
-    .MOVE | .COLLIDE | .DRAW_MODEL |
-    .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-    .HAS_ACTION | .RESPAWN);
+    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTION | .RESPAWN);
 
   if !OBJ_IsNil(obj)
   {
@@ -558,6 +596,8 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key) -> *Object
 
     obj.s.max_hp = 100;
     obj.s.hp = 80;
+
+    obj.s.team = team;
   }
   return obj;
 }

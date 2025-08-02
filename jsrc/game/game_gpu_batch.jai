@@ -168,7 +168,7 @@ GPU_BATCH_TransferGetMappedMemory :: (batch: *GPU_Batch, size: u32, elem_count: 
   transfer := batch.transfer_last;
   if (transfer)
   {
-    assert(transfer.cap > transfer.used);
+    assert(transfer.cap >= transfer.used);
     if (transfer.cap - transfer.used < size)
     {
       GPU_BATCH_TransferUnmap(transfer);

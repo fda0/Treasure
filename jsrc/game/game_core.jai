@@ -297,17 +297,19 @@ GAME_Iterate :: ()
 
       if G.world_mouse_valid
       {
+        self := OBJ_Get(G.client.player_key, .NETWORK);
         hovered_obj := OBJ_Get(G.hover_object, .ALL);
-        hovers_targetable_non_self := OBJ_HasAnyFlag(hovered_obj, .TARGETABLE) && G.hover_object != G.client.player_key;
+        hovers_enemy := OBJ_Test2(hovered_obj, self, .{flags_require = .TARGETABLE, common2 = .ARE_ENEMIES});
 
-        if move_pressed && hovers_targetable_non_self
+        if move_pressed && hovers_enemy
         {
           Initialize(*G.action);
           G.action.type = .ATTACK;
           G.action.target_object = G.hover_object;
+          G.action.world_p = G.world_mouse;
         }
 
-        if (move_pressed && !hovers_targetable_non_self) ||
+        if (move_pressed && !hovers_enemy) ||
            (move_held && G.action.type == .PATHING)
         {
           Initialize(*G.action);

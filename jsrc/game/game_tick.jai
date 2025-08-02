@@ -41,19 +41,16 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_continous_t = 0.0;
   }
 
-  if ElapsedTime(G.last_sleepwalker_spawn, max_on_fail = true) >= 5000
+  if !G.last_sleepwalker_spawn ||
+     ElapsedTime(G.last_sleepwalker_spawn, max_on_fail = true) >= 3000
   {
     G.last_sleepwalker_spawn = GetTime();
 
-    for side: 0..1
+    for team: BOTH_TEAMS
     {
-      if side == 1 continue;
-
       sleeper := OBJ_Create(.NETWORK,
-        .MOVE | .COLLIDE | .DRAW_MODEL |
-        .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-        .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-        .HAS_ACTION | .DELETE_ON_DEATH);
+        .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+        .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTION | .DELETE_ON_DEATH);
       if !OBJ_IsNil(sleeper)
       {
         sleeper.s.model = ModelKey("Zombie");
@@ -62,12 +59,15 @@ TICK_AdvanceSimulation :: ()
         dim := 0.3;
         sleeper.s.collider = OBJ_ColliderFromRect(.{dim,dim});
 
-        sign := ifx side == 0 then -1.0 else 1.0;
-        sleeper.s.p.xy = V2.{-sign, sign} * V2.{28, 28};
+        sign := ifx team == .RED then -1.0 else 1.0;
+        sleeper.s.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
+
+        sleeper.s.team = team;
 
         sleeper.s.action = .{
           type = .ATTACK,
-          target_object = OBJ_FindNearestToObj(sleeper, .NETWORK, .{flags_require = .IS_TURRET}).s.key,
+          target_object = OBJ_FindNearestToObj(sleeper, .NETWORK,
+            .{flags_require = .IS_TURRET, common2 = .ARE_ENEMIES}).s.key,
         };
       }
     }
@@ -99,11 +99,19 @@ TICK_AdvanceSimulation :: ()
     obj.s.desired_dp = .{};
     if !OBJ_Test(obj, .{common = .IS_ALIVE }) continue;
 
-    obj_move_dir: V2;
-    if obj.s.action.type == .PATHING ||
-       obj.s.action.type == .PATHING_DIRECTION
+    action := obj.s.action;
+
+    if action.type == .ATTACK
     {
-      obj_to_destination := obj.s.action.world_p.xy - obj.s.p.xy;
+      targets_enemy := OBJ_Test2(OBJ_Get(action.target_object, .NETWORK), obj, .{common2 = .ARE_ENEMIES});
+      if !targets_enemy then action.type = .PATHING;
+    }
+
+    obj_move_dir: V2;
+    if action.type == .PATHING ||
+       action.type == .PATHING_DIRECTION
+    {
+      obj_to_destination := action.world_p.xy - obj.s.p.xy;
       distance := length(obj_to_destination);
       if distance >= MINIMUM_MOVE_START_DISTANCE then obj_move_dir = obj_to_destination * (1.0 / distance);
     }
@@ -113,30 +121,30 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_t += attack_t_delta;
     obj.s.attack_continous_t += attack_t_delta;
 
-    if obj.s.action.type != .ATTACK
+    if action.type != .ATTACK
       obj.s.is_attacking = false;
 
     // Handle action type .ATTACK
-    if obj.s.action.type == .ATTACK
+    if action.type == .ATTACK
     {
-      if obj.s.target != obj.s.action.target_object
+      if obj.s.target != action.target_object
       {
         reset_attack_timers(obj);
         obj.s.is_attacking = false;
       }
 
-      obj.s.target = obj.s.action.target_object;
+      obj.s.target = action.target_object;
 
       if obj.s.attack_t >= 0.0
         obj.s.is_attacking = true;
 
-      attacked := OBJ_Get(obj.s.action.target_object, .NETWORK);
+      attacked := OBJ_Get(action.target_object, .NETWORK);
       if !OBJ_IsNil(attacked)
       {
         obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
         distance := length(obj_to_destination);
 
-        if distance < 0.8
+        if distance < MELEE_ATTACK_DISTANCE
         {
           obj.s.rotation = DirectionXYToRotationZ(attacked.s.p - obj.s.p);
 
@@ -179,6 +187,7 @@ TICK_AdvanceSimulation :: ()
       flags_require = .TARGETABLE,
       flags_reject = .IS_TURRET,
       common = .IS_ALIVE,
+      common2 = .ARE_ENEMIES,
     };
 
     attack_target := OBJ_Get(turret.s.target, .NETWORK);

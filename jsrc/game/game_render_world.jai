@@ -114,6 +114,7 @@ WORLD_DrawObjects :: ()
     {
       bar_height := 10.0;
       start_x := -obj.s.max_hp / 2;
+      start_y := -bar_height*2;
       alpha := 1.0;
 
       if obj.s.death_time
@@ -124,16 +125,31 @@ WORLD_DrawObjects :: ()
       }
 
       max_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, -bar_height*2}, .{obj.s.max_hp, bar_height}),
+        rect = MakeRectMinDim(.{start_x, start_y}, .{obj.s.max_hp, bar_height}),
         color = Color32_RGBAf(0, 0, 0, alpha)
       };
       active_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, -bar_height*2}, .{max(0.0, obj.s.hp), bar_height}),
+        rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, obj.s.hp), bar_height}),
         color = Color32_RGBAf(0.1, 1, 0, alpha)
       };
 
       UI_Draw3D(obj.s.p + .{0,0,1.75}, max_hp_bar);
       UI_Draw3D(obj.s.p + .{0,0,1.75}, active_hp_bar);
+
+      if obj.s.team
+      {
+        color: Color32;
+        if obj.s.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
+        if obj.s.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
+
+        bar_dim := bar_height;
+
+        team_square := UI_Shape.{
+          rect = MakeRectMinDim(.{start_x - bar_dim, start_y}, .{bar_dim, bar_dim}),
+          color = color
+        };
+        UI_Draw3D(obj.s.p + .{0,0,1.75}, team_square);
+      }
     }
 
     if draw_colliders || debug_colliders
