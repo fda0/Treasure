@@ -366,7 +366,7 @@ OBJ_Delete :: (obj: *Object)
   obj.* = .{};
 }
 
-OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
+OBJ_Get :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Object
 {
   result := OBJ_GetNil();
   key_index := OBJ_IndexOfKey(key);
@@ -394,11 +394,11 @@ OBJ_Get :: (key: OBJ_Key, storage_mask: OBJ_Storage) -> *Object
 
 OBJ_TestParams :: struct
 {
-  filter: (candidate: *Object) -> bool = DefaultFilter;
+  filter := DefaultFilter;
   DefaultFilter :: (obj: *Object) -> bool { return true; }
 
-  flags_require: OBJ_Flags;
-  flags_reject: OBJ_Flags;
+  require_flags: OBJ_Flags;
+  reject_flags: OBJ_Flags;
 
   common: enum_flags u8 {
     IS_ALIVE;
@@ -411,8 +411,8 @@ OBJ_TestParams :: struct
 OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
 {
   if OBJ_IsNil(obj) return false;
-  if OBJ_HasAnyFlag(obj, flags_reject) return false;
-  if !OBJ_HasAllFlags(obj, flags_require) return false;
+  if OBJ_HasAnyFlag(obj, reject_flags) return false;
+  if !OBJ_HasAllFlags(obj, require_flags) return false;
 
   if common & .IS_ALIVE
   {
@@ -465,7 +465,7 @@ OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_Te
 
 OBJ_GetAny :: (key: OBJ_Key) -> *Object
 {
-  return OBJ_Get(key, .ALL);
+  return OBJ_Get(.ALL, key);
 }
 
 OBJ_SyncIsInit :: (sync: OBJ_Sync) -> bool

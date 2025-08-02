@@ -67,7 +67,7 @@ TICK_AdvanceSimulation :: ()
         sleeper.s.action = .{
           type = .ATTACK,
           target_object = OBJ_FindNearestToObj(sleeper, .NETWORK,
-            .{flags_require = .IS_TURRET, common2 = .ARE_ENEMIES}).s.key,
+            .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).s.key,
         };
       }
     }
@@ -76,7 +76,7 @@ TICK_AdvanceSimulation :: ()
   // temporary - player health regen
   for player_key: G.server.player_keys
   {
-    player := OBJ_Get(player_key, .NETWORK);
+    player := OBJ_Get(.NETWORK, player_key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
     player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 60.0, player.s.max_hp);
   }
@@ -84,7 +84,7 @@ TICK_AdvanceSimulation :: ()
   // transfer action to player objects
   for player_key, player_index: G.server.player_keys
   {
-    player := OBJ_Get(player_key, .NETWORK);
+    player := OBJ_Get(.NETWORK, player_key);
     if OBJ_IsNil(player) continue;
     action := SERVER_GetPlayerAction(xx player_index);
     player.s.action = action;
@@ -103,7 +103,7 @@ TICK_AdvanceSimulation :: ()
 
     if action.type == .ATTACK
     {
-      targets_enemy := OBJ_Test2(OBJ_Get(action.target_object, .NETWORK), obj, .{common2 = .ARE_ENEMIES});
+      targets_enemy := OBJ_Test2(OBJ_Get(.NETWORK, action.target_object), obj, .{common2 = .ARE_ENEMIES});
       if !targets_enemy then action.type = .PATHING;
     }
 
@@ -138,7 +138,7 @@ TICK_AdvanceSimulation :: ()
       if obj.s.attack_t >= 0.0
         obj.s.is_attacking = true;
 
-      attacked := OBJ_Get(action.target_object, .NETWORK);
+      attacked := OBJ_Get(.NETWORK, action.target_object);
       if !OBJ_IsNil(attacked)
       {
         obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
@@ -184,13 +184,13 @@ TICK_AdvanceSimulation :: ()
     }
 
     valid_enemy_test := OBJ_TestParams.{
-      flags_require = .TARGETABLE,
-      flags_reject = .IS_TURRET,
+      require_flags = .TARGETABLE,
+      reject_flags = .IS_TURRET,
       common = .IS_ALIVE,
       common2 = .ARE_ENEMIES,
     };
 
-    attack_target := OBJ_Get(turret.s.target, .NETWORK);
+    attack_target := OBJ_Get(.NETWORK, turret.s.target);
     nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, valid_enemy_test);
 
     SHOOT_RANGE :: 4.0;
@@ -214,7 +214,7 @@ TICK_AdvanceSimulation :: ()
     turret.s.is_attacking = !OBJ_IsNil(attack_target);
 
     attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
-    if OBJ_IsNil(OBJ_Get(turret.s.last_projectile, .NETWORK))
+    if OBJ_IsNil(OBJ_Get(.NETWORK, turret.s.last_projectile))
     {
       additional_delta := TICK_FLOAT_STEP * 100.0;
       // delta is applied only if turret is on cooldown
@@ -259,7 +259,7 @@ TICK_AdvanceSimulation :: ()
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
 
-    target := OBJ_Get(projectile.s.target, .NETWORK);
+    target := OBJ_Get(.NETWORK, projectile.s.target);
     if OBJ_IsNil(target)
     {
       OBJ_Delete(projectile);

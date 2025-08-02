@@ -133,7 +133,7 @@ UI_BuildDeveloperWindow :: ()
       CreateText(tprint("dt: %ms; fps: %", Round(G.dt*1000), Round(1.0 / G.dt)));
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
-      CreateText(tprint("Camera - Player: %", G.camera_p - OBJ_Get(G.client.player_key, .NETWORK).s.p));
+      CreateText(tprint("Camera - Player: %", G.camera_p - OBJ_Get(.NETWORK, G.client.player_key).s.p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
 
       {

@@ -207,7 +207,7 @@ GAME_Iterate :: ()
         G.camera_p.xy += dir * G.dt * 16.0;
       }
 
-      player := OBJ_Get(G.client.player_key, .NETWORK);
+      player := OBJ_Get(.NETWORK, G.client.player_key);
       if KEY_Held(.SPACE) ||
          G.frame_number < 10 // temp hack to center camera on player on startup
       {
@@ -229,7 +229,7 @@ GAME_Iterate :: ()
 
       sun_dist := towards_sun_dir * 40.0;
       G.sun_camera_p = G.camera_p + sun_dist;
-      OBJ_Get(G.obj.sun, .OFFLINE).s.p = G.sun_camera_p;
+      OBJ_Get(.OFFLINE, G.obj.sun).s.p = G.sun_camera_p;
 
       transl := TranslationMatrix(-G.sun_camera_p);
       rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -297,9 +297,9 @@ GAME_Iterate :: ()
 
       if G.world_mouse_valid
       {
-        self := OBJ_Get(G.client.player_key, .NETWORK);
-        hovered_obj := OBJ_Get(G.hover_object, .ALL);
-        hovers_enemy := OBJ_Test2(hovered_obj, self, .{flags_require = .TARGETABLE, common2 = .ARE_ENEMIES});
+        self := OBJ_Get(.NETWORK, G.client.player_key);
+        hovered_obj := OBJ_Get(.ALL, G.hover_object);
+        hovers_enemy := OBJ_Test2(hovered_obj, self, .{require_flags = .TARGETABLE, common2 = .ARE_ENEMIES});
 
         if move_pressed && hovers_enemy
         {
@@ -317,7 +317,7 @@ GAME_Iterate :: ()
           G.action.world_p = G.world_mouse;
           if move_pressed
           {
-            marker := OBJ_Get(G.obj.pathing_marker, .OFFLINE);
+            marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
@@ -333,7 +333,7 @@ GAME_Iterate :: ()
 
         Initialize(*G.action);
         G.action.type = .PATHING_DIRECTION;
-        G.action.world_p = OBJ_Get(G.client.player_key, .NETWORK).s.p + dir;
+        G.action.world_p = OBJ_Get(.NETWORK, G.client.player_key).s.p + dir;
       }
     }
 
@@ -342,7 +342,7 @@ GAME_Iterate :: ()
       QueuePush(*G.client.action_queue, G.action);
     }
 
-    marker := OBJ_Get(G.obj.pathing_marker, .OFFLINE);
+    marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.action.type == .PATHING
