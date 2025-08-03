@@ -53,7 +53,7 @@ KEY_Update :: (key_code: KEY_Code, is_down: bool)
   if is_pressed   key.f |= PRESSED;
   if is_released  key.f |= RELEASED;
 
-  if is_pressed then key.held_start = GetTime(.FRAME);
+  if is_pressed then key.held_start = GetTimestampMS(.FRAME);
 }
 
 KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for: TimestampMS = 0) -> bool
@@ -62,7 +62,7 @@ KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for: TimestampMS
   for key_codes
   {
     key := G.keys[it];
-    test := (key.f & flags) && (ElapsedTime(key.held_start) >= held_for);
+    test := (key.f & flags) && (ElapsedTimeMS(key.held_start) >= held_for);
     res |= test;
   }
   return res;

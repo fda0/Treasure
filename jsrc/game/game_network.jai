@@ -7,7 +7,7 @@ NET_MAX_PACKET_SIZE :: 1200;
 NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(NET_PacketHeader);
 NET_SIMULATE_PACKETLOSS :: 0; // doesn't seem to work on localhost
 NET_INACTIVE_MS :: 100;
-NET_TIMEOUT_DISCONNECT_MS :: 250;
+NET_TIMEOUT_DISCONNECT_MS :: 500;
 
 NET_State :: struct
 {
@@ -167,8 +167,8 @@ NET_IterateReceive :: ()
 
   {
     // hacky temporary network activity rate-limitting
-    if ElapsedTime(G.net.hacky_last_receive_timestamp, .FRAME) < 8 then return;
-    G.net.hacky_last_receive_timestamp = GetTime(.FRAME);
+    if ElapsedTimeMS(G.net.hacky_last_receive_timestamp, .FRAME) < 8 then return;
+    G.net.hacky_last_receive_timestamp = GetTimestampMS(.FRAME);
   }
 
   while true
@@ -208,7 +208,7 @@ NET_IterateReceive :: ()
 
         if user
         {
-          user.last_msg_timestamp = GetTime(.FRAME);
+          user.last_msg_timestamp = GetTimestampMS(.FRAME);
           user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
           player_id = user_id.(u16);
         }
@@ -230,8 +230,8 @@ NET_IterateSend :: ()
 
   {
     // hacky temporary network activity rate-limitting
-    if ElapsedTime(G.net.hacky_last_send_timestamp, .FRAME) < 16 then return;
-    G.net.hacky_last_send_timestamp = GetTime(.FRAME);
+    if ElapsedTimeMS(G.net.hacky_last_send_timestamp, .FRAME) < 16 then return;
+    G.net.hacky_last_send_timestamp = GetTimestampMS(.FRAME);
   }
 
   if (is_server)
@@ -450,7 +450,7 @@ NET_GetPacketString :: () -> string
 
 NET_UserIsInactive :: (user: NET_User) -> bool
 {
-  return ElapsedTime(user.last_msg_timestamp, .FRAME) > NET_INACTIVE_MS;
+  return ElapsedTimeMS(user.last_msg_timestamp, .FRAME) > NET_INACTIVE_MS;
 }
 
 NET_SendString :: (destination: NET_User, msg: string)
@@ -511,7 +511,7 @@ NET_IterateTimeoutUsers :: ()
     for *G.server.users
     {
       if !it.address continue;
-      if ElapsedTime(it.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT_MS
+      if ElapsedTimeMS(it.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT_MS
       {
         Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
 

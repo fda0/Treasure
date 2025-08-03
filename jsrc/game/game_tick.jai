@@ -1,20 +1,27 @@
 TICK_RATE :: 100;
-TICK_TIMESTAMP_STEP :: 1000 / TICK_RATE;
+TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
 TICK_Iterate :: ()
 {
-  #assert((1000 % TICK_TIMESTAMP_STEP) == 0);
-  #assert((1000 / TICK_TIMESTAMP_STEP) == TICK_RATE);
-  tick_count := G.tick_timestamp_accumulator / TICK_TIMESTAMP_STEP;
-  G.tick_timestamp_accumulator -= tick_count * TICK_TIMESTAMP_STEP;
+  #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+  #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+  tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+  G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
   for MakeRange(tick_count)
   {
     G.tick_number += 1;
 
     if NET_IsServer()
+    {
+      if tick_count > 1
+      {
+        log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
+        tick_count = min(tick_count, 1);
+      }
       TICK_AdvanceSimulation();
+    }
 
     if NET_IsClient()
     {
@@ -41,10 +48,17 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_continous_t = 0.0;
   }
 
-  if !G.last_sleepwalker_spawn ||
-     ElapsedTime(G.last_sleepwalker_spawn, max_on_fail = true) >= 3000
+  if TimeSinceTickS(G.last_sleeper_group_spawn) >= 15.0
   {
-    G.last_sleepwalker_spawn = GetTime();
+    G.sleepers_spawned_in_group_count = 0;
+    G.last_sleeper_group_spawn = GetTick();
+  }
+
+  if G.sleepers_spawned_in_group_count < 5 &&
+     TimeSinceTickS(G.last_sleeper_spawn) >= 0.5
+  {
+    G.last_sleeper_spawn = GetTick();
+    G.sleepers_spawned_in_group_count += 1;
 
     for team: BOTH_TEAMS
     {
@@ -296,7 +310,7 @@ TICK_AdvanceSimulation :: ()
         target.s.hp -= attack_damage;
 
         hit_sound_request := AUDIO_Request.{
-          start = GetTime(),
+          start = GetTimestampMS(),
           type = .HIT
         };
         QueuePush(*target.s.sound_requests, hit_sound_request);
@@ -315,7 +329,7 @@ TICK_AdvanceSimulation :: ()
     }
     else // IS_DEAD
     {
-      if !obj.s.death_time then obj.s.death_time = GetTime();
+      if !obj.s.death_time then obj.s.death_time = GetTimestampMS();
 
       death_t := ElapsedTimeS(obj.s.death_time);
 
@@ -353,7 +367,7 @@ TICK_AdvanceSimulation :: ()
 
 TICK_MoveAndCollideObjects :: ()
 {
-  for * obj: G.obj.all_objects
+  for * obj: G.obj.network_objects
   {
     if !OBJ_HasAnyFlag(obj, .MOVE) continue;
 
@@ -362,7 +376,7 @@ TICK_MoveAndCollideObjects :: ()
     obj_pos := obj.s.p.xy + obj_dp; // move obj
 
     // check collision
-    for collision_iteration: 0..7 // support up to 8 overlapping wall collisions
+    for collision_iteration: 0..2 // support up to 3 overlapping wall collisions
     {
       closest_obstacle_separation_dist := FLOAT32_MAX;
       closest_obstacle_wall_normal: V2;
@@ -370,12 +384,16 @@ TICK_MoveAndCollideObjects :: ()
       obj_collider := obj.s.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: G.obj.all_objects
+      for * obstacle: G.obj.network_objects
       {
         if obj == obstacle continue;
         if !OBJ_HasAnyFlag(obstacle, .COLLIDE) continue;
 
         obstacle_pos := obstacle.s.p.xy;
+
+        // @todo temporary hacky perf. optimization. This should be based on obj vs collider bounding boxes.
+        if distance_squared(obj_pos, obstacle_pos) >= square(1.0) continue;
+
         obstacle_collider := obstacle.s.collider;
         OBJ_OffsetCollider(*obstacle_collider, obstacle_pos);
 
@@ -446,7 +464,7 @@ TICK_MoveAndCollideObjects :: ()
     obj.s.p.x = obj_pos.x;
     obj.s.p.y = obj_pos.y;
     obj.s.moved_dp = obj.s.p - prev_obj_pos;
-    if length(obj.s.moved_dp) < MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
+    if length(obj.s.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
       obj.s.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
   } // obj loop
 }

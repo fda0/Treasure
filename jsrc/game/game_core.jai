@@ -76,12 +76,14 @@ GAME_State :: struct
   camera_fov_y: float = 0.111;
   camera_transform: Mat4;
 
-  last_sleepwalker_spawn: TimestampMS;
+  last_sleeper_group_spawn: Tick;
+  last_sleeper_spawn: Tick;
+  sleepers_spawned_in_group_count := 0;
 }
 
 GAME_Init :: ()
 {
-  G.frame_timestamp = GetTime(.NOW);
+  G.frame_timestamp = GetTimestampMS(.NOW);
 
   if !G.headless
   {
@@ -103,11 +105,11 @@ GAME_Iterate :: ()
 {
   // pre frame logic
   {
-    new_timestamp := GetTime(.NOW);
+    new_timestamp := GetTimestampMS(.NOW);
     delta_timestamp := min(new_timestamp - G.frame_timestamp, 100); // clamp dt to 100ms (10fps)
+    G.frame_timestamp = new_timestamp;
 
     G.frame_number += 1;
-    G.frame_timestamp = new_timestamp;
     G.tick_timestamp_accumulator += delta_timestamp;
     G.dt = delta_timestamp * 0.001;
     G.at = WrapFloat(0, 1000, G.at + G.dt);
@@ -409,7 +411,7 @@ GAME_Iterate :: ()
     // we will wait here to avoid using 100% of the CPU.
     // This should be solved in a better way (waiting on network msg or something)
     // once scheduling and multithreading is further along.
-    SDL_Delay(16);
+    SDL_Delay(0);
   }
 }
 

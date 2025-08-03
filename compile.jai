@@ -1,5 +1,6 @@
 LOG_RUN :: false;
 BUILD_DIRECTORY :: "build";
+release_build := false;
 
 #run build();
 build :: ()
@@ -27,6 +28,7 @@ build :: ()
   for options.compile_time_command_line
   {
     if it == {
+      case "release";     release_build = true;
       case "kill";        kill_processes = true;
       case "clean_sdl";   clean_targets |= .SDL;
       case "clean_build"; clean_targets |= .BUILD;
@@ -173,6 +175,12 @@ Build :: (using config: BuildConfig)
   array_add(*modules_path, "libs/");
   array_add(*modules_path, ..options.import_path);
   options.import_path = modules_path;
+
+  if release_build
+  {
+    set_optimization(*options, .OPTIMIZED);
+    options.stack_trace = false;
+  }
 
   set_build_options(options, w);
   compiler_begin_intercept(w, .SKIP_ALL);

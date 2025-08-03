@@ -81,7 +81,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 
   active := AUDIO_ActiveSound.{
     type = sound_type,
-    start_time = GetTime(),
+    start_time = GetTimestampMS(),
     duration = xx (sound.data.count*1000 / duration_divisor),
     stream = stream,
   };

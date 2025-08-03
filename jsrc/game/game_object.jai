@@ -1,4 +1,4 @@
-OBJ_MAX_NETWORK_OBJECTS :: 64;
+OBJ_MAX_NETWORK_OBJECTS :: 128;
 OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
 OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
@@ -11,6 +11,10 @@ OBJ_State :: struct
   network_objects: [OBJ_MAX_NETWORK_OBJECTS] Object;
   #place offline_objects;
   all_objects: [OBJ_MAX_ALL_OBJECTS] Object = ---;
+
+  // @todo table of *Object (used for OBJ_Key lookups) -> pointing into table below
+  // @todo table of Object; sorted by chunk; last chunk is "new objects chunk"
+  // @todo 2D array of chunks with slices into above table; [] Object
 
   // special objects
   sun: OBJ_Key;
@@ -498,7 +502,7 @@ OBJ_FromNetIndex :: (net_index: u32) -> *Object
 OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   req := AUDIO_Request.{
-    start = GetTime(),
+    start = GetTimestampMS(),
     type = type,
   };
   QueuePush(*obj.s.sound_requests, req);
@@ -507,7 +511,7 @@ OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
   ar := ANIMATION_Request.{
-    start = GetTime(),
+    start = GetTimestampMS(),
     type = type,
   };
   QueuePush(*obj.s.animation_requests, ar);
@@ -558,7 +562,7 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
                             index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)));
 
   obj.s.init = true;
-  obj.s.creation_time = GetTime();
+  obj.s.creation_time = GetTimestampMS();
   obj.s.flags = flags;
   obj.s.team = team;
   return obj;
