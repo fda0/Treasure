@@ -4,14 +4,23 @@ PRINT_ON_PASS :: false;
 DefaultLayoutSpec :: LayoutSpec.{
   root_dim_px = V2.{2000, 1500},
   rem_to_px = 16,
+  measure_text_callback = MeasureText,
   debug_logging = DEBUG_LOGGING,
 };
+
+MeasureText :: (p: MeasureTextParams) -> V2
+{
+  per_char := V2.{8, 16};
+  result := V2.{p.text.count.(float), 1} * per_char;
+  return result;
+}
 
 tests :: ()
 {
   tests_grow();
   tests_fit_and_grow();
   tests_child_gap();
+  tests_text_in_too_small_window();
 }
 
 tests_fit_and_grow :: ()
@@ -188,6 +197,47 @@ tests_child_gap :: ()
     CheckEQ(child0.abs_p, V2.{0, 0});
     CheckEQ(child1.abs_p, V2.{100 + gap, 0});
     CheckEQ(child2.abs_p, V2.{100+200 + pad1*2 + gap*2, 0});
+  }
+}
+
+tests_text_in_too_small_window :: ()
+{
+  {
+    LayoutBegin(DefaultLayoutSpec);
+    parent := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(20))},
+                          layout.direction = .TOP_TO_BOTTOM});
+    Parent(parent);
+
+    child0 := CreateText("a");
+    child1 := CreateText("bc");
+    child2 := CreateText("def");
+    LayoutEnd();
+
+    CheckEQ(child0.abs_p, V2.{});
+    CheckEQ(child1.abs_p, V2.{0, 16});
+    CheckEQ(child2.abs_p, V2.{0, 16*2});
+    CheckEQ(OuterDim2(child0), V2.{8, 16});
+    CheckEQ(OuterDim2(child1), V2.{8*2, 16});
+    CheckEQ(OuterDim2(child2), V2.{8*3, 16});
+  }
+
+  {
+    LayoutBegin(DefaultLayoutSpec);
+    parent := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(20))},
+                          layout.direction = .TOP_TO_BOTTOM});
+    Parent(parent);
+
+    child0 := CreateText("a", .{layout.sizing.width.min = Px(10), layout.sizing.height.max = Px(10)});
+    child1 := CreateText("bc");
+    child2 := CreateText("def");
+    LayoutEnd();
+
+    CheckEQ(child0.abs_p, V2.{});
+    CheckEQ(child1.abs_p, V2.{0, 10});
+    CheckEQ(child2.abs_p, V2.{0, 10 + 16});
+    CheckEQ(OuterDim2(child0), V2.{10, 10});
+    CheckEQ(OuterDim2(child1), V2.{8*2, 16});
+    CheckEQ(OuterDim2(child2), V2.{8*3, 16});
   }
 }
 

@@ -308,13 +308,7 @@ TICK_AdvanceSimulation :: ()
       {
         attack_damage := 25.0;
         target.s.hp -= attack_damage;
-
-        hit_sound_request := AUDIO_Request.{
-          start = GetTimestampMS(),
-          type = .HIT
-        };
-        QueuePush(*target.s.sound_requests, hit_sound_request);
-
+        OBJ_PlaySound(target, .HIT);
         OBJ_Delete(projectile);
       }
     }

@@ -1,8 +1,10 @@
 build/
 .build/*
+jsrc/game/.build/*
 */.build/*
 gen/
 *.kajet
 .vscode
 __*
-
+*.exe
+*.pdb

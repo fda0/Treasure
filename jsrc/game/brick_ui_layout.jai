@@ -89,6 +89,9 @@ Unit :: enum u8
   EM;
   /*PT;?*/
   // @todo explore adding VW, VH, %? Remove percent_of_parent from BoxSize? Idk! Unit encoding only absolute values has its benefits.
+  // @todo PCT (PERCENT)
+  // @todo FIT (fit children)
+  // @todo GROW_BIT
 };
 
 RemToPx :: (scale := 1.0) -> float
@@ -865,6 +868,14 @@ LayoutEnd :: ()
       if size.measure_text == .TRUE
       {
         new_dim.component[axis] = text_measurement.component[axis];
+
+        // @todo this is nonsense - refactor this
+        v := new_dim.component[axis];
+        if it.inner_min.component[axis] >= 0
+          v = max(v, it.inner_min.component[axis]);
+        if it.inner_max.component[axis] >= 0
+          v = min(v, it.inner_max.component[axis]);
+        it.inner_min.component[axis] = v;
       }
       if size.percent_of_parent >= 0.0
       {
@@ -872,7 +883,12 @@ LayoutEnd :: ()
       }
       if new_dim.component[axis] >= 0.0 // Store new_dim
       {
-        it.inner_final.component[axis] = new_dim.component[axis];
+        v := new_dim.component[axis];
+        if it.inner_min.component[axis] >= 0
+          v = max(v, it.inner_min.component[axis]);
+        if it.inner_max.component[axis] >= 0
+          v = min(v, it.inner_max.component[axis]);
+        it.inner_final.component[axis] = v;
       }
 
       // 3. Calculate padding.
