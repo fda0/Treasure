@@ -275,10 +275,10 @@ BoxSpec :: struct
 
   layout: struct
   {
-    // dim: Length2;
-    // dim_min: Length2;
-    // dim_max: Length2;
-    sizing: BoxSize2;
+    dim: Length2;
+    dim_min: Length2;
+    dim_max: Length2;
+    // sizing: BoxSize2;
 
     padding: Padding;
     child_gap: Length;
@@ -367,6 +367,10 @@ Merge :: (c: *$T, p: T)
 Merge :: (c: *Length, p: Length) {
   if c.value < 0.0 then c.* = p;
 }
+Merge :: (c: *Length2, p: Length2) {
+  if c.x.value < 0.0 then c.x = p.y;
+  if c.y.value < 0.0 then c.x = p.y;
+}
 Merge :: (c: *s32, p: s32) {
   if c.* < 0 then c.* = p;
 }
@@ -383,10 +387,6 @@ Merge :: (c: *BoxSize, p: BoxSize) {
   Merge(*c.dim, p.dim);
   Merge(*c.min, p.min);
   Merge(*c.max, p.max);
-  // Merge(*c.fit_children, p.fit_children);
-  // Merge(*c.measure_text, p.measure_text);
-  // Merge(*c.percent_of_parent, p.percent_of_parent);
-  // Merge(*c.grow, p.grow);
 }
 Merge :: (c: *BoxSize2, p: BoxSize2) {
   Merge(*c.width, p.width);
@@ -414,7 +414,9 @@ Merge :: (c: *BorderWidths, p: BorderWidths) {
 Merge :: (c: *BoxSpec, p: BoxSpec) {
   Merge(*c.autokey_seed,         p.autokey_seed); // @todo hash 2 seeds together
 
-  Merge(*c.layout.sizing,        p.layout.sizing);
+  Merge(*c.layout.dim,           p.layout.dim);
+  Merge(*c.layout.dim_min,       p.layout.dim_min);
+  Merge(*c.layout.dim_max,       p.layout.dim_max);
   Merge(*c.layout.padding,       p.layout.padding);
   Merge(*c.layout.child_gap,     p.layout.child_gap);
   Merge(*c.layout.child_align.x, p.layout.child_align.x);
@@ -618,12 +620,10 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   merged.autokey_seed = HashStringFunc(text, merged.autokey_seed);
 
   {
-    using merged.text;
-    if font_size.value < 0.0 then font_size = Rem(1);
+    if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
 
-    using merged.layout.sizing;
-    if width.min.value  < 0.0 then width.min  = .{.TEXT, 1.0};
-    if height.min.value < 0.0 then height.min = .{.TEXT, 1.0};
+    if merged.layout.dim_min.x.value < 0.0 then merged.layout.dim_min.x = .{.TEXT, 1.0};
+    if merged.layout.dim_min.y.value < 0.0 then merged.layout.dim_min.y = .{.TEXT, 1.0};
   }
 
   return CreateBoxDirect(merged, loc);
@@ -805,7 +805,7 @@ LayoutBegin :: (new_spec: LayoutSpec)
   parents_count = 0;
   layers_count = 0;
 
-  root_box = CreateBox(.{layout = .{sizing = Size2(Px(root_dim_px))}});
+  root_box = CreateBox(.{layout.dim = Px(root_dim_px)});
   PushParent(root_box);
 }
 
@@ -841,23 +841,23 @@ LayoutEnd :: ()
   //   4. Calculate child gap.
   for :TreeBreadthFirst root_box
   {
-    using it.spec; // @todo Add using it?
-    using it.spec.layout;
+    // using it.spec; // @todo Add using it?
+    // using it.spec.layout;
 
     // 1. Calculate standalone sizes (px, rem, text)
-    it.inner_min.x = LengthToPx(sizing.width.min, it, false);
-    it.inner_max.x = LengthToPx(sizing.width.max, it, false);
-    it.inner_min.y = LengthToPx(sizing.height.min, it, false);
-    it.inner_max.y = LengthToPx(sizing.height.max, it, false);
+    it.inner_min.x = LengthToPx(it.layout.dim_min.x, it, false);
+    it.inner_max.x = LengthToPx(it.layout.dim_max.x, it, false);
+    it.inner_min.y = LengthToPx(it.layout.dim_min.y, it, false);
+    it.inner_max.y = LengthToPx(it.layout.dim_max.y, it, false);
 
     inner_from_minmax := max(it.inner_min, it.inner_max);
     inner_from_minmax = max(inner_from_minmax, V2.{0, 0}); // Default to 0 if both values were negative.
 
     // ...
-    it.inner_dim.x = LengthToPx(sizing.width.dim, it, true);
-    it.inner_dim.y = LengthToPx(sizing.height.dim, it, true);
-    if sizing.width.dim.unit  == .GROW then it.inner_dim.x = inner_from_minmax.x;
-    if sizing.height.dim.unit == .GROW then it.inner_dim.y = inner_from_minmax.y;
+    it.inner_dim.x = LengthToPx(it.layout.dim.x, it, true);
+    it.inner_dim.y = LengthToPx(it.layout.dim.y, it, true);
+    if it.layout.dim.x.unit == .GROW then it.inner_dim.x = inner_from_minmax.x;
+    if it.layout.dim.y.unit == .GROW then it.inner_dim.y = inner_from_minmax.y;
 
     // 2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
     new_dim := V2.{-1.0, -1.0};
@@ -865,12 +865,12 @@ LayoutEnd :: ()
 
     // Prepare text_measurement ahead of time to not call it twice per axis.
     text_measurement: V2;
-    if sizing.width.dim.unit == .TEXT || sizing.height.dim.unit == .TEXT
+    if it.layout.dim.x.unit == .TEXT || it.layout.dim.y.unit == .TEXT
     {
       params := MeasureTextParams.{
-        text = text.str,
-        font = text.font,
-        font_size_px = LengthToPx(text.font_size, it, true),
+        text = it.text.str,
+        font = it.text.font,
+        font_size_px = LengthToPx(it.text.font_size, it, true),
       };
       text_measurement = measure_text_callback(params);
     }
@@ -880,8 +880,7 @@ LayoutEnd :: ()
     // We can just do a layout one axis at a time.
     for axis: Axis2.X .. Axis2.Y
     {
-      size := sizing.axes[axis];
-      length := size.dim;
+      length := it.layout.dim.axes[axis];
 
       if length.unit == .FIT
       {
@@ -917,12 +916,12 @@ LayoutEnd :: ()
       }
 
       // 3. Calculate padding.
-      it.padding.axes[axis].lower = LengthToPx(padding.axes[axis].lower, it, true);
-      it.padding.axes[axis].upper = LengthToPx(padding.axes[axis].upper, it, true);
+      it.padding.axes[axis].lower = LengthToPx(it.layout.padding.axes[axis].lower, it, true);
+      it.padding.axes[axis].upper = LengthToPx(it.layout.padding.axes[axis].upper, it, true);
     }
 
     // 4. Calculate child gap.
-    it.child_gap = LengthToPx(child_gap, it, true);
+    it.child_gap = LengthToPx(it.layout.child_gap, it, true);
   }
 
   for axis: Axis2.X .. Axis2.Y
@@ -933,15 +932,13 @@ LayoutEnd :: ()
     //   2. Clamp inner_dim to inner_min and inner_max.
     for :TreeDepthFirst root_box
     {
-      using it.spec.layout;
-      size := sizing.axes[axis];
-      length := size.dim;
+      length := it.layout.dim.axes[axis];
 
       // 1. Calculate size from children (fit).
       if length.unit == .FIT
       {
         children_outer_dim_sum: float;
-        if AxisMatchesLayoutDirection(axis, direction)
+        if AxisMatchesLayoutDirection(axis, it.layout.direction)
         {
           for :Siblings child, child_index: it.first
           {
@@ -982,7 +979,7 @@ LayoutEnd :: ()
           if child_index > 0 then children_outer_dim_sum += parent.child_gap;
           children_outer_dim_sum += OuterDim(child, axis);
 
-          if child.layout.sizing.axes[axis].dim.unit == .GROW
+          if child.layout.dim.axes[axis].unit == .GROW
           {
             max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
             growable := max_child_inner_dim - InnerDim(child, axis);
@@ -1017,7 +1014,7 @@ LayoutEnd :: ()
 
           for :Siblings child: parent.first
           {
-            if child.layout.sizing.axes[axis].dim.unit == .GROW
+            if child.layout.dim.axes[axis].unit == .GROW
             {
               max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
               growable := max_child_inner_dim - InnerDim(child, axis);
@@ -1041,7 +1038,7 @@ LayoutEnd :: ()
           }
 
           // grow child
-          if free_space > 0.0 && child.layout.sizing.axes[axis].dim.unit == .GROW
+          if free_space > 0.0 && child.layout.dim.axes[axis].unit == .GROW
           {
             max_child_inner_dim := InnerDim(parent, axis) - PaddingDim(child, axis);
             child.inner_dim.component[axis] = PositiveMin(max_child_inner_dim, InnerDimMax(child, axis));

@@ -32,12 +32,13 @@ tests_fit_and_grow :: ()
   // Same as below but uses direction = .DEFAULT (.LEFT_TO_RIGHT)
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{width.dim = Fit(), height = .{dim = Fit(), min = Px(100)}},
-                          layout.padding = PaddingAll(Px(3))});
+    parent := CreateBox(.{layout = .{dim = .{Fit(), Fit()},
+                                     dim_min.y = Px(100),
+                                     padding = PaddingAll(Px(3))}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(15))},
+    child0 := CreateBox(.{layout.dim = .{Px(10), Px(15)},
                           layout.padding = PaddingAll(Px(10))});
-    child1 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()},
+    child1 := CreateBox(.{layout.dim = .{Grow(), Grow()},
                           layout.padding = .{Px(11), Px(12), Px(13), Px(14)}});
     LayoutEnd();
 
@@ -61,13 +62,13 @@ tests_fit_and_grow :: ()
   // Same as above but uses direction = .TOP_TO_BOTTOM
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{width.dim = Fit(), height = .{dim = Fit(), min = Px(100)}},
-                          layout.padding = PaddingAll(Px(3)),
-                          layout.direction = .TOP_TO_BOTTOM});
+    parent := CreateBox(.{layout = .{dim = .{Fit(), Fit()}, dim_min.y = Px(100),
+                                     padding = PaddingAll(Px(3)),
+                                     direction = .TOP_TO_BOTTOM}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(15))},
+    child0 := CreateBox(.{layout.dim = .{Px(10), Px(15)},
                           layout.padding = PaddingAll(Px(10))});
-    child1 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()},
+    child1 := CreateBox(.{layout.dim = .{Grow(), Grow()},
                           layout.padding = .{Px(11), Px(12), Px(13), Px(14)}});
     LayoutEnd();
 
@@ -93,11 +94,11 @@ tests_grow :: ()
   // 3x just grow.
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(900)), Size(Px(600))}});
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child2 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child1 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
     c_inner := V2.{300, 600};
@@ -110,11 +111,11 @@ tests_grow :: ()
   // 3x grow with 1 max size contrain - should be indentical to above.
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(900)), Size(Px(600))}});
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(300)}, height.dim = Grow()}});
-    child2 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child1 := CreateBox(.{layout = .{dim = .{Grow(), Grow()}, dim_max.x = Px(300)}});
+    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
     c_inner := V2.{300, 600};
@@ -127,12 +128,12 @@ tests_grow :: ()
   // @todo How GROW works currently is a bit nonsensical; It should be changed so the test below works in the future!
   if 0 {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(400)), Size(Px(20))}});
+    parent := CreateBox(.{layout.dim = .{Px(400), Px(20)}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child2 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(70)}, height.dim = Grow()}});
-    child3 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(120)}, height.dim = Grow()}});
+    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child1 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child2 := CreateBox(.{layout = .{dim = .{Grow(), Grow()}, dim_max.x = Px(70)}});
+    child3 := CreateBox(.{layout = .{dim = .{Grow(), Grow()}, dim_max.x = Px(120)}});
     LayoutEnd();
 
     CheckEQ(OuterDim2(child0), .{110, 20});
@@ -146,11 +147,11 @@ tests_grow :: ()
   // Middle box (child1) will be initialized with its max size; it's siblings will get what's left.
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(900)), Size(Px(600))}});
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(600)}, height.dim = Grow()}});
-    child2 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child1 := CreateBox(.{layout = .{dim = .{Grow(), Grow()}, dim_max.x = Px(600)}});
+    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
     c1_inner := V2.{600, 600};
@@ -178,11 +179,11 @@ tests_grow :: ()
   // child2_new_dim ->   0 + 225 -> 225
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(900)), Size(Px(600))}});
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), min = Px(300)}, height.dim = Grow()}});
-    child2 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+    child1 := CreateBox(.{layout = .{dim = .{Grow(),Grow()}, dim_min.x = Px(300)}});
+    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
     c1_inner := V2.{450, 600};
@@ -199,13 +200,13 @@ tests_child_gap :: ()
   // Test if child gap is applied between 3 children.
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(900)), Size(Px(600))},
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)},
                           layout.child_gap = Px(40)});
     Parent(parent);
-    child0 := CreateBox(.{layout.sizing = .{width = Size(Px(100)), height.dim = Grow()}});
-    child1 := CreateBox(.{layout.sizing = .{width = Size(Px(200)), height.dim = Grow()},
+    child0 := CreateBox(.{layout.dim = .{Px(100), Grow()}});
+    child1 := CreateBox(.{layout.dim = .{Px(200), Grow()},
                           layout.padding = PaddingAll(Px(15))});
-    child2 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
     gap := 40.0;
@@ -225,7 +226,7 @@ tests_text_in_too_small_window :: ()
 {
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(20))},
+    parent := CreateBox(.{layout.dim = .{Px(10), Px(20)},
                           layout.direction = .TOP_TO_BOTTOM});
     Parent(parent);
 
@@ -244,11 +245,11 @@ tests_text_in_too_small_window :: ()
 
   {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.sizing = .{Size(Px(10)), Size(Px(20))},
+    parent := CreateBox(.{layout.dim = .{Px(10), Px(20)},
                           layout.direction = .TOP_TO_BOTTOM});
     Parent(parent);
 
-    child0 := CreateText("a", .{layout.sizing.width.min = Px(10), layout.sizing.height.max = Px(10)});
+    child0 := CreateText("a", .{layout.dim_min.x = Px(10), layout.dim_max.y = Px(10)});
     child1 := CreateText("bc");
     child2 := CreateText("def");
     LayoutEnd();
