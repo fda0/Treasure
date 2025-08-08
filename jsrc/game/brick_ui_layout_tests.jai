@@ -54,7 +54,7 @@ tests_fit_and_grow :: ()
     CheckEQ(OuterDim2(child1), c1_outer);
 
     parent_inner := V2.{c0_outer.x + c1_outer.x, max(c0_outer.y, c1_outer.y)};
-    CheckEQ(parent.inner_final, parent_inner);
+    CheckEQ(parent.inner_dim, parent_inner);
   }
 
   // TEST: Fit on parent & grow on children.
@@ -84,7 +84,7 @@ tests_fit_and_grow :: ()
     CheckEQ(OuterDim2(child1), c1_outer);
 
     parent_inner := V2.{max(c0_outer.x, c1_outer.x), c0_outer.y + c1_outer.y};
-    CheckEQ(parent.inner_final, parent_inner);
+    CheckEQ(parent.inner_dim, parent_inner);
   }
 }
 
@@ -104,7 +104,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c_inner);
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
-    CheckEQ(parent.inner_final, V2.{900, 600});
+    CheckEQ(parent.inner_dim, V2.{900, 600});
   }
 
   // 3x grow with 1 max size contrain - should be indentical to above.
@@ -121,8 +121,26 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c_inner);
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
-    CheckEQ(parent.inner_final, V2.{900, 600});
+    CheckEQ(parent.inner_dim, V2.{900, 600});
   }
+
+  // @todo How GROW works currently is a bit nonsensical; It should be changed so the test below works in the future!
+  if 0 {
+    LayoutBegin(DefaultLayoutSpec);
+    parent := CreateBox(.{layout.sizing = .{Size(Px(400)), Size(Px(20))}});
+    Parent(parent);
+    child0 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child1 := CreateBox(.{layout.sizing = .{width.dim = Grow(), height.dim = Grow()}});
+    child2 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(70)}, height.dim = Grow()}});
+    child3 := CreateBox(.{layout.sizing = .{width = .{dim = Grow(), max = Px(120)}, height.dim = Grow()}});
+    LayoutEnd();
+
+    CheckEQ(OuterDim2(child0), .{110, 20});
+    CheckEQ(OuterDim2(child1), .{110, 20});
+    CheckEQ(OuterDim2(child2), .{70, 20});
+    CheckEQ(OuterDim2(child3), .{110, 20});
+    CheckEQ(parent.inner_dim, .{400, 20});
+  } else log("WARNING: New better tests for GROW are disabled currently");
 
   // 3x grow with 1 max size contrain.
   // Middle box (child1) will be initialized with its max size; it's siblings will get what's left.
@@ -140,7 +158,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c02_inner);
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner_final, V2.{900, 600});
+    CheckEQ(parent.inner_dim, V2.{900, 600});
   }
 
   // 3x grow with 1 min size contrain.
@@ -172,7 +190,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c02_inner);
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner_final, V2.{900, 600});
+    CheckEQ(parent.inner_dim, V2.{900, 600});
   }
 }
 
@@ -195,7 +213,7 @@ tests_child_gap :: ()
     CheckEQ(InnerDim2(child0), V2.{100, 600});
     CheckEQ(InnerDim2(child1), V2.{200, 600 - pad1*2});
     CheckEQ(InnerDim2(child2), V2.{900 - (100+200 + pad1*2 + gap*2), 600});
-    CheckEQ(parent.inner_final, V2.{900, 600});
+    CheckEQ(parent.inner_dim, V2.{900, 600});
 
     CheckEQ(child0.abs_p, V2.{0, 0});
     CheckEQ(child1.abs_p, V2.{100 + gap, 0});
