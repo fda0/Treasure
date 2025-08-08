@@ -166,87 +166,8 @@ LengthToPx :: (len2: Length2, owner_box: *Box, clamp_at_zero: bool) -> V2
            LengthToPx(len2.y, owner_box, clamp_at_zero)};
 }
 
-BoxSize :: struct
-{
-  dim: Length;
-  min: Length;
-  max: Length;
-};
-SizeMin :: (min: Length) -> BoxSize
-{
-  s: BoxSize;
-  s.dim = min;
-  s.min = min;
-  return s;
-}
-SizeMax :: (max: Length) -> BoxSize
-{
-  s: BoxSize;
-  s.dim = max;
-  s.max = max;
-  return s;
-}
-Size :: (min: Length, max: Length) -> BoxSize // @todo this needs a shorter name
-{
-  s: BoxSize;
-  s.dim = max; // default to max for now?
-  s.min = min;
-  s.max = max;
-  return s;
-}
-Size :: (minmax: Length) -> BoxSize
-{
-  s: BoxSize;
-  s.dim = minmax;
-  s.min = minmax;
-  s.max = minmax;
-  return s;
-}
-
 Fit :: () -> Length { return .{.FIT, 1.0}; }
 Grow :: () -> Length { return .{.GROW, 1.0}; }
-
-// Fit :: (size := BoxSize.{}) -> BoxSize
-// {
-//   s := size;
-//   s.fit_children = .TRUE;
-//   return s;
-// }
-// MeasureText :: (size := BoxSize.{}) -> BoxSize
-// {
-//   s := size;
-//   s.measure_text = .TRUE;
-//   return s;
-// }
-// Pct :: (percentage_of_parent: float, size := BoxSize.{}) -> BoxSize
-// {
-//   s := size;
-//   s.percent_of_parent = percentage_of_parent;
-//   s.grow = .TRUE;
-//   return s;
-// }
-// Grow :: (size := BoxSize.{}) -> BoxSize
-// {
-//   s := size;
-//   s.grow = .TRUE;
-//   return s;
-// }
-
-BoxSize2 :: struct
-{
-  width, height: BoxSize;
-  #place width; axes: [2] BoxSize;
-};
-// Make Size2 out of Length2
-Size2Min :: (min: Length2) -> BoxSize2 { return BoxSize2.{SizeMin(min.x), SizeMin(min.y)}; }
-Size2Max :: (max: Length2) -> BoxSize2 { return BoxSize2.{SizeMax(max.x), SizeMax(max.y)}; }
-Size2 :: (min: Length2, max: Length2) -> BoxSize2 { return BoxSize2.{Size(min.x, max.x), Size(min.y, max.y)}; }
-Size2 :: (range: Length2) -> BoxSize2 { return BoxSize2.{Size(range.x, range.x), Size(range.y, range.y)}; }
-// Make Size2 out of Length
-Size2Min :: (min: Length) -> BoxSize2 { return BoxSize2.{SizeMin(min), SizeMin(min)}; }
-Size2Max :: (max: Length) -> BoxSize2 { return BoxSize2.{SizeMax(max), SizeMax(max)}; }
-Size2 :: (min: Length, max: Length) -> BoxSize2 { return BoxSize2.{Size(min, max), Size(min, max)}; }
-Size2 :: (minmax: Length) -> BoxSize2 { return BoxSize2.{Size(minmax, minmax), Size(minmax, minmax)}; }
 
 BoxKey :: struct
 {
@@ -278,7 +199,6 @@ BoxSpec :: struct
     dim: Length2;
     dim_min: Length2;
     dim_max: Length2;
-    // sizing: BoxSize2;
 
     padding: Padding;
     child_gap: Length;
@@ -382,15 +302,6 @@ Merge :: (c: *u64, p: u64) {
 }
 Merge :: (c: *Color, p: Color) {
   if c.* == 0 then c.* = p;
-}
-Merge :: (c: *BoxSize, p: BoxSize) {
-  Merge(*c.dim, p.dim);
-  Merge(*c.min, p.min);
-  Merge(*c.max, p.max);
-}
-Merge :: (c: *BoxSize2, p: BoxSize2) {
-  Merge(*c.width, p.width);
-  Merge(*c.height, p.height);
 }
 Merge :: (c: *Padding, p: Padding) {
   Merge(*c.left, p.left);
