@@ -8,3 +8,4 @@ gen/
 __*
 *.exe
 *.pdb
+*.rdi

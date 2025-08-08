@@ -82,16 +82,18 @@ Align :: enum u8
   BOTTOM  :: 3;
 };
 
-Unit :: enum u8
+Unit :: enum u32
 {
+  // Simple units
   PX;
   REM;
   EM;
   /*PT;?*/
-  // @todo explore adding VW, VH, %? Remove percent_of_parent from BoxSize? Idk! Unit encoding only absolute values has its benefits.
-  // @todo PCT (PERCENT)
-  // @todo FIT (fit children)
-  // @todo GROW_BIT
+  // Dynamic units
+  TEXT; // Measure text
+  FIT; // Fit children
+  PCT; // Percentage of parent
+  GROW;
 };
 
 RemToPx :: (scale := 1.0) -> float
@@ -120,6 +122,9 @@ LengthToPx :: (length: Length, owner_box: *Box, clamp_at_zero: bool) -> float
   if clamp_at_zero then value = max(value, 0.0);
 
   if length.unit == {
+  case .PX;
+  return value;
+
   case .EM;
     box := owner_box;
     while !IsNil(box)
@@ -138,6 +143,11 @@ LengthToPx :: (length: Length, owner_box: *Box, clamp_at_zero: bool) -> float
 
     case .REM;
     return value * rem_to_px;
+
+    case;
+    st := get_stack_trace_string(context.stack_trace,, temp);
+    // log("[BRICK] Length with dynamic unit is not supported here. %", st);
+    return min(value, 0.0);
   }
   return value;
 }
@@ -158,31 +168,28 @@ LengthToPx :: (len2: Length2, owner_box: *Box, clamp_at_zero: bool) -> V2
 
 BoxSize :: struct
 {
+  dim: Length;
   min: Length;
   max: Length;
-
-  fit_children: Bool3; // Measure sum of children sizes and try to match their size.
-  measure_text: Bool3; // Measure containing text and try to match its size.
-  percent_of_parent := -1.0; // Try to have size that's equal to some exact percentage of parent box.
-  grow: Bool3; // Try to grow to fill size left in parent box.
-
-  #place min; range: [2] Length;
 };
 SizeMin :: (min: Length) -> BoxSize
 {
   s: BoxSize;
+  s.dim = min;
   s.min = min;
   return s;
 }
 SizeMax :: (max: Length) -> BoxSize
 {
   s: BoxSize;
+  s.dim = max;
   s.max = max;
   return s;
 }
 Size :: (min: Length, max: Length) -> BoxSize // @todo this needs a shorter name
 {
   s: BoxSize;
+  s.dim = max; // default to max for now?
   s.min = min;
   s.max = max;
   return s;
@@ -190,35 +197,40 @@ Size :: (min: Length, max: Length) -> BoxSize // @todo this needs a shorter name
 Size :: (minmax: Length) -> BoxSize
 {
   s: BoxSize;
+  s.dim = minmax;
   s.min = minmax;
   s.max = minmax;
   return s;
 }
-Fit :: (size := BoxSize.{}) -> BoxSize
-{
-  s := size;
-  s.fit_children = .TRUE;
-  return s;
-}
-MeasureText :: (size := BoxSize.{}) -> BoxSize
-{
-  s := size;
-  s.measure_text = .TRUE;
-  return s;
-}
-Pct :: (percentage_of_parent: float, size := BoxSize.{}) -> BoxSize
-{
-  s := size;
-  s.percent_of_parent = percentage_of_parent;
-  s.grow = .TRUE;
-  return s;
-}
-Grow :: (size := BoxSize.{}) -> BoxSize
-{
-  s := size;
-  s.grow = .TRUE;
-  return s;
-}
+
+Fit :: () -> Length { return .{.FIT, 1.0}; }
+Grow :: () -> Length { return .{.GROW, 1.0}; }
+
+// Fit :: (size := BoxSize.{}) -> BoxSize
+// {
+//   s := size;
+//   s.fit_children = .TRUE;
+//   return s;
+// }
+// MeasureText :: (size := BoxSize.{}) -> BoxSize
+// {
+//   s := size;
+//   s.measure_text = .TRUE;
+//   return s;
+// }
+// Pct :: (percentage_of_parent: float, size := BoxSize.{}) -> BoxSize
+// {
+//   s := size;
+//   s.percent_of_parent = percentage_of_parent;
+//   s.grow = .TRUE;
+//   return s;
+// }
+// Grow :: (size := BoxSize.{}) -> BoxSize
+// {
+//   s := size;
+//   s.grow = .TRUE;
+//   return s;
+// }
 
 BoxSize2 :: struct
 {
@@ -263,7 +275,11 @@ BoxSpec :: struct
 
   layout: struct
   {
+    // dim: Length2;
+    // dim_min: Length2;
+    // dim_max: Length2;
     sizing: BoxSize2;
+
     padding: Padding;
     child_gap: Length;
     child_align: struct { x, y: Align; #place x; axes: [2] Align; };
@@ -364,12 +380,13 @@ Merge :: (c: *Color, p: Color) {
   if c.* == 0 then c.* = p;
 }
 Merge :: (c: *BoxSize, p: BoxSize) {
+  Merge(*c.dim, p.dim);
   Merge(*c.min, p.min);
   Merge(*c.max, p.max);
-  Merge(*c.fit_children, p.fit_children);
-  Merge(*c.measure_text, p.measure_text);
-  Merge(*c.percent_of_parent, p.percent_of_parent);
-  Merge(*c.grow, p.grow);
+  // Merge(*c.fit_children, p.fit_children);
+  // Merge(*c.measure_text, p.measure_text);
+  // Merge(*c.percent_of_parent, p.percent_of_parent);
+  // Merge(*c.grow, p.grow);
 }
 Merge :: (c: *BoxSize2, p: BoxSize2) {
   Merge(*c.width, p.width);
@@ -599,13 +616,12 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   merged.autokey_seed = HashStringFunc(text, merged.autokey_seed);
 
   {
-    using layout_state;
     using merged.text;
     if font_size.value < 0.0 then font_size = Rem(1);
 
     using merged.layout.sizing;
-    if width.measure_text  == .DEFAULT then width.measure_text  = .TRUE;
-    if height.measure_text == .DEFAULT then height.measure_text = .TRUE;
+    if width.min.value  < 0.0 then width.min  = .{.TEXT, 1.0};
+    if height.min.value < 0.0 then height.min = .{.TEXT, 1.0};
   }
 
   return CreateBoxDirect(merged, loc);
@@ -827,14 +843,19 @@ LayoutEnd :: ()
     using it.spec.layout;
 
     // 1. Calculate standalone sizes (px, rem, text)
-    it.inner_min.component[Axis2.X] = LengthToPx(sizing.width.min, it, false);
-    it.inner_max.component[Axis2.X] = LengthToPx(sizing.width.max, it, false);
-    it.inner_min.component[Axis2.Y] = LengthToPx(sizing.height.min, it, false);
-    it.inner_max.component[Axis2.Y] = LengthToPx(sizing.height.max, it, false);
+    it.inner_min.x = LengthToPx(sizing.width.min, it, false);
+    it.inner_max.x = LengthToPx(sizing.width.max, it, false);
+    it.inner_min.y = LengthToPx(sizing.height.min, it, false);
+    it.inner_max.y = LengthToPx(sizing.height.max, it, false);
 
-    // Default to maximal size (it will be decreased in later stages if overflow happens).
-    it.inner_final = max(it.inner_min, it.inner_max);
-    it.inner_final = max(it.inner_final, V2.{0, 0}); // Default to 0 if both values were negative.
+    inner_from_minmax := max(it.inner_min, it.inner_max);
+    inner_from_minmax = max(inner_from_minmax, V2.{0, 0}); // Default to 0 if both values were negative.
+
+    // ...
+    it.inner_final.x = LengthToPx(sizing.width.dim, it, true);
+    it.inner_final.y = LengthToPx(sizing.height.dim, it, true);
+    if sizing.width.dim.unit  == .GROW then it.inner_final.x = inner_from_minmax.x;
+    if sizing.height.dim.unit == .GROW then it.inner_final.y = inner_from_minmax.y;
 
     // 2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
     new_dim := V2.{-1.0, -1.0};
@@ -842,7 +863,7 @@ LayoutEnd :: ()
 
     // Prepare text_measurement ahead of time to not call it twice per axis.
     text_measurement: V2;
-    if sizing.width.measure_text == .TRUE || sizing.height.measure_text == .TRUE
+    if sizing.width.dim.unit == .TEXT || sizing.height.dim.unit == .TEXT
     {
       params := MeasureTextParams.{
         text = text.str,
@@ -858,14 +879,16 @@ LayoutEnd :: ()
     for axis: Axis2.X .. Axis2.Y
     {
       size := sizing.axes[axis];
-      if size.fit_children == .TRUE
+      length := size.dim;
+
+      if length.unit == .FIT
       {
         // This will be overwriten by the next stage;
         // For now assign parent_dim to provide some reasonable behavior for (mis)cofigurations
         // where parent uses `fit_children` and child uses `grow`/`percentage_of_parent`.
         new_dim.component[axis] = parent_dim.component[axis];
       }
-      if size.measure_text == .TRUE
+      if length.unit == .TEXT
       {
         new_dim.component[axis] = text_measurement.component[axis];
 
@@ -877,9 +900,9 @@ LayoutEnd :: ()
           v = min(v, it.inner_max.component[axis]);
         it.inner_min.component[axis] = v;
       }
-      if size.percent_of_parent >= 0.0
+      if length.unit == .PCT
       {
-        new_dim.component[axis] = parent_dim.component[axis] * size.percent_of_parent;
+        new_dim.component[axis] = parent_dim.component[axis] * length.value;
       }
       if new_dim.component[axis] >= 0.0 // Store new_dim
       {
@@ -910,9 +933,10 @@ LayoutEnd :: ()
     {
       using it.spec.layout;
       size := sizing.axes[axis];
+      length := size.dim;
 
       // 1. Calculate size from children (fit).
-      if size.fit_children == .TRUE
+      if length.unit == .FIT
       {
         children_outer_dim_sum: float;
         if AxisMatchesLayoutDirection(axis, direction)
@@ -956,7 +980,7 @@ LayoutEnd :: ()
           if child_index > 0 then children_outer_dim_sum += parent.child_gap;
           children_outer_dim_sum += OuterDim(child, axis);
 
-          if child.layout.sizing.axes[axis].grow == .TRUE
+          if child.layout.sizing.axes[axis].dim.unit == .GROW
           {
             max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
             growable := max_child_inner_dim - InnerDim(child, axis);
@@ -991,7 +1015,7 @@ LayoutEnd :: ()
 
           for :Siblings child: parent.first
           {
-            if child.layout.sizing.axes[axis].grow == .TRUE
+            if child.layout.sizing.axes[axis].dim.unit == .GROW
             {
               max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
               growable := max_child_inner_dim - InnerDim(child, axis);
@@ -1015,7 +1039,7 @@ LayoutEnd :: ()
           }
 
           // grow child
-          if free_space > 0.0 && child.layout.sizing.axes[axis].grow == .TRUE
+          if free_space > 0.0 && child.layout.sizing.axes[axis].dim.unit == .GROW
           {
             max_child_inner_dim := InnerDim(parent, axis) - PaddingDim(child, axis);
             child.inner_final.component[axis] = PositiveMin(max_child_inner_dim, InnerDimMax(child, axis));
