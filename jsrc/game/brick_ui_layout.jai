@@ -746,6 +746,18 @@ LayoutEnd :: ()
     }
   }
 
+  ClampInnerDim :: (box: *Box)
+  {
+    for *box.inner_dim.component
+    {
+      inner_min := box.inner_min.component[it_index];
+      inner_max := box.inner_max.component[it_index];
+      if inner_min >= 0 then it.* = max(it.*, inner_min);
+      if inner_max >= 0 then it.* = min(it.*, inner_max);
+    }
+  }
+
+
   // - SIZING PASS 1 -
   // Steps:
   //   1. Calculate standalone sizes (px, rem, text).
@@ -766,16 +778,10 @@ LayoutEnd :: ()
     it.inner_max.y = LengthToPx(it.layout.dim_max.y, it, false);
 
     // 2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
-    new_dim := V2.{-1.0, -1.0};
     parent_dim := it.parent.inner_dim;
-
-    // Prepare text_measurement ahead of time to not call it twice per axis.
     text_was_measured := false;
     text_measurement: V2;
 
-    // Due to how data is organized it's not easy to "simd" it using Vector2.
-    // This could be improved in the future but it's fine for now.
-    // We can just do a layout one axis at a time.
     for axis: Axis2.X .. Axis2.Y
     {
       for *dim: it.layout.dimensions
@@ -787,7 +793,7 @@ LayoutEnd :: ()
           // This will be overwriten by the next stage;
           // For now assign parent_dim to provide some reasonable behavior for (mis)cofigurations
           // where parent uses `fit_children` and child uses `grow`/`percentage_of_parent`.
-          new_dim.component[axis] = parent_dim.component[axis];
+          it.inner_dim.component[axis] = parent_dim.component[axis];
         }
         if length.unit == .TEXT
         {
@@ -802,20 +808,11 @@ LayoutEnd :: ()
             text_was_measured = true;
           }
 
-          new_dim.component[axis] = text_measurement.component[axis];
+          it.inner_dim.component[axis] = text_measurement.component[axis];
         }
         if length.unit == .PCT
         {
-          new_dim.component[axis] = parent_dim.component[axis] * length.value;
-        }
-        if new_dim.component[axis] >= 0.0 // Store new_dim
-        {
-          v := new_dim.component[axis];
-          if it.inner_min.component[axis] >= 0
-          v = max(v, it.inner_min.component[axis]);
-          if it.inner_max.component[axis] >= 0
-          v = min(v, it.inner_max.component[axis]);
-          it.inner_dim.component[axis] = v;
+          it.inner_dim.component[axis] = parent_dim.component[axis] * length.value;
         }
       }
     }
@@ -825,6 +822,8 @@ LayoutEnd :: ()
     inner_from_minmax = max(inner_from_minmax, V2.{0, 0}); // Default to 0 if both values were negative.
     if it.layout.dim.x.unit == .GROW then it.inner_dim.x = inner_from_minmax.x;
     if it.layout.dim.y.unit == .GROW then it.inner_dim.y = inner_from_minmax.y;
+
+    ClampInnerDim(it);
 
     // 3. Calculate padding.
     for axis: Axis2.X .. Axis2.Y
@@ -842,7 +841,6 @@ LayoutEnd :: ()
     // - SIZING PASS 2 -
     // Steps:
     //   1. Calculate sizes dependent on children (fit).
-    //   2. Clamp inner_dim to inner_min and inner_max.
     for :TreeDepthFirst root_box
     {
       length := it.layout.dim.axes[axis];
@@ -864,15 +862,13 @@ LayoutEnd :: ()
           for :Siblings child: it.first
             children_outer_dim_sum = max(children_outer_dim_sum, OuterDim(child, axis));
         }
+
         it.inner_dim.component[axis] = children_outer_dim_sum;
+
+        // Clamp inner_dim to inner_min and inner_max.
+        ClampInnerDim(it);
       }
 
-      // 2. Clamp inner_dim to inner_min and inner_max.
-      if it.inner_max.component[axis] >= 0.0
-        it.inner_dim.component[axis] = min(it.inner_max.component[axis], it.inner_dim.component[axis]);
-
-      if it.inner_min.component[axis] >= 0.0
-        it.inner_dim.component[axis] = max(it.inner_min.component[axis], it.inner_dim.component[axis]);
     }
 
     // - SIZING PASS 3 -
