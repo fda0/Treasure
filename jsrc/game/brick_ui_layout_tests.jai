@@ -22,8 +22,8 @@ tests :: ()
   tests_fit_and_grow();
   tests_child_gap();
 
-  log("WARNING: tests_text_in_too_small_window are commented out");
-  // tests_text_in_too_small_window();
+  // log("WARNING: tests_text_in_too_small_window are commented out");
+  tests_text_in_too_small_window();
 }
 
 tests_fit_and_grow :: ()

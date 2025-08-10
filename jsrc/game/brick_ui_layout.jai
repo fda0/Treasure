@@ -47,10 +47,8 @@ BorderOutside :: (w: Length) -> BorderWidths { return .{w,w,w,w, .{}}; }
 Padding :: struct
 {
   left, right, top, bottom: Length;
-  #place left; axes: [2] struct
-  {
+  #place left; axes: [2] struct {
     lower, upper: Length;
-    #place lower; ends: [2] Length;
   };
 };
 PaddingAll :: (l: Length)                   -> Padding { return .{l, l, l, l}; }
@@ -389,10 +387,8 @@ Box :: struct
   padding: struct
   {
     left, right, top, bottom: float;
-    #place left; axes: [2] struct
-    {
+    #place left; axes: [2] struct {
       lower, upper: float;
-      #place lower; ends: [2] float;
     };
   };
   child_gap: float;
@@ -534,7 +530,6 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
 
   {
     if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
-
     if merged.layout.dim_min.x.value < 0.0 then merged.layout.dim_min.x = .{.TEXT, 1.0};
     if merged.layout.dim_min.y.value < 0.0 then merged.layout.dim_min.y = .{.TEXT, 1.0};
   }
@@ -778,20 +773,21 @@ LayoutEnd :: ()
     // 2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
     parent_dim := it.parent.inner_dim;
     text_was_measured := false;
-    text_measurement: V2;
+    text_dim: V2;
 
     for axis: Axis2.X .. Axis2.Y
     {
-      for *dim: it.layout.dimensions
+      for *layout_dim, layout_dim_index: it.layout.dimensions
       {
-        length := dim.axes[axis];
+        length := layout_dim.axes[axis];
+        inner := *it.inners[layout_dim_index].component[axis];
 
         if length.unit == .FIT
         {
           // This will be overwriten by the next stage;
           // For now assign parent_dim to provide some reasonable behavior for (mis)cofigurations
           // where parent uses `fit_children` and child uses `grow`/`percentage_of_parent`.
-          it.inner_dim.component[axis] = parent_dim.component[axis];
+          inner.* = parent_dim.component[axis];
         }
         if length.unit == .TEXT
         {
@@ -802,15 +798,15 @@ LayoutEnd :: ()
               font = it.text.font,
               font_size_px = LengthToPx(it.text.font_size, it, true),
             };
-            text_measurement = measure_text_callback(params);
+            text_dim = measure_text_callback(params);
             text_was_measured = true;
           }
 
-          it.inner_dim.component[axis] = text_measurement.component[axis];
+          inner.* = text_dim.component[axis];
         }
         if length.unit == .PCT
         {
-          it.inner_dim.component[axis] = parent_dim.component[axis] * length.value;
+          inner.* = parent_dim.component[axis] * length.value;
         }
       }
     }
