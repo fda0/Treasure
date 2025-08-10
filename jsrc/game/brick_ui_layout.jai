@@ -400,7 +400,7 @@ Box :: struct
   rel_p: V2; // offset from outer dimensions of parent
   abs_p: V2; // offset from 0,0 of root box
 
-  // #place inner_dim; inners: [3] V3;
+  #place inner_dim; inners: [3] V2;
 };
 
 //
@@ -746,15 +746,13 @@ LayoutEnd :: ()
     }
   }
 
-  ClampInnerDim :: (box: *Box)
+  ClampInnerDim :: (box: *Box, axis: Axis2)
   {
-    for *box.inner_dim.component
-    {
-      inner_min := box.inner_min.component[it_index];
-      inner_max := box.inner_max.component[it_index];
-      if inner_min >= 0 then it.* = max(it.*, inner_min);
-      if inner_max >= 0 then it.* = min(it.*, inner_max);
-    }
+    dim := *box.inner_dim.component[axis];
+    inner_min := box.inner_min.component[axis];
+    inner_max := box.inner_max.component[axis];
+    if inner_min >= 0 then dim.* = max(dim.*, inner_min);
+    if inner_max >= 0 then dim.* = min(dim.*, inner_max);
   }
 
 
@@ -823,7 +821,8 @@ LayoutEnd :: ()
     if it.layout.dim.x.unit == .GROW then it.inner_dim.x = inner_from_minmax.x;
     if it.layout.dim.y.unit == .GROW then it.inner_dim.y = inner_from_minmax.y;
 
-    ClampInnerDim(it);
+    ClampInnerDim(it, .X);
+    ClampInnerDim(it, .Y);
 
     // 3. Calculate padding.
     for axis: Axis2.X .. Axis2.Y
@@ -843,10 +842,12 @@ LayoutEnd :: ()
     //   1. Calculate sizes dependent on children (fit).
     for :TreeDepthFirst root_box
     {
-      length := it.layout.dim.axes[axis];
+      has_length := false;
+      for it.layout.dimensions
+        has_length |= it.axes[axis].unit == .FIT;
 
       // 1. Calculate size from children (fit).
-      if length.unit == .FIT
+      if has_length
       {
         children_outer_dim_sum: float;
         if AxisMatchesLayoutDirection(axis, it.layout.direction)
@@ -863,12 +864,15 @@ LayoutEnd :: ()
             children_outer_dim_sum = max(children_outer_dim_sum, OuterDim(child, axis));
         }
 
-        it.inner_dim.component[axis] = children_outer_dim_sum;
+        for layout_dim, layout_dim_index: it.layout.dimensions
+        {
+          if layout_dim.axes[axis].unit == .FIT
+            it.inners[layout_dim_index].component[axis] = children_outer_dim_sum;
+        }
 
         // Clamp inner_dim to inner_min and inner_max.
-        ClampInnerDim(it);
+        ClampInnerDim(it, axis);
       }
-
     }
 
     // - SIZING PASS 3 -
