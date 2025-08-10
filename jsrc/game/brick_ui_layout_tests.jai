@@ -21,8 +21,6 @@ tests :: ()
   tests_grow();
   tests_fit_and_grow();
   tests_child_gap();
-
-  // log("WARNING: tests_text_in_too_small_window are commented out");
   tests_text_in_too_small_window();
 }
 
@@ -55,7 +53,7 @@ tests_fit_and_grow :: ()
     CheckEQ(OuterDim2(child1), c1_outer);
 
     parent_inner := V2.{c0_outer.x + c1_outer.x, max(c0_outer.y, c1_outer.y)};
-    CheckEQ(parent.inner_dim, parent_inner);
+    CheckEQ(parent.inner, parent_inner);
   }
 
   // TEST: Fit on parent & grow on children.
@@ -85,7 +83,7 @@ tests_fit_and_grow :: ()
     CheckEQ(OuterDim2(child1), c1_outer);
 
     parent_inner := V2.{max(c0_outer.x, c1_outer.x), c0_outer.y + c1_outer.y};
-    CheckEQ(parent.inner_dim, parent_inner);
+    CheckEQ(parent.inner, parent_inner);
   }
 }
 
@@ -105,7 +103,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c_inner);
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
-    CheckEQ(parent.inner_dim, V2.{900, 600});
+    CheckEQ(parent.inner, V2.{900, 600});
   }
 
   // 3x grow with 1 max size contrain - should be indentical to above.
@@ -122,7 +120,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c_inner);
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
-    CheckEQ(parent.inner_dim, V2.{900, 600});
+    CheckEQ(parent.inner, V2.{900, 600});
   }
 
   // @todo How GROW works currently is a bit nonsensical; It should be changed so the test below works in the future!
@@ -140,7 +138,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child1), .{110, 20});
     CheckEQ(OuterDim2(child2), .{70, 20});
     CheckEQ(OuterDim2(child3), .{110, 20});
-    CheckEQ(parent.inner_dim, .{400, 20});
+    CheckEQ(parent.inner, .{400, 20});
   } else log("WARNING: New better tests for GROW are disabled currently");
 
   // 3x grow with 1 max size contrain.
@@ -159,7 +157,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c02_inner);
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner_dim, V2.{900, 600});
+    CheckEQ(parent.inner, V2.{900, 600});
   }
 
   // 3x grow with 1 min size contrain.
@@ -191,7 +189,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child0), c02_inner);
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner_dim, V2.{900, 600});
+    CheckEQ(parent.inner, V2.{900, 600});
   }
 }
 
@@ -211,10 +209,10 @@ tests_child_gap :: ()
 
     gap := 40.0;
     pad1 := 15.0;
-    CheckEQ(InnerDim2(child0), V2.{100, 600});
-    CheckEQ(InnerDim2(child1), V2.{200, 600 - pad1*2});
-    CheckEQ(InnerDim2(child2), V2.{900 - (100+200 + pad1*2 + gap*2), 600});
-    CheckEQ(parent.inner_dim, V2.{900, 600});
+    CheckEQ(child0.inner, V2.{100, 600});
+    CheckEQ(child1.inner, V2.{200, 600 - pad1*2});
+    CheckEQ(child2.inner, V2.{900 - (100+200 + pad1*2 + gap*2), 600});
+    CheckEQ(parent.inner, V2.{900, 600});
 
     CheckEQ(child0.abs_p, V2.{0, 0});
     CheckEQ(child1.abs_p, V2.{100 + gap, 0});
