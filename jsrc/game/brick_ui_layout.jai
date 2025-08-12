@@ -804,12 +804,6 @@ LayoutEnd :: ()
       }
     }
 
-    // Temporary workaround hack for .GROW
-    inner_from_minmax := max(it.inner_min, it.inner_max);
-    inner_from_minmax = max(inner_from_minmax, V2.{0, 0}); // Default to 0 if both values were negative.
-    if it.layout.dim.x.unit == .GROW then it.inner.x = inner_from_minmax.x;
-    if it.layout.dim.y.unit == .GROW then it.inner.y = inner_from_minmax.y;
-
     ClampInnerDim(it, .X);
     ClampInnerDim(it, .Y);
 
@@ -838,25 +832,25 @@ LayoutEnd :: ()
       // 1. Calculate size from children (fit).
       if has_length
       {
-        children_outer_dim_sum: float;
+        children_outer_sum: float;
         if AxisMatchesLayoutDirection(axis, it.layout.direction)
         {
           for :Siblings child, child_index: it.first
           {
-            if child_index > 0 then children_outer_dim_sum += it.child_gap;
-            children_outer_dim_sum += OuterDim(child, axis);
+            if child_index > 0 then children_outer_sum += it.child_gap;
+            children_outer_sum += OuterDim(child, axis);
           }
         }
         else
         {
           for :Siblings child: it.first
-            children_outer_dim_sum = max(children_outer_dim_sum, OuterDim(child, axis));
+            children_outer_sum = max(children_outer_sum, OuterDim(child, axis));
         }
 
         for layout_dim, layout_dim_index: it.layout.dimensions
         {
           if layout_dim.axes[axis].unit == .FIT
-            it.inners[layout_dim_index].component[axis] = children_outer_dim_sum;
+            it.inners[layout_dim_index].component[axis] = children_outer_sum;
         }
 
         // Clamp inner_dim to inner_min and inner_max.
@@ -872,14 +866,14 @@ LayoutEnd :: ()
     {
       if AxisMatchesLayoutDirection(axis, parent.layout.direction)
       {
-        children_outer_dim_sum := 0.0;
+        // Loop over children and sum things
+        children_outer_sum := 0.0;
         children_growable_sum := 0.0;
         children_shrinkable_sum := 0.0;
-
         for :Siblings child, child_index: parent.first
         {
-          if child_index > 0 then children_outer_dim_sum += parent.child_gap;
-          children_outer_dim_sum += OuterDim(child, axis);
+          if child_index > 0 then children_outer_sum += parent.child_gap;
+          children_outer_sum += OuterDim(child, axis);
 
           if child.layout.dim.axes[axis].unit == .GROW
           {
@@ -892,7 +886,7 @@ LayoutEnd :: ()
           children_shrinkable_sum += shrinkable;
         }
 
-        free_space := InnerDim(parent, axis) - children_outer_dim_sum;
+        free_space := InnerDim(parent, axis) - children_outer_sum;
 
         // Detect overflow. Shrink children.
         if free_space < 0.0 && children_shrinkable_sum > 0.0
@@ -908,7 +902,7 @@ LayoutEnd :: ()
           }
         }
 
-        // Detect free space. Extend dimensions of children with grow == .TRUE
+        // Detect free space. Expand children with GROW.
         if free_space > 0.0 && children_growable_sum > 0.0
         {
           grow_ratio := free_space / children_growable_sum;
@@ -926,7 +920,7 @@ LayoutEnd :: ()
           }
         }
       }
-      else
+      else // Axis doesn't match layout
       {
         for :Siblings child: parent.first
         {
@@ -976,13 +970,13 @@ LayoutEnd :: ()
         // Add alignment if there is free space in parent
         if align_shift_ratio > 0.0
         {
-          children_outer_dim_sum := 0.0;
+          children_outer_sum := 0.0;
           for :Siblings child, child_index: parent.first
           {
-            if child_index > 0 then children_outer_dim_sum += parent.child_gap;
-            children_outer_dim_sum += OuterDim(child, axis);
+            if child_index > 0 then children_outer_sum += parent.child_gap;
+            children_outer_sum += OuterDim(child, axis);
           }
-          free_space := InnerDim(parent, axis) - children_outer_dim_sum;
+          free_space := InnerDim(parent, axis) - children_outer_sum;
 
           if free_space > 0.0
           {

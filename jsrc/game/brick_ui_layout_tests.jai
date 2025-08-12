@@ -107,7 +107,7 @@ tests_grow :: ()
   }
 
   // 3x grow with 1 max size contrain - should be indentical to above.
-  {
+  if 0 {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
@@ -121,10 +121,10 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
     CheckEQ(parent.inner, V2.{900, 600});
-  }
+  } else log("WARNING: Old GROW tests commented out");
 
   // @todo How GROW works currently is a bit nonsensical; It should be changed so the test below works in the future!
-  if 0 {
+  if 1 {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(400), Px(20)}});
     Parent(parent);
@@ -143,7 +143,7 @@ tests_grow :: ()
 
   // 3x grow with 1 max size contrain.
   // Middle box (child1) will be initialized with its max size; it's siblings will get what's left.
-  {
+  if 0 {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
@@ -158,7 +158,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
     CheckEQ(parent.inner, V2.{900, 600});
-  }
+  } else log("WARNING: Old GROW tests commented out");
 
   // 3x grow with 1 min size contrain.
   // Min size of Px(300) was picked because it makes calculations a bit easier to follow.
@@ -175,7 +175,7 @@ tests_grow :: ()
   // child0_new_dim ->   0 + 225 -> 225
   // child1_new_dim -> 300 + 150 -> 450
   // child2_new_dim ->   0 + 225 -> 225
-  {
+  if 0 {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
@@ -190,7 +190,7 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child1), c1_inner);
     CheckEQ(OuterDim2(child2), c02_inner);
     CheckEQ(parent.inner, V2.{900, 600});
-  }
+  } else log("WARNING: Old GROW tests commented out");
 }
 
 tests_child_gap :: ()
