@@ -107,7 +107,7 @@ tests_grow :: ()
   }
 
   // 3x grow with 1 max size contrain - should be indentical to above.
-  if 0 {
+  {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
     Parent(parent);
@@ -121,10 +121,10 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child1), c_inner);
     CheckEQ(OuterDim2(child2), c_inner);
     CheckEQ(parent.inner, V2.{900, 600});
-  } else log("WARNING: Old GROW tests commented out");
+  }
 
-  // @todo How GROW works currently is a bit nonsensical; It should be changed so the test below works in the future!
-  if 1 {
+  // GROW with iterative solving
+  {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.dim = .{Px(400), Px(20)}});
     Parent(parent);
@@ -139,58 +139,28 @@ tests_grow :: ()
     CheckEQ(OuterDim2(child2), .{70, 20});
     CheckEQ(OuterDim2(child3), .{110, 20});
     CheckEQ(parent.inner, .{400, 20});
-  } else log("WARNING: New better tests for GROW are disabled currently");
+  }
 
-  // 3x grow with 1 max size contrain.
-  // Middle box (child1) will be initialized with its max size; it's siblings will get what's left.
-  if 0 {
+  // GROW + dim_min
+  // @todo Should the results be:
+  // .{150, 30}
+  // .{600, 30}
+  // .{150, 30}
+  //  ? ? ?
+  {
     LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
+    parent := CreateBox(.{layout.dim = .{Px(900), Px(30)}});
     Parent(parent);
     child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
-    child1 := CreateBox(.{layout = .{dim = .{Grow(), Grow()}, dim_max.x = Px(600)}});
+    child1 := CreateBox(.{layout = .{dim = .{Grow(),Grow()}, dim_min.x = Px(600)}});
     child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
     LayoutEnd();
 
-    c1_inner := V2.{600, 600};
-    c02_inner := V2.{150, 600};
-    CheckEQ(OuterDim2(child0), c02_inner);
-    CheckEQ(OuterDim2(child1), c1_inner);
-    CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner, V2.{900, 600});
-  } else log("WARNING: Old GROW tests commented out");
-
-  // 3x grow with 1 min size contrain.
-  // Min size of Px(300) was picked because it makes calculations a bit easier to follow.
-  // Middle box (child1) starts with its min size of 300px before grow calculations begin.
-  //
-  // free_space -> (900 - 300) -> 600
-  // children_growable_sum (sum of how much each child could grow in isolation) -> 900 + 600 + 900 -> 2400
-  // free_space / children_growable_sum -> 0.25
-  //
-  // child0_to_grow -> 0.25 * 900 -> 225
-  // child1_to_grow -> 0.25 * 600 -> 150
-  // child2_to_grow -> 0.25 * 900 -> 225
-  //
-  // child0_new_dim ->   0 + 225 -> 225
-  // child1_new_dim -> 300 + 150 -> 450
-  // child2_new_dim ->   0 + 225 -> 225
-  if 0 {
-    LayoutBegin(DefaultLayoutSpec);
-    parent := CreateBox(.{layout.dim = .{Px(900), Px(600)}});
-    Parent(parent);
-    child0 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
-    child1 := CreateBox(.{layout = .{dim = .{Grow(),Grow()}, dim_min.x = Px(300)}});
-    child2 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
-    LayoutEnd();
-
-    c1_inner := V2.{450, 600};
-    c02_inner := V2.{225, 600};
-    CheckEQ(OuterDim2(child0), c02_inner);
-    CheckEQ(OuterDim2(child1), c1_inner);
-    CheckEQ(OuterDim2(child2), c02_inner);
-    CheckEQ(parent.inner, V2.{900, 600});
-  } else log("WARNING: Old GROW tests commented out");
+    CheckEQ(OuterDim2(child0), .{100, 30});
+    CheckEQ(OuterDim2(child1), .{700, 30});
+    CheckEQ(OuterDim2(child2), .{100, 30});
+    CheckEQ(parent.inner, .{900, 30});
+  }
 }
 
 tests_child_gap :: ()
