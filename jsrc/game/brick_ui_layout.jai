@@ -866,58 +866,80 @@ LayoutEnd :: ()
     {
       if AxisMatchesLayoutDirection(axis, parent.layout.direction)
       {
-        // Loop over children and sum things
-        children_outer_sum := 0.0;
-        children_growable_sum := 0.0;
-        children_shrinkable_sum := 0.0;
-        for :Siblings child, child_index: parent.first
+        mode: enum { NOT_SET; GROWING; SHRINKING; };
+        prev_free_space := FLOAT32_MAX;
+
+        while true // GROWING might need multiple iterations to be solved.
         {
-          if child_index > 0 then children_outer_sum += parent.child_gap;
-          children_outer_sum += OuterDim(child, axis);
-
-          if child.layout.dim.axes[axis].unit == .GROW
+          // Loop over children and sum things
+          children_outer_sum := 0.0;
+          // grow_count: float; // This uses float to support weights in the future.
+          children_growable_sum := 0.0;
+          children_shrinkable_sum := 0.0;
+          for :Siblings child, child_index: parent.first
           {
-            max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
-            growable := max_child_inner_dim - InnerDim(child, axis);
-            children_growable_sum += growable;
-          }
+            if child_index > 0 then children_outer_sum += parent.child_gap;
+            children_outer_sum += OuterDim(child, axis);
 
-          shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
-          children_shrinkable_sum += shrinkable;
-        }
-
-        free_space := InnerDim(parent, axis) - children_outer_sum;
-
-        // Detect overflow. Shrink children.
-        if free_space < 0.0 && children_shrinkable_sum > 0.0
-        {
-          shrink_ratio := children_shrinkable_sum / -free_space;
-          shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
-
-          for :Siblings child: parent.first
-          {
-            shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
-            to_shrink := shrinkable * shrink_ratio;
-            child.inner.component[axis] -= to_shrink;
-          }
-        }
-
-        // Detect free space. Expand children with GROW.
-        if free_space > 0.0 && children_growable_sum > 0.0
-        {
-          grow_ratio := free_space / children_growable_sum;
-          grow_ratio = min(grow_ratio, 1.0); // Don't let box grow past its "growable" (based on max_child_inner_dim).
-
-          for :Siblings child: parent.first
-          {
             if child.layout.dim.axes[axis].unit == .GROW
             {
-              max_child_inner := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
-              growable := max_child_inner - InnerDim(child, axis);
-              to_grow := growable * grow_ratio;
-              child.inner.component[axis] += to_grow;
+              max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
+              growable := max_child_inner_dim - InnerDim(child, axis);
+              children_growable_sum += growable;
+            }
+
+            shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+            children_shrinkable_sum += shrinkable;
+          }
+
+          free_space := InnerDim(parent, axis) - children_outer_sum;
+
+          // Assign mode on first iteration
+          if !mode then mode = ifx free_space > 0.0 then .GROWING else .SHRINKING;
+
+          // Prevent endless GROWING loops when no progress was made.
+          if free_space >= prev_free_space break;
+          prev_free_space = free_space;
+
+          if mode == .GROWING
+          {
+            if free_space > 0.0 && children_growable_sum > 0.0
+            {
+              grow_ratio := free_space / children_growable_sum;
+              grow_ratio = min(grow_ratio, 1.0); // Don't let box grow past its "growable" (based on max_child_inner_dim).
+
+              for :Siblings child: parent.first
+              {
+                if child.layout.dim.axes[axis].unit == .GROW
+                {
+                  max_child_inner := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
+                  growable := max_child_inner - InnerDim(child, axis);
+                  to_grow := growable * grow_ratio;
+                  child.inner.component[axis] += to_grow;
+                }
+              }
+
+              continue; // continue while loop iteration
             }
           }
+          else if mode == .SHRINKING
+          {
+            // Detect overflow. Shrink children.
+            if free_space < 0.0 && children_shrinkable_sum > 0.0
+            {
+              shrink_ratio := children_shrinkable_sum / -free_space;
+              shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
+
+              for :Siblings child: parent.first
+              {
+                shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+                to_shrink := shrinkable * shrink_ratio;
+                child.inner.component[axis] -= to_shrink;
+              }
+            }
+          }
+
+          break; // break out of the whie loop
         }
       }
       else // Axis doesn't match layout
