@@ -18,7 +18,7 @@ MeasureText :: (p: MeasureTextParams) -> V2
 
 tests :: ()
 {
-  // tests_grow();
+  tests_grow();
   tests_fit_and_grow();
   tests_child_gap();
   tests_text_in_too_small_window();

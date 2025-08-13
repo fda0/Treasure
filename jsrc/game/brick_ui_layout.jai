@@ -873,8 +873,7 @@ LayoutEnd :: ()
         {
           // Loop over children and sum things
           children_outer_sum := 0.0;
-          // grow_count: float; // This uses float to support weights in the future.
-          children_growable_sum := 0.0;
+          children_grow_weight_sum := 0.0;
           children_shrinkable_sum := 0.0;
           for :Siblings child, child_index: parent.first
           {
@@ -883,9 +882,10 @@ LayoutEnd :: ()
 
             if child.layout.dim.axes[axis].unit == .GROW
             {
-              max_child_inner_dim := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
-              growable := max_child_inner_dim - InnerDim(child, axis);
-              children_growable_sum += growable;
+              can_grow := (InnerDimMax(child, axis) < 0.0 ||
+                InnerDimMax(child, axis) > InnerDim(child, axis));
+
+              if can_grow then children_grow_weight_sum += 1.0; // @todo use weight in the future.
             }
 
             shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
@@ -903,19 +903,21 @@ LayoutEnd :: ()
 
           if mode == .GROWING
           {
-            if free_space > 0.0 && children_growable_sum > 0.0
+            if free_space > 0.0 && children_grow_weight_sum > 0.0
             {
-              grow_ratio := free_space / children_growable_sum;
-              grow_ratio = min(grow_ratio, 1.0); // Don't let box grow past its "growable" (based on max_child_inner_dim).
+              grow_per_child := free_space / children_grow_weight_sum;
 
               for :Siblings child: parent.first
               {
                 if child.layout.dim.axes[axis].unit == .GROW
                 {
-                  max_child_inner := PositiveMin(InnerDim(parent, axis) - PaddingDim(child, axis), InnerDimMax(child, axis));
-                  growable := max_child_inner - InnerDim(child, axis);
-                  to_grow := growable * grow_ratio;
-                  child.inner.component[axis] += to_grow;
+                  grow_amount := grow_per_child;
+                  if InnerDimMax(child, axis) >= 0.0
+                  {
+                    space_left := InnerDimMax(child, axis) - InnerDim(child, axis);
+                    grow_amount = min(grow_amount, space_left);
+                  }
+                  child.inner.component[axis] += grow_amount;
                 }
               }
 
