@@ -5,7 +5,7 @@ using Layout;
 UI_StartFrame :: ()
 {
   spec := LayoutSpec.{
-    // debug_logging = (G.frame_number == 1),
+    debug_logging = (G.frame_number == 1),
 
     root_dim_px = G.window_dim,
     rem_to_px = 12.0 + 2.0 * floor(G.window_dim.y / 256.0),
@@ -27,8 +27,8 @@ UI_FinishFrame :: ()
 
   for cmd: layout_state.render_commands
   {
-    // if G.frame_number == 1
-    //   print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    if G.frame_number == 1
+      print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);

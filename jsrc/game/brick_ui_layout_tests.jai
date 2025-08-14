@@ -18,10 +18,26 @@ MeasureText :: (p: MeasureTextParams) -> V2
 
 tests :: ()
 {
+  tests_simple_dim_min_max();
   tests_grow();
   tests_fit_and_grow();
   tests_child_gap();
   tests_text_in_too_small_window();
+}
+
+tests_simple_dim_min_max :: ()
+{
+  LayoutBegin(DefaultLayoutSpec);
+  b0 := CreateBox(.{layout = .{dim = .{Px(0), Px(0)},
+                               dim_min = .{Px(10), Px(40)},
+                               dim_max = .{Px(20), Px(30)}}});
+  b1 := CreateBox(.{layout = .{dim = .{Px(100), Px(100)},
+                               dim_min = .{Px(10), Px(40)},
+                               dim_max = .{Px(20), Px(30)}}});
+  LayoutEnd();
+
+  CheckEQ(InnerDim2(b0), .{10, 30});
+  CheckEQ(InnerDim2(b1), .{20, 30});
 }
 
 tests_fit_and_grow :: ()

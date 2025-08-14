@@ -164,8 +164,10 @@ LengthToPx :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
            LengthToPx(len2.y, owner_box, clamp_to_zero)};
 }
 
-Fit :: () -> Length { return .{.FIT, 1.0}; }
-Grow :: () -> Length { return .{.GROW, 1.0}; }
+Fit   :: () -> Length  { return .{.FIT, 1.0}; }
+Fit2  :: () -> Length2 { return .{.{.FIT, 1.0}, .{.FIT, 1.0}}; }
+Grow  :: () -> Length  { return .{.GROW, 1.0}; }
+Grow2 :: () -> Length2 { return .{.{.GROW, 1.0}, .{.GROW, 1.0}}; }
 
 BoxKey :: struct
 {
@@ -288,8 +290,8 @@ Merge :: (c: *Length, p: Length) {
   if c.value < 0.0 then c.* = p;
 }
 Merge :: (c: *Length2, p: Length2) {
-  if c.x.value < 0.0 then c.x = p.y;
-  if c.y.value < 0.0 then c.x = p.y;
+  if c.x.value < 0.0 then c.x = p.x;
+  if c.y.value < 0.0 then c.y = p.y;
 }
 Merge :: (c: *s32, p: s32) {
   if c.* < 0 then c.* = p;

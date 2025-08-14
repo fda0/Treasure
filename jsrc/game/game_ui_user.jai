@@ -1,6 +1,6 @@
 DEV_State :: struct // @todo serialize this struct to disk
 {
-  show := false;
+  show := true;
   win_p: V2;
 
   category: enum {stats; switches; assets; network; sounds; objects; };
@@ -77,7 +77,8 @@ UI_BuildDeveloperWindow :: ()
 
   // Floating developer window
   Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                sizing = .{width = Fit(SizeMin(Rem(35))), height = Size(Rem(60))}},
+                                dim = .{Rem(0), Rem(60)},
+                                dim_min.x = Rem(35)},
                      bg_color = UI_BG,
                      floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
                      border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
@@ -85,7 +86,7 @@ UI_BuildDeveloperWindow :: ()
 
   // Window bar
   {
-    window_bar := Signal(Parent(CreateBox(.{layout = .{sizing = .{width = Grow(), height = Fit()},
+    window_bar := Signal(Parent(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
                                                        padding = PaddingAll(Rem(0.4)),
                                                        child_align = .{x = .CENTER, y = .CENTER}},
                                             bg_color = UI_ORANGE2,
@@ -98,14 +99,14 @@ UI_BuildDeveloperWindow :: ()
 
   // Content body
   {
-    Parent(CreateBox(.{layout = .{sizing = .{Grow(Fit()), Grow()}}}));
+    Parent(CreateBox(.{layout = .{dim = Grow2(), dim_min.x = Fit()}}));
     category_names := enum_names(type_of(category));
     category_values := enum_values_as_enum(type_of(category));
 
     // Category vertical bar
     {
       Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                    sizing = .{Fit(), Grow()},
+                                    dim = .{Fit(), Grow()},
                                     padding = UI_WINDOW_PAD,
                                     child_gap = UI_WINDOW_GAP,
                                     child_align.x = .CENTER},
@@ -119,7 +120,7 @@ UI_BuildDeveloperWindow :: ()
 
     // Content box
     Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                  sizing = .{Grow(Fit()), Fit()},
+                                  dim_min = Fit2(), dim.x = Grow(),
                                   padding = UI_WINDOW_PAD},
                        corner_radius = UI_RADIUS}));
 
@@ -213,7 +214,7 @@ UI_BuildDeveloperWindow :: ()
         CreateText(tprint("name: %, t range: {%, %}", anim.name, anim.t_min, anim.t_max));
         CreateText(tprint("obj_anim[0]: %", obj.l.animation_tracks[0]));
 
-        horizontal_group := BoxSpec.{layout.sizing = .{Grow(), Fit()}, layout.child_gap = Em(1)};
+        horizontal_group := BoxSpec.{layout.dim = .{Grow(), Fit()}, layout.child_gap = Em(1)};
 
         {
           Parent(CreateBox(horizontal_group));
@@ -282,7 +283,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 {
   Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{sizing = .{Grow(), Fit()},
+  button := Signal(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
                                           padding = UI_BUTTON_PAD,
                                           child_align.y = .CENTER,
                                           child_gap = UI_WINDOW_GAP}}));
@@ -305,7 +306,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 
   {
     square_length := Rem(1.5);
-    Parent(CreateBox(.{layout = .{sizing = Size2(square_length),
+    Parent(CreateBox(.{layout = .{dim = .{square_length, square_length},
                                   child_align = .{x = .CENTER, y = .CENTER}},
                        bg_color = UI_BUTTON_BG,
                        border = .{color = UI_FG, widths = UI_BORDER_WIDTH},
@@ -319,7 +320,7 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 {
   Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{sizing = .{Grow(), Fit()},
+  button := Signal(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
                                           padding = UI_BUTTON_PAD,
                                           child_align.y = .CENTER,
                                           child_gap = UI_WINDOW_GAP}}));
@@ -337,7 +338,7 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 
   {
     square_length := Rem(1.5);
-    Parent(CreateBox(.{layout = .{sizing = Size2(square_length),
+    Parent(CreateBox(.{layout = .{dim = .{square_length, square_length},
                                   child_align = .{x = .CENTER, y = .CENTER}},
                        bg_color = UI_BUTTON_BG,
                        border = .{color = UI_FG, widths = UI_BORDER_WIDTH},
@@ -351,7 +352,7 @@ UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
 {
   Layer(.{autokey_seed = Hash64Any(label, button_value.(u64), set_value)});
 
-  button := Signal(CreateBox(.{layout = .{sizing = .{Grow(Fit()), Fit()},
+  button := Signal(CreateBox(.{layout = .{dim.x = Grow(), dim_min = Fit2(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.x = .RIGHT,
                                           child_align.y = .CENTER,
@@ -379,7 +380,7 @@ UI_Button :: (label: string) -> clicked: bool
 {
   Layer(.{autokey_seed = Hash64Any(label)});
 
-  button := Signal(CreateBox(.{layout = .{sizing = .{Grow(Fit()), Fit()},
+  button := Signal(CreateBox(.{layout = .{dim_min = Fit2(), dim.x = Grow(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.x = .RIGHT,
                                           child_align.y = .CENTER,
