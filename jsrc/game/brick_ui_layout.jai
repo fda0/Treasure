@@ -202,14 +202,20 @@ BoxSpec :: struct
 
     padding: Padding;
     child_gap: Length;
-    child_align: struct { x, y: Align; #place x; axes: [2] Align; };
+    child_align: struct { x, y: Align; #place x; axes: [2] Align; }
     direction: LayoutDirection;
 
     #place dim; dimensions: [3] Length2;
-  };
+  }
 
   bg_color: Color;
   corner_radius: CornerRadius;
+
+  scroll: struct
+  {
+    enable: enum_flags u8 { SCROLL_X; SCROLL_Y; }
+    set_01: V2 = .{-1, -1};
+  }
 
   floating: struct
   {
@@ -219,21 +225,21 @@ BoxSpec :: struct
       PARENT;
       ELEMENT_WITH_ID;
       ROOT;
-    };
+    }
 
     offset: Length2;
     // expand: [Axis2.COUNT] Size; do we need this?
     parent: BoxKey;
     z_index: s16;
-    attach_points: struct { element: AttachPoint; parent: AttachPoint; };
+    attach_points: struct { element: AttachPoint; parent: AttachPoint; }
     cursor_passthrough: bool;
-  };
+  }
 
   border: struct
   {
     color: Color;
     widths: BorderWidths;
-  };
+  }
 
   text: struct
   {
@@ -241,8 +247,8 @@ BoxSpec :: struct
     color: Color;
     font: s32 = -1;
     font_size: Length; // EM on font size will be interpreted as REM!
-  };
-};
+  }
+}
 
 //
 // BoxSpec Layer helpers
@@ -396,6 +402,7 @@ Box :: struct
   child_gap: float;
 
   rel_p: V2; // offset from outer dimensions of parent
+  scroll_offset: V2;
   abs_p: V2; // offset from 0,0 of root box
 
   #place inner; inners: [3] V2;
@@ -596,13 +603,25 @@ Signal :: (box: *Box) -> BoxSignal
   signal := BoxSignal.{box = box};
   mouse_overlaps_box := false;
 
+  // Test mouse overlap with box from previous frame + its parents.
   if !IsNil(box.old)
   {
-    box_min := box.old.abs_p;
-    box_max := box_min + OuterDim2(box.old);
+    mouse_overlaps_box = true;
+    tested := box.old;
 
-    mouse_overlaps_box = (mouse.x >= box_min.x && mouse.x < box_max.x &&
-                          mouse.y >= box_min.y && mouse.y < box_max.y);
+    while true
+    {
+      tested_min := tested.abs_p;
+      tested_max := tested_min + OuterDim2(tested);
+
+      mouse_overlaps_box &&= (mouse.x >= tested_min.x && mouse.x < tested_max.x &&
+                              mouse.y >= tested_min.y && mouse.y < tested_max.y);
+
+      // Advance to parent if tested wasn't floating
+      if tested.floating.attach_to then break;
+      tested = tested.parent;
+      if IsNil(tested) break;
+    }
   }
 
   if mouse_overlaps_box
@@ -871,6 +890,11 @@ LayoutEnd :: ()
     //   2. Use free space from parent if grow == .TRUE.
     for :TreeBreadthFirst parent: root_box
     {
+      is_scrolling_across_this_axis :=
+        axis == .X && parent.scroll.enable & .SCROLL_X ||
+        axis == .Y && parent.scroll.enable & .SCROLL_Y;
+      if is_scrolling_across_this_axis continue;
+
       if AxisMatchesLayoutDirection(axis, parent.layout.direction)
       {
         mode: enum { NOT_SET; GROWING; SHRINKING; };
@@ -1037,6 +1061,30 @@ LayoutEnd :: ()
           }
         }
       }
+
+      // Compute scroll set_01
+      if parent.scroll.set_01.component[axis] >= 0.0
+      {
+        children_outer_sum := 0.0;
+        for :Siblings child: parent.first
+          children_outer_sum += OuterDim(child, axis);
+
+        parent_inner := InnerDim(parent, axis);
+        px_offset := 0.0;
+
+        if children_outer_sum > parent_inner
+        {
+          // Don't allow to scroll past the end of child; This could be modifed via spec in the future.
+          children_outer_scrollable := children_outer_sum - parent_inner;
+          px_offset = -children_outer_scrollable * parent.scroll.set_01.component[axis];
+        }
+
+        parent.scroll_offset.component[axis] = px_offset;
+      }
+
+      // Apply scroll offset to children
+      for :Siblings child: parent.first
+        child.rel_p.component[axis] += parent.scroll_offset.component[axis];
     }
   }
 
@@ -1058,7 +1106,7 @@ LayoutEnd :: ()
         for 0..it_depth-1 print("  ");
         print("[d %; i %]; ", it_depth, it_index);
       }
-      if log_flags & .DIMENSIONS then print("dim%, dim_min%; dim_max\t", it.layout.dim, it.layout.dim_min, it.layout.dim_max);
+      if log_flags & .DIMENSIONS then print("dim%, dim_min%; dim_max%;\t", it.layout.dim, it.layout.dim_min, it.layout.dim_max);
       if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, OuterDim2(it));
       if log_flags & .MINMAX     then print("inner_min%, inner_max%;\t", it.inner_min, it.inner_max);
       if log_flags & .POSITIONS  then print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);

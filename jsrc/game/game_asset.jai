@@ -177,7 +177,7 @@ ModelIsNil :: (a: *Model) -> bool
   return a == *G.ast.nil_model;
 }
 
-GetModel :: (key: MODEL_Key) -> *Model
+GetModel :: (key: MODEL_Key, silent := false) -> *Model
 {
   // @speed hash table lookup in the future
   asset := *G.ast.nil_model;
@@ -190,7 +190,7 @@ GetModel :: (key: MODEL_Key) -> *Model
     }
   }
 
-  if asset == *G.ast.nil_model
+  if !silent && asset == *G.ast.nil_model
     log("Model % not found", key, flags = .WARNING|.CONTENT);
 
   return asset;

@@ -11,7 +11,10 @@ UI_StartFrame :: ()
     mouse = G.mouse,
   };
 
-  spec.log_flags = ifx G.frame_number == 1 then .ALL else .NONE;
+  dump_logs := G.frame_number == 1;
+  if KEY_Pressed(.F4) dump_logs = true;
+
+  spec.log_flags = ifx dump_logs then .ALL else .NONE;
   spec.log_flags &= ~(.POSITIONS);
 
   using ButtonType;

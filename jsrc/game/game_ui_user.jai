@@ -20,6 +20,7 @@ DEV_State :: struct // @todo serialize this struct to disk
 
   // objects
   show_joint_hierarchy := false;
+  joint_hierarchy_scroll: float;
 }
 
 UI_State :: struct
@@ -77,7 +78,7 @@ UI_BuildDeveloperWindow :: ()
 
   // Floating developer window
   Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                dim = .{Rem(0), Rem(60)},
+                                dim = .{Rem(0), Rem(40)},
                                 dim_min.x = Rem(35)},
                      bg_color = UI_BG,
                      floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
@@ -120,7 +121,7 @@ UI_BuildDeveloperWindow :: ()
 
     // Content box
     Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                  dim_min = Fit2(), dim.x = Grow(),
+                                  dim_min = Fit2(), dim = Grow2(),
                                   padding = UI_WINDOW_PAD},
                        corner_radius = UI_RADIUS}));
 
@@ -202,7 +203,7 @@ UI_BuildDeveloperWindow :: ()
 
       CreateText(tprint("ModelKey: %", obj.s.model));
 
-      model := GetModel(obj.s.model);
+      model := GetModel(obj.s.model, silent = true);
       if !OBJ_IsNil(obj) && model.skeleton
       {
         anim: Animation;
@@ -252,7 +253,28 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-          Layer(.{text.font_size = Rem(0.45)});
+
+          scrollable_container := Parent(CreateBox(.{layout.dim = Grow2(),
+                                                     layout.padding = PaddingAll(Px(0)),
+                                                     bg_color = Color32_RGBAf(0,1,0,0.2)}));
+
+          hierarchy := CreateBox(.{layout = .{dim = Grow2(),
+                                              scroll.enable = .SCROLL_Y,
+                                              direction = .TOP_TO_BOTTOM},
+                                   bg_color = Color32_RGBAf(1,0,0,0.2)});
+
+          {
+            Layer(.{layout.padding = PaddingAll(Px(0))});
+            scroll_area := Parent(CreateBox(.{layout.dim = .{Rem(1), Grow()},
+                                              layout.direction = .TOP_TO_BOTTOM,
+                                              bg_color = Color32_RGBAf(0,0,1,0.2)}));
+
+            scroll_bar := CreateBox(.{layout.dim = .{Grow(), Rem(4)},
+                                      bg_color = Color32_RGBAf(0,0,1,0.4)});
+          }
+
+          Parent(hierarchy);
+          hierarchy.scroll.set_01.y = Cos01(G.at*0.2);
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {

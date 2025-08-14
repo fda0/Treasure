@@ -296,7 +296,7 @@ OBJ_Init :: ()
   }
 
   {
-    hero := OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .RED);
+    hero := OBJ_CreateHero(.OFFLINE, ModelKey("Dude"), .RED);
     if !OBJ_IsNil(hero)
     {
       hero.s.p.x = 3.0;

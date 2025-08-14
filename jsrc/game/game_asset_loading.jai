@@ -367,9 +367,10 @@ ASSET_InitModels :: ()
     model.key = ModelKey(PIE_LOAD_ListToString(pie_model.name));
     model.is_skinned = !!pie_model.is_skinned;
 
-    if PIE_LOAD_Check(pie_model.skeleton_index < G.ast.skeletons.count,
-      tprint("Pie model skeleton index (%) is out of bounds (count=%).", pie_model.skeleton_index, G.ast.skeletons.count),
-      critical = false)
+    if pie_model.is_skinned &&
+      PIE_LOAD_Check(pie_model.skeleton_index < G.ast.skeletons.count,
+        tprint("Pie model skeleton index (%) is out of bounds (count=%).", pie_model.skeleton_index, G.ast.skeletons.count),
+        critical = false)
     {
       model.skeleton = *G.ast.skeletons[pie_model.skeleton_index];
     }
