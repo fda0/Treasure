@@ -662,9 +662,21 @@ ButtonFlags :: enum_flags u8
   RELEASED;
 };
 
+LayoutLogFlags :: enum_flags {
+  DEPTH;
+  DIMENSIONS;
+  SIZES;
+  MINMAX;
+  POSITIONS;
+  LOCATION;
+
+  NONE :: 0;
+  ALL :: ~0;
+};
+
 LayoutSpec :: struct
 {
-  debug_logging := false;
+  log_flags: LayoutLogFlags;
 
   root_dim_px: V2;
   rem_to_px: float;
@@ -756,7 +768,7 @@ LayoutEnd :: ()
   // - SIZING PASS 1 -
   // Steps:
   //   1. Calculate standalone sizes (px, rem, text).
-  //   2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
+  //   2. Calculate values for TEXT (measure text), PCT (percent of parent).
   //   3. Calculate padding.
   //   4. Calculate child gap.
   for :TreeBreadthFirst root_box
@@ -776,14 +788,7 @@ LayoutEnd :: ()
         clamp_to_zero := layout_dim_index == 0;
         inner.* = LengthToPx(length, it, clamp_to_zero);
 
-        // 2. Calculate values for measure_text, percent_of_parent, grow (+ temp value for fit_children).
-        if length.unit == .FIT
-        {
-          // This will be overwriten by the next stage;
-          // For now assign parent_inner to provide some reasonable behavior for (mis)cofigurations
-          // where parent uses `fit_children` and child uses `grow`/`percentage_of_parent`.
-          inner.* = parent_inner.component[axis];
-        }
+        // 2. Calculate values for TEXT (measure text), PCT (percent of parent).
         if length.unit == .TEXT
         {
           if !text_was_measured
@@ -827,12 +832,12 @@ LayoutEnd :: ()
     //   1. Calculate sizes dependent on children (fit).
     for :TreeDepthFirst root_box
     {
-      has_length := false;
+      has_length_with_fit_unit := false;
       for it.layout.dimensions
-        has_length |= it.axes[axis].unit == .FIT;
+        has_length_with_fit_unit |= it.axes[axis].unit == .FIT;
 
       // 1. Calculate size from children (fit).
-      if has_length
+      if has_length_with_fit_unit
       {
         children_outer_sum: float;
         if AxisMatchesLayoutDirection(axis, it.layout.direction)
@@ -855,7 +860,7 @@ LayoutEnd :: ()
             it.inners[layout_dim_index].component[axis] = children_outer_sum;
         }
 
-        // Clamp inner_dim to inner_min and inner_max.
+        // Clamp inner using inner_min and inner_max.
         ClampInnerDim(it, axis);
       }
     }
@@ -1043,16 +1048,22 @@ LayoutEnd :: ()
   }
 
   // - DEBUG PRINT PASS -
-  if debug_logging
+  if log_flags
   {
     print("[TreeBreadthFirst] Debug dump of root_box\n");
     for :TreeBreadthFirst root_box
     {
-      for 0..it_depth-1 print("  ");
-      print("[d %; i %]; ", it_depth, it_index);
-      print("inner% + padding% = outer%;\t", it.inner, it.padding, OuterDim2(it));
-      print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);
-      print("%\n", it.loc);
+      if log_flags & .DEPTH
+      {
+        for 0..it_depth-1 print("  ");
+        print("[d %; i %]; ", it_depth, it_index);
+      }
+      if log_flags & .DIMENSIONS then print("dim%, dim_min%; dim_max\t", it.layout.dim, it.layout.dim_min, it.layout.dim_max);
+      if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, OuterDim2(it));
+      if log_flags & .MINMAX     then print("inner_min%, inner_max%;\t", it.inner_min, it.inner_max);
+      if log_flags & .POSITIONS  then print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);
+      if log_flags & .LOCATION   then print("%", it.loc);
+      print("\n");
     }
   }
 

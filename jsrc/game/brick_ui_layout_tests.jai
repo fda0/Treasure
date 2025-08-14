@@ -6,7 +6,7 @@ DefaultLayoutSpec :: LayoutSpec.{
   root_dim_px = V2.{2000, 1500},
   rem_to_px = 16,
   measure_text_callback = MeasureText,
-  debug_logging = DEBUG_LOGGING,
+  log_flags = #run ifx DEBUG_LOGGING then LayoutLogFlags.ALL else .NONE,
 };
 
 MeasureText :: (p: MeasureTextParams) -> V2

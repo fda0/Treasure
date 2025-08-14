@@ -5,13 +5,14 @@ using Layout;
 UI_StartFrame :: ()
 {
   spec := LayoutSpec.{
-    debug_logging = (G.frame_number == 1),
-
     root_dim_px = G.window_dim,
     rem_to_px = 12.0 + 2.0 * floor(G.window_dim.y / 256.0),
     measure_text_callback = UI_MeasureText,
     mouse = G.mouse,
   };
+
+  spec.log_flags = ifx G.frame_number == 1 then .ALL else .NONE;
+  spec.log_flags &= ~(.POSITIONS);
 
   using ButtonType;
   spec.are_buttons_down[MOUSE_LEFT]   = KEY_Held(.MOUSE_LEFT);
@@ -27,8 +28,8 @@ UI_FinishFrame :: ()
 
   for cmd: layout_state.render_commands
   {
-    if G.frame_number == 1
-      print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    // if G.frame_number == 1
+    //   print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
