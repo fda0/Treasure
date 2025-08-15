@@ -19,6 +19,7 @@ MeasureText :: (p: MeasureTextParams) -> V2
 tests :: ()
 {
   tests_simple_dim_min_max();
+  tests_grow_with_percent_child();
   tests_grow();
   tests_fit_and_grow();
   tests_child_gap();
@@ -38,6 +39,25 @@ tests_simple_dim_min_max :: ()
 
   CheckEQ(InnerDim2(b0), .{10, 30});
   CheckEQ(InnerDim2(b1), .{20, 30});
+}
+
+tests_grow_with_percent_child :: ()
+{
+  LayoutBegin(DefaultLayoutSpec);
+  level0 := CreateBox(.{layout.dim = .{Px(100), Px(10)}});
+  Parent(level0);
+
+  level1_child0 := CreateBox(.{layout.dim = .{Pct(0.4), Grow()}});
+  level1_child1 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+  Parent(level1_child1);
+
+  level2 := CreateBox(.{layout.dim = .{Pct(0.5), Grow()}});
+  LayoutEnd();
+
+  CheckEQ(InnerDim2(level0), .{100, 10});
+  CheckEQ(InnerDim2(level1_child0), .{40, 10});
+  CheckEQ(InnerDim2(level1_child1), .{60, 10});
+  CheckEQ(InnerDim2(level2), .{30, 10});
 }
 
 tests_fit_and_grow :: ()

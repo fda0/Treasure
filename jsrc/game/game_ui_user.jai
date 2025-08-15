@@ -264,12 +264,12 @@ UI_BuildDeveloperWindow :: ()
                                    bg_color = Color32_RGBAf(1,0,0,0.2)});
 
           {
-            Layer(.{layout.padding = PaddingAll(Px(0))});
+            Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
             scroll_area := Parent(CreateBox(.{layout.dim = .{Rem(1), Grow()},
                                               layout.direction = .TOP_TO_BOTTOM,
                                               bg_color = Color32_RGBAf(0,0,1,0.2)}));
 
-            scroll_bar := CreateBox(.{layout.dim = .{Grow(), Rem(4)},
+            scroll_bar := CreateBox(.{layout.dim = .{Grow(), Pct(0.5)},
                                       bg_color = Color32_RGBAf(0,0,1,0.4)});
           }
 
