@@ -28,12 +28,12 @@
 //
 Bool3 :: enum u8 { DEFAULT; FALSE; TRUE; };
 Axis2 :: enum u8 { X; Y; COUNT; };
-LayoutDirection :: enum { DEFAULT; LEFT_TO_RIGHT; TOP_TO_BOTTOM; };
-AxisMatchesLayoutDirection :: inline (axis: Axis2, lay_dir: LayoutDirection) -> bool
+Order :: enum { DEFAULT; LEFT_TO_RIGHT; TOP_TO_BOTTOM; };
+AxisMatchesOrder :: inline (axis: Axis2, order: Order) -> bool
 {
   matches := false;
-  matches |= axis == .X && (lay_dir == .DEFAULT || lay_dir == .LEFT_TO_RIGHT);
-  matches |= axis == .Y && lay_dir == .TOP_TO_BOTTOM;
+  matches |= axis == .X && (order == .DEFAULT || order == .LEFT_TO_RIGHT);
+  matches |= axis == .Y && order == .TOP_TO_BOTTOM;
   return matches;
 }
 
@@ -213,7 +213,7 @@ BoxSpec :: struct
     padding: Padding;
     child_gap: Length;
     child_align: struct { x, y: Align; #place x; axes: [2] Align; }
-    direction: LayoutDirection;
+    child_order: Order;
   }
 
   bg_color: Color;
@@ -348,7 +348,7 @@ Merge :: (c: *BoxSpec, p: BoxSpec) {
   Merge(*c.layout.child_gap,     p.layout.child_gap);
   Merge(*c.layout.child_align.x, p.layout.child_align.x);
   Merge(*c.layout.child_align.y, p.layout.child_align.y);
-  Merge(*c.layout.direction,     p.layout.direction);
+  Merge(*c.layout.child_order,     p.layout.child_order);
 
   Merge(*c.bg_color,      p.bg_color);
   Merge(*c.corner_radius, p.corner_radius);
@@ -854,7 +854,7 @@ LayoutEnd :: ()
 
       if length.unit == .FIT
       {
-        if AxisMatchesLayoutDirection(axis, node.layout.direction)
+        if AxisMatchesOrder(axis, node.layout.child_order)
         {
           children_outer_sum: float;
           for :Siblings child, child_index: node.first
@@ -895,7 +895,7 @@ LayoutEnd :: ()
       axis == .Y && parent.scroll.enable & .SCROLL_Y);
     if is_scrolling_across_this_axis return;
 
-    if AxisMatchesLayoutDirection(axis, parent.layout.direction)
+    if AxisMatchesOrder(axis, parent.layout.child_order)
     {
       mode: enum { NOT_SET; GROWING; SHRINKING; };
       prev_free_space := FLOAT32_MAX;
@@ -1036,7 +1036,7 @@ LayoutEnd :: ()
         case .RIGHT; /*or BOTTOM*/ align_shift_ratio = 1.0;
       };
 
-      if AxisMatchesLayoutDirection(axis, parent.layout.direction)
+      if AxisMatchesOrder(axis, parent.layout.child_order)
       {
         // Set base relative positions
         {

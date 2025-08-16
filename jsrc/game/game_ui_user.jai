@@ -77,7 +77,7 @@ UI_BuildDeveloperWindow :: ()
   clamped_win_p := clamp(win_p, .{}, G.window_dim * 0.9);
 
   // Floating developer window
-  Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
+  Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                 size.min = .{Rem(35), Rem(40)}},
                      bg_color = UI_BG,
                      floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
@@ -105,7 +105,7 @@ UI_BuildDeveloperWindow :: ()
 
     // Category vertical bar
     {
-      Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
+      Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                     size.min = Fit2(), size.pref.y = Grow(),
                                     padding = UI_WINDOW_PAD,
                                     child_gap = UI_WINDOW_GAP,
@@ -119,7 +119,7 @@ UI_BuildDeveloperWindow :: ()
     }
 
     // Content box
-    Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
+    Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                   size.min = Fit2(), size.pref = Grow2(),
                                   padding = UI_WINDOW_PAD},
                        corner_radius = UI_RADIUS}));
@@ -261,14 +261,14 @@ UI_BuildDeveloperWindow :: ()
 
           hierarchy := CreateBox(.{layout = .{size.pref = Grow2(),
                                               scroll.enable = .SCROLL_Y,
-                                              direction = .TOP_TO_BOTTOM},
+                                              child_order = .TOP_TO_BOTTOM},
                                    bg_color = Color32_RGBAf(1,0,0,0.2)});
 
           {
             Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
             scroll_area := Parent(CreateBox(.{layout = .{size.min.x = Rem(1),
                                                          size.pref.y = Grow(),
-                                                         direction = .TOP_TO_BOTTOM},
+                                                         child_order = .TOP_TO_BOTTOM},
                                               bg_color = Color32_RGBAf(0,0,1,0.2)}));
 
             scroll_bar := CreateBox(.{layout.size.pref = .{Grow(), Pct(0.5)},

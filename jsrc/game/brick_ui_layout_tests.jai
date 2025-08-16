@@ -133,7 +133,7 @@ tests_grow_with_percent_child :: ()
 tests_fit_and_grow :: ()
 {
   // TEST: Fit on parent & grow on children.
-  // Same as below but uses direction = .DEFAULT (.LEFT_TO_RIGHT)
+  // Same as below but uses child_order = .DEFAULT (.LEFT_TO_RIGHT)
   {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout = .{size.pref = .{Fit(), Fit()},
@@ -163,12 +163,12 @@ tests_fit_and_grow :: ()
   }
 
   // TEST: Fit on parent & grow on children.
-  // Same as above but uses direction = .TOP_TO_BOTTOM
+  // Same as above but uses child_order = .TOP_TO_BOTTOM
   {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout = .{size.pref = .{Fit(), Fit()}, size.min.y = Px(100),
                                      padding = PaddingAll(Px(3)),
-                                     direction = .TOP_TO_BOTTOM}});
+                                     child_order = .TOP_TO_BOTTOM}});
     Parent(parent);
     child0 := CreateBox(.{layout.size.pref = .{Px(10), Px(15)},
                           layout.padding = PaddingAll(Px(10))});
@@ -301,7 +301,7 @@ tests_text_in_too_small_window :: ()
   {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout = .{size.min = .{Px(10), Px(20)},
-                                     direction = .TOP_TO_BOTTOM}});
+                                     child_order = .TOP_TO_BOTTOM}});
     Parent(parent);
 
     child0 := CreateText("a");
@@ -320,7 +320,7 @@ tests_text_in_too_small_window :: ()
   {
     LayoutBegin(DefaultLayoutSpec);
     parent := CreateBox(.{layout.size.pref = .{Px(10), Px(20)},
-                          layout.direction = .TOP_TO_BOTTOM});
+                          layout.child_order = .TOP_TO_BOTTOM});
     Parent(parent);
 
     child0 := CreateText("a", .{layout.size = .{min.x = Px(10) /* this will get overwritten*/,
