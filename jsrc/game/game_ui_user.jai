@@ -78,8 +78,7 @@ UI_BuildDeveloperWindow :: ()
 
   // Floating developer window
   Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                dim = .{Rem(0), Rem(40)},
-                                dim_min.x = Rem(35)},
+                                size.min = .{Rem(35), Rem(40)}},
                      bg_color = UI_BG,
                      floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
                      border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
@@ -87,7 +86,7 @@ UI_BuildDeveloperWindow :: ()
 
   // Window bar
   {
-    window_bar := Signal(Parent(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
+    window_bar := Signal(Parent(CreateBox(.{layout = .{size.pref.x = Grow(), size.min.y = Fit(),
                                                        padding = PaddingAll(Rem(0.4)),
                                                        child_align = .{x = .CENTER, y = .CENTER}},
                                             bg_color = UI_ORANGE2,
@@ -100,14 +99,14 @@ UI_BuildDeveloperWindow :: ()
 
   // Content body
   {
-    Parent(CreateBox(.{layout = .{dim = Grow2(), dim_min.x = Fit()}}));
+    Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
     category_names := enum_names(type_of(category));
     category_values := enum_values_as_enum(type_of(category));
 
     // Category vertical bar
     {
       Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                    dim = .{Fit(), Grow()},
+                                    size.min = Fit2(), size.pref.y = Grow(),
                                     padding = UI_WINDOW_PAD,
                                     child_gap = UI_WINDOW_GAP,
                                     child_align.x = .CENTER},
@@ -121,7 +120,7 @@ UI_BuildDeveloperWindow :: ()
 
     // Content box
     Parent(CreateBox(.{layout = .{direction = .TOP_TO_BOTTOM,
-                                  dim_min = Fit2(), dim = Grow2(),
+                                  size.min = Fit2(), size.pref = Grow2(),
                                   padding = UI_WINDOW_PAD},
                        corner_radius = UI_RADIUS}));
 
@@ -215,7 +214,9 @@ UI_BuildDeveloperWindow :: ()
         CreateText(tprint("name: %, t range: {%, %}", anim.name, anim.t_min, anim.t_max));
         CreateText(tprint("obj_anim[0]: %", obj.l.animation_tracks[0]));
 
-        horizontal_group := BoxSpec.{layout.dim = .{Grow(), Fit()}, layout.child_gap = Em(1)};
+        horizontal_group := BoxSpec.{layout = .{size = .{min = Fit2(),
+                                                         pref.x = Grow()},
+                                                child_gap = Em(1)}};
 
         {
           Parent(CreateBox(horizontal_group));
@@ -254,22 +255,23 @@ UI_BuildDeveloperWindow :: ()
         {
           CreateText("Joint hierarchy");
 
-          scrollable_container := Parent(CreateBox(.{layout.dim = Grow2(),
+          scrollable_container := Parent(CreateBox(.{layout.size.pref = Grow2(),
                                                      layout.padding = PaddingAll(Px(0)),
                                                      bg_color = Color32_RGBAf(0,1,0,0.2)}));
 
-          hierarchy := CreateBox(.{layout = .{dim = Grow2(),
+          hierarchy := CreateBox(.{layout = .{size.pref = Grow2(),
                                               scroll.enable = .SCROLL_Y,
                                               direction = .TOP_TO_BOTTOM},
                                    bg_color = Color32_RGBAf(1,0,0,0.2)});
 
           {
             Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
-            scroll_area := Parent(CreateBox(.{layout.dim = .{Rem(1), Grow()},
-                                              layout.direction = .TOP_TO_BOTTOM,
+            scroll_area := Parent(CreateBox(.{layout = .{size.min.x = Rem(1),
+                                                         size.pref.y = Grow(),
+                                                         direction = .TOP_TO_BOTTOM},
                                               bg_color = Color32_RGBAf(0,0,1,0.2)}));
 
-            scroll_bar := CreateBox(.{layout.dim = .{Grow(), Pct(0.5)},
+            scroll_bar := CreateBox(.{layout.size.pref = .{Grow(), Pct(0.5)},
                                       bg_color = Color32_RGBAf(0,0,1,0.4)});
           }
 
@@ -305,7 +307,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 {
   Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
+  button := Signal(CreateBox(.{layout = .{size.pref = .{Grow(), Fit()},
                                           padding = UI_BUTTON_PAD,
                                           child_align.y = .CENTER,
                                           child_gap = UI_WINDOW_GAP}}));
@@ -328,7 +330,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 
   {
     square_length := Rem(1.5);
-    Parent(CreateBox(.{layout = .{dim = .{square_length, square_length},
+    Parent(CreateBox(.{layout = .{size.min = Len2(square_length),
                                   child_align = .{x = .CENTER, y = .CENTER}},
                        bg_color = UI_BUTTON_BG,
                        border = .{color = UI_FG, widths = UI_BORDER_WIDTH},
@@ -342,7 +344,7 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 {
   Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{dim = .{Grow(), Fit()},
+  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.y = .CENTER,
                                           child_gap = UI_WINDOW_GAP}}));
@@ -360,7 +362,7 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 
   {
     square_length := Rem(1.5);
-    Parent(CreateBox(.{layout = .{dim = .{square_length, square_length},
+    Parent(CreateBox(.{layout = .{size.min = Len2(square_length),
                                   child_align = .{x = .CENTER, y = .CENTER}},
                        bg_color = UI_BUTTON_BG,
                        border = .{color = UI_FG, widths = UI_BORDER_WIDTH},
@@ -374,7 +376,7 @@ UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
 {
   Layer(.{autokey_seed = Hash64Any(label, button_value.(u64), set_value)});
 
-  button := Signal(CreateBox(.{layout = .{dim.x = Grow(), dim_min = Fit2(),
+  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.x = .RIGHT,
                                           child_align.y = .CENTER,
@@ -402,7 +404,7 @@ UI_Button :: (label: string) -> clicked: bool
 {
   Layer(.{autokey_seed = Hash64Any(label)});
 
-  button := Signal(CreateBox(.{layout = .{dim_min = Fit2(), dim.x = Grow(),
+  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.x = .RIGHT,
                                           child_align.y = .CENTER,

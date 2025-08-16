@@ -1,7 +1,8 @@
 /* @todo
+- move more Pass1 functionality into LengthToPx
+- cache text measurement
 - implementing floating,
 - implement mouse-box interactions like dragging, detect direct hover,
-- too much space is removed from GROW/FIT if there isn't enough space (example: UI_Button)
 */
 
 #module_parameters(
@@ -155,6 +156,9 @@ Length2 :: struct
   x, y: Length;
   #place x; axes: [2] Length;
 }
+
+Len2 :: (l: Length) -> Length2 { return .{l, l}; }
+
 Px  :: (v: V2) -> Length2 { return .{Px(v.x), Px(v.y)}; }
 Rem :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
 
@@ -198,16 +202,18 @@ BoxSpec :: struct
 
   layout: struct
   {
-    dim: Length2;
-    dim_min: Length2;
-    dim_max: Length2;
+    size: struct
+    {
+      pref: Length2;
+      min: Length2;
+      max: Length2;
+      #place pref; all: [3] Length2;
+    }
 
     padding: Padding;
     child_gap: Length;
     child_align: struct { x, y: Align; #place x; axes: [2] Align; }
     direction: LayoutDirection;
-
-    #place dim; dimensions: [3] Length2;
   }
 
   bg_color: Color;
@@ -335,9 +341,9 @@ Merge :: (c: *BorderWidths, p: BorderWidths) {
 Merge :: (c: *BoxSpec, p: BoxSpec) {
   Merge(*c.autokey_seed,         p.autokey_seed); // @todo hash 2 seeds together
 
-  Merge(*c.layout.dim,           p.layout.dim);
-  Merge(*c.layout.dim_min,       p.layout.dim_min);
-  Merge(*c.layout.dim_max,       p.layout.dim_max);
+  Merge(*c.layout.size.pref,     p.layout.size.pref);
+  Merge(*c.layout.size.min,      p.layout.size.min);
+  Merge(*c.layout.size.max,      p.layout.size.max);
   Merge(*c.layout.padding,       p.layout.padding);
   Merge(*c.layout.child_gap,     p.layout.child_gap);
   Merge(*c.layout.child_align.x, p.layout.child_align.x);
@@ -407,14 +413,19 @@ Box :: struct
   scroll_offset: V2;
   abs_p: V2; // offset from 0,0 of root box
 
-  hide_children_from_iterators: bool;
-
   #place inner; inners: [3] V2;
 };
 
+DimType :: enum u8
+{
+  FINAL :: 0;
+  PREF :: 0;
+  MIN;
+  MAX;
+}
+
 //
 // Helpers for accessing layout dimensions quickly.
-// @todo delete some of these?
 //
 PaddingLower :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
   return box.padding.axes[axis].lower;
@@ -425,25 +436,20 @@ PaddingUpper :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
 PaddingDim :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
   return box.padding.axes[axis].lower + box.padding.axes[axis].upper;
 }
-OuterDim :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
-  return box.inner.component[axis] +
+Inner :: (box: *Box, axis: Axis2, dim_type := DimType.FINAL) -> float #expand #no_debug {
+  return box.inners[dim_type].component[axis];
+}
+Outer :: (box: *Box, axis: Axis2, dim_type := DimType.FINAL) -> float #expand #no_debug {
+
+  return Inner(box, axis, dim_type) +
          box.padding.axes[axis].lower +
          box.padding.axes[axis].upper;
 }
-InnerDim :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
-  return box.inner.component[axis];
+Outer2 :: (box: *Box, dim_type := DimType.FINAL) -> V2 #expand #no_debug {
+  return V2.{Outer(box, .X, dim_type), Outer(box, .Y, dim_type)};
 }
-InnerDimMin :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
-  return box.inner_min.component[axis];
-}
-InnerDimMax :: (box: *Box, axis: Axis2) -> float #expand #no_debug {
-  return box.inner_max.component[axis];
-}
-OuterDim2 :: (box: *Box) -> V2 #expand #no_debug {
-  return V2.{OuterDim(box, .X), OuterDim(box, .Y)};
-}
-InnerDim2 :: (box: *Box) -> V2 #expand #no_debug {
-  return box.inner;
+Inner2 :: (box: *Box, dim_type := DimType.FINAL) -> V2 #expand #no_debug {
+  return box.inners[dim_type];
 }
 
 //
@@ -541,11 +547,10 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   merged.text.str = text;
   merged.autokey_seed = HashStringFunc(text, merged.autokey_seed);
 
-  {
-    if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
-    if merged.layout.dim_min.x.value < 0.0 then merged.layout.dim_min.x = .{.TEXT, 1.0};
-    if merged.layout.dim_min.y.value < 0.0 then merged.layout.dim_min.y = .{.TEXT, 1.0};
-  }
+  // Text specific
+  if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
+  merged.layout.size.min.x = .{.TEXT, 1.0};
+  merged.layout.size.min.y = .{.TEXT, 1.0};
 
   return CreateBoxDirect(merged, loc);
 }
@@ -616,7 +621,7 @@ Signal :: (box: *Box) -> BoxSignal
     while true
     {
       tested_min := tested.abs_p;
-      tested_max := tested_min + OuterDim2(tested);
+      tested_max := tested_min + Outer2(tested);
 
       mouse_overlaps_box &&= (mouse.x >= tested_min.x && mouse.x < tested_max.x &&
                               mouse.y >= tested_min.y && mouse.y < tested_max.y);
@@ -750,7 +755,9 @@ LayoutBegin :: (new_spec: LayoutSpec)
   parents_count = 0;
   layers_count = 0;
 
-  root_box = CreateBox(.{layout.dim = Px(root_dim_px)});
+  root_box = CreateBox(.{layout.size = .{pref = Px(root_dim_px),
+                                         min  = Px(root_dim_px),
+                                         max  = Px(root_dim_px)}});
   PushParent(root_box);
 }
 
@@ -778,8 +785,6 @@ LayoutEnd :: ()
     }
   }
 
-  array_reset_keeping_memory(*deferred_subtrees);
-
   ClampInnerDim :: (box: *Box, axis: Axis2)
   {
     dim := *box.inner.component[axis];
@@ -789,41 +794,29 @@ LayoutEnd :: ()
     if inner_max >= 0 then dim.* = min(dim.*, inner_max);
   }
 
-  SolveSizesPass1 :: (node: *Box, axis: Axis2)
+  SolveNodeSizePass1 :: (node: *Box, axis: Axis2)
   {
     using layout_state;
 
     // - SIZING PASS 1 -
     // Steps:
     //   1. Calculate standalone sizes (px, rem, text).
-    //   3. Put boxes&axis pairs that contain .GROW on dim into deferred subtree list.
-    //   3. Calculate values for TEXT (measure text), PCT (percent of parent).
-    //   4. Calculate padding.
+    //   2. Calculate values for TEXT (measure text), PCT (percent of parent).
+    //   3. Calculate padding.
     parent_inner := node.parent.inner;
     text_was_measured := false;
     text_dim: V2;
 
-    for *layout_dim, layout_dim_index: node.layout.dimensions
+    for *size, dim_type: node.layout.size.all
     {
-      length := layout_dim.axes[axis];
-      inner := *node.inners[layout_dim_index].component[axis];
+      length := size.axes[axis];
+      inner := *node.inners[dim_type].component[axis];
 
       // 1. Calculate standalone sizes (px, rem, text)
-      clamp_to_zero := layout_dim_index == 0;
+      clamp_to_zero := dim_type == xx DimType.PREF;
       inner.* = LengthToPx(length, node, clamp_to_zero);
 
-      // 2. Put boxes&axis pairs that contain .GROW on dim into deferred subtree list.
-      if layout_dim_index == 0 && length.unit == .GROW && false
-      {
-        was_added := array_add_if_unique(*deferred_subtrees, node);
-        if was_added
-        {
-          node.hide_children_from_iterators = true;
-        }
-        log("% tried to add to deferre_subtrees %; was_added: %", axis, node, was_added);
-      }
-
-      // 3. Calculate values for TEXT (measure text), PCT (percent of parent).
+      // 2. Calculate values for TEXT (measure text), PCT (percent of parent).
       if length.unit == .TEXT
       {
         if !text_was_measured
@@ -845,60 +838,58 @@ LayoutEnd :: ()
       }
     }
 
-    ClampInnerDim(node, axis);
-
-    // 4. Calculate padding.
+    // 3. Calculate padding.
     node.padding.axes[axis].lower = LengthToPx(node.layout.padding.axes[axis].lower, node, true);
     node.padding.axes[axis].upper = LengthToPx(node.layout.padding.axes[axis].upper, node, true);
   }
 
-  SolveSizesPass2 :: (node: *Box, axis: Axis2)
+  SolveNodeSizePass2 :: (node: *Box, axis: Axis2)
   {
-    // - SIZING PASS 2 -
-    // Steps:
-    //   1. Calculate sizes dependent on children (fit).
+    // 1. Calculate sizes dependent on children (fit).
 
-    has_length_with_fit_unit := false;
-    for node.layout.dimensions
+    for size, dim_type: node.layout.size.all
     {
-      has_length_with_fit_unit |= it.axes[axis].unit == .FIT;
-    }
+      length := size.axes[axis];
+      inner := *node.inners[dim_type].component[axis];
 
-    // 1. Calculate size from children (fit).
-    if has_length_with_fit_unit
-    {
-      children_outer_sum: float;
-      if AxisMatchesLayoutDirection(axis, node.layout.direction)
+      if length.unit == .FIT
       {
-        for :Siblings child, child_index: node.first
+        if AxisMatchesLayoutDirection(axis, node.layout.direction)
         {
-          if child_index > 0 then children_outer_sum += node.child_gap;
-          children_outer_sum += OuterDim(child, axis);
+          children_outer_sum: float;
+          for :Siblings child, child_index: node.first
+          {
+            if child_index > 0 then children_outer_sum += node.child_gap;
+            outer := Outer(child, axis, xx dim_type);
+            children_outer_sum += max(0.0, outer);
+          }
+          inner.* = children_outer_sum;
+        }
+        else
+        {
+          largest_child_outer := 0.0;
+          for :Siblings child: node.first
+          {
+            largest_child_outer = max(largest_child_outer, Outer(child, axis, xx dim_type));
+          }
+          inner.* = largest_child_outer;
         }
       }
-      else
-      {
-        for :Siblings child: node.first
-        children_outer_sum = max(children_outer_sum, OuterDim(child, axis));
-      }
-
-      for layout_dim, layout_dim_index: node.layout.dimensions
-      {
-        if layout_dim.axes[axis].unit == .FIT
-        node.inners[layout_dim_index].component[axis] = children_outer_sum;
-      }
-
-      // Clamp inner using inner_min and inner_max.
-      ClampInnerDim(node, axis);
     }
   }
 
-  SolveSizesPass3FixChildren :: (parent: *Box, axis: Axis2)
+  FixChildrenSizes :: (parent: *Box, axis: Axis2)
   {
     // - SIZING PASS 3 -
     // Steps:
     //   1. Solve overflow violations.
     //   2. Use free space from parent if grow == .TRUE.
+
+    for :Siblings child: parent.first
+    {
+      ClampInnerDim(child, axis);
+    }
+
     is_scrolling_across_this_axis := (
       axis == .X && parent.scroll.enable & .SCROLL_X ||
       axis == .Y && parent.scroll.enable & .SCROLL_Y);
@@ -918,21 +909,21 @@ LayoutEnd :: ()
         for :Siblings child, child_index: parent.first
         {
           if child_index > 0 then children_outer_sum += parent.child_gap;
-          children_outer_sum += OuterDim(child, axis);
+          children_outer_sum += Outer(child, axis, .FINAL);
 
-          if child.layout.dim.axes[axis].unit == .GROW
+          if child.layout.size.pref.axes[axis].unit == .GROW
           {
-            can_grow := (InnerDimMax(child, axis) < 0.0 ||
-              InnerDimMax(child, axis) > InnerDim(child, axis));
+            can_grow := (Inner(child, axis, .MAX) < 0.0 ||
+              Inner(child, axis, .MAX) > Inner(child, axis, .FINAL));
 
             if can_grow then children_grow_weight_sum += 1.0; // @todo use weight in the future.
           }
 
-          shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+          shrinkable := Inner(child, axis, .FINAL) - max(0.0, Inner(child, axis, .MIN));
           children_shrinkable_sum += shrinkable;
         }
 
-        free_space := InnerDim(parent, axis) - children_outer_sum;
+        free_space := Inner(parent, axis, .FINAL) - children_outer_sum;
 
         // Assign mode on first iteration
         if !mode then mode = ifx free_space > 0.0 then .GROWING else .SHRINKING;
@@ -949,12 +940,12 @@ LayoutEnd :: ()
 
             for :Siblings child: parent.first
             {
-              if child.layout.dim.axes[axis].unit == .GROW
+              if child.layout.size.pref.axes[axis].unit == .GROW
               {
                 grow_amount := grow_per_child;
-                if InnerDimMax(child, axis) >= 0.0
+                if Inner(child, axis, .MAX) >= 0.0
                 {
-                  space_left := InnerDimMax(child, axis) - InnerDim(child, axis);
+                  space_left := Inner(child, axis, .MAX) - Inner(child, axis, .FINAL);
                   grow_amount = min(grow_amount, space_left);
                 }
                 child.inner.component[axis] += grow_amount;
@@ -974,7 +965,7 @@ LayoutEnd :: ()
 
             for :Siblings child: parent.first
             {
-              shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+              shrinkable := Inner(child, axis, .FINAL) - max(0.0, Inner(child, axis, .MIN));
               to_shrink := shrinkable * shrink_ratio;
               child.inner.component[axis] -= to_shrink;
             }
@@ -988,47 +979,36 @@ LayoutEnd :: ()
     {
       for :Siblings child: parent.first
       {
-        free_space := InnerDim(parent, axis) - OuterDim(child, axis);
+        free_space := Inner(parent, axis, .FINAL) - Outer(child, axis, .FINAL);
 
         // shrink child
         if free_space < 0.0
         {
-          max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
-          child.inner.component[axis] = PositiveMax(max_child_inner, InnerDimMin(child, axis));
+          max_child_inner := Inner(parent, axis, .FINAL) - PaddingDim(child, axis);
+          child.inner.component[axis] = PositiveMax(max_child_inner, Inner(child, axis, .MIN));
         }
 
         // grow child
-        if free_space > 0.0 && child.layout.dim.axes[axis].unit == .GROW
+        if free_space > 0.0 && child.layout.size.pref.axes[axis].unit == .GROW
         {
-          max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
-          child.inner.component[axis] = PositiveMin(max_child_inner, InnerDimMax(child, axis));
+          max_child_inner := Inner(parent, axis, .FINAL) - PaddingDim(child, axis);
+          child.inner.component[axis] = PositiveMin(max_child_inner, Inner(child, axis, .MAX));
         }
+      }
+    }
+
+    // Fix percentages.
+    for :TreeBreadthFirst parent.first
+    {
+      if it.layout.size.pref.axes[axis].unit == .PCT
+      {
+        it.inner.component[axis] = it.parent.inner.component[axis] * it.layout.size.pref.axes[axis].value;
+        ClampInnerDim(it, axis);
       }
     }
   }
 
-  SolveTreeSizes :: (root: *Box, axis: Axis2)
-  {
-    using layout_state;
-    log("% starting SolveTreeSizes", axis);
-
-    for :TreeBreadthFirst root
-    {
-      SolveSizesPass1(it, axis);
-    }
-
-    for :TreeDepthFirstPostOrder root
-    {
-      SolveSizesPass2(it, axis);
-    }
-
-    for :TreeBreadthFirst parent: root
-    {
-      SolveSizesPass3FixChildren(parent, axis);
-    }
-  }
-
-  // Resolve child_gaps
+  // Solve child_gaps
   for :TreeBreadthFirst root_box
   {
     it.child_gap = LengthToPx(it.layout.child_gap, it, true);
@@ -1036,16 +1016,11 @@ LayoutEnd :: ()
 
   for axis: Axis2.X .. Axis2.Y
   {
-    SolveTreeSizes(root_box, axis);
+    for :TreeBreadthFirst        root_box SolveNodeSizePass1(it, axis);
+    for :TreeDepthFirstPostOrder root_box SolveNodeSizePass2(it, axis);
 
-    for deferred_subtrees
-    {
-      log("% running deferred for %", axis, it);
-      SolveTreeSizes(it, axis);
-      it.hide_children_from_iterators = false;
-      SolveTreeSizes(it.first, axis);
-      remove it;
-    }
+    ClampInnerDim(root_box, axis);
+    for :TreeBreadthFirst        root_box FixChildrenSizes(it, axis);
   }
 
   for axis: Axis2.X .. Axis2.Y
@@ -1070,7 +1045,7 @@ LayoutEnd :: ()
           {
             if child_index > 0 then offset += parent.child_gap;
             child.rel_p.component[axis] = offset;
-            offset += OuterDim(child, axis);
+            offset += Outer(child, axis, .FINAL);
           }
         }
 
@@ -1081,9 +1056,9 @@ LayoutEnd :: ()
           for :Siblings child, child_index: parent.first
           {
             if child_index > 0 then children_outer_sum += parent.child_gap;
-            children_outer_sum += OuterDim(child, axis);
+            children_outer_sum += Outer(child, axis, .FINAL);
           }
-          free_space := InnerDim(parent, axis) - children_outer_sum;
+          free_space := Inner(parent, axis, .FINAL) - children_outer_sum;
 
           if free_space > 0.0
           {
@@ -1104,7 +1079,7 @@ LayoutEnd :: ()
         {
           for :Siblings child: parent.first
           {
-            free_space := InnerDim(parent, axis) - OuterDim(child, axis);
+            free_space := Inner(parent, axis, .FINAL) - Outer(child, axis, .FINAL);
             if free_space > 0.0
             {
               shift_by := free_space * align_shift_ratio;
@@ -1119,9 +1094,9 @@ LayoutEnd :: ()
       {
         children_outer_sum := 0.0;
         for :Siblings child: parent.first
-        children_outer_sum += OuterDim(child, axis);
+        children_outer_sum += Outer(child, axis, .FINAL);
 
-        parent_inner := InnerDim(parent, axis);
+        parent_inner := Inner(parent, axis, .FINAL);
         px_offset := 0.0;
 
         if children_outer_sum > parent_inner
@@ -1158,8 +1133,8 @@ LayoutEnd :: ()
         for 0..it_depth-1 print("  ");
         print("[d %; i %]; ", it_depth, it_index);
       }
-      if log_flags & .DIMENSIONS then print("dim%, dim_min%; dim_max%;\t", it.layout.dim, it.layout.dim_min, it.layout.dim_max);
-      if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, OuterDim2(it));
+      if log_flags & .DIMENSIONS then print("size%;\t", it.layout.size);
+      if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, Outer2(it));
       if log_flags & .MINMAX     then print("inner_min%, inner_max%;\t", it.inner_min, it.inner_max);
       if log_flags & .POSITIONS  then print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);
       if log_flags & .LOCATION   then print("%", it.loc);
@@ -1172,7 +1147,7 @@ LayoutEnd :: ()
   {
     base_cmd: RenderCommand;
     base_cmd.p = it.abs_p;
-    base_cmd.dim = OuterDim2(it);
+    base_cmd.dim = Outer2(it);
     base_cmd.box = it;
 
     if it.bg_color
@@ -1252,7 +1227,7 @@ TreeDepthFirstPostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
       if !coming_from_child_to_parent
       {
         // Descend depth-first to 'youngest' child
-        while !box.hide_children_from_iterators && !IsNil(box.first)
+        while !IsNil(box.first)
         {
           box_depth += 1;
           box = box.first;
@@ -1321,7 +1296,7 @@ TreeBreadthFirst :: (root: *Box, body: Code, flags: For_Flags) #expand
 
       defer {
         // Go to the child or look_for_sibling
-        if !box.hide_children_from_iterators && !IsNil(box.first)
+        if !IsNil(box.first)
         {
           box_depth += 1;
           box = box.first;
@@ -1371,8 +1346,6 @@ LayoutState :: struct
 
   parents: [MAX_NESTING] *Box; // @todo make this dynamic? Or no?
   parents_count: s64;
-
-  deferred_subtrees: [..] *Box;
 };
 layout_state: LayoutState; // @todo allow user to create a layout_state and to attach it to context instead of using a global variable
 
