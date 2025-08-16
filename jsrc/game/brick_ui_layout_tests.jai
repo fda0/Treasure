@@ -19,6 +19,8 @@ MeasureText :: (p: MeasureTextParams) -> V2
 tests :: ()
 {
   tests_simple_dim_min_max();
+  tests_simple_fit_tree();
+  tests_simple_percent_tree();
   tests_grow_with_percent_child();
   tests_grow();
   tests_fit_and_grow();
@@ -41,23 +43,91 @@ tests_simple_dim_min_max :: ()
   CheckEQ(InnerDim2(b1), .{20, 30});
 }
 
+tests_simple_fit_tree :: ()
+{
+  LayoutBegin(DefaultLayoutSpec);
+  b0 := CreateBox(.{layout.dim = .{Fit(), Px(10)}});
+  Parent(b0);
+
+  b00 := CreateBox(.{layout.dim = .{Fit(), Grow()}});
+  b01 := CreateBox(.{layout.dim = .{Px(10), Grow()}});
+  b02 := CreateBox(.{layout.dim = .{Fit(), Grow()}});
+
+  b000: *Box;
+  {
+    Parent(b00);
+    b000 = CreateBox(.{layout.dim = .{Px(7), Grow()}});
+  }
+
+  b020: *Box;
+  b021: *Box;
+  {
+    Parent(b02);
+    b020 = CreateBox(.{layout.dim = .{Px(13), Grow()}});
+    b021 = CreateBox(.{layout.dim = .{Px(17), Grow()}});
+  }
+  LayoutEnd();
+
+  CheckEQ(InnerDim2(b000), .{7, 10});
+  CheckEQ(InnerDim2(b020), .{13, 10});
+  CheckEQ(InnerDim2(b021), .{17, 10});
+  CheckEQ(InnerDim2(b00), .{7, 10});
+  CheckEQ(InnerDim2(b01), .{10, 10});
+  CheckEQ(InnerDim2(b02), .{30, 10});
+  CheckEQ(InnerDim2(b0), .{47, 10});
+}
+
+tests_simple_percent_tree :: ()
+{
+  LayoutBegin(DefaultLayoutSpec);
+  b0 := CreateBox(.{layout.dim = .{Px(1000), Px(10)}});
+  Parent(b0);
+
+  b00 := CreateBox(.{layout.dim = .{Pct(0.2), Grow()}});
+  b01 := CreateBox(.{layout.dim = .{Px(10), Grow()}});
+  b02 := CreateBox(.{layout.dim = .{Pct(0.5), Grow()}});
+
+  b000: *Box;
+  {
+    Parent(b00);
+    b000 = CreateBox(.{layout.dim = .{Pct(0.75), Grow()}});
+  }
+
+  b020: *Box;
+  b021: *Box;
+  {
+    Parent(b02);
+    b020 = CreateBox(.{layout.dim = .{Pct(0.1), Grow()}});
+    b021 = CreateBox(.{layout.dim = .{Grow(), Grow()}});
+  }
+  LayoutEnd();
+
+  CheckEQ(InnerDim2(b000), .{150, 10});
+  CheckEQ(InnerDim2(b020), .{50, 10});
+  CheckEQ(InnerDim2(b021), .{450, 10});
+  CheckEQ(InnerDim2(b00), .{200, 10});
+  CheckEQ(InnerDim2(b01), .{10, 10});
+  CheckEQ(InnerDim2(b02), .{500, 10});
+  CheckEQ(InnerDim2(b0), .{1000, 10});
+}
+
 tests_grow_with_percent_child :: ()
 {
   LayoutBegin(DefaultLayoutSpec);
-  level0 := CreateBox(.{layout.dim = .{Px(100), Px(10)}});
-  Parent(level0);
+  l0 := CreateBox(.{layout.dim = .{Px(100), Px(10)}});
+  Parent(l0);
 
-  level1_child0 := CreateBox(.{layout.dim = .{Pct(0.4), Grow()}});
-  level1_child1 := CreateBox(.{layout.dim = .{Grow(), Grow()}});
-  Parent(level1_child1);
+  l1_a := CreateBox(.{layout.dim = .{Pct(0.4), Grow()}});
+  l1_b := CreateBox(.{layout.dim = .{Grow(), Grow()}});
+  Parent(l1_b);
 
-  level2 := CreateBox(.{layout.dim = .{Pct(0.5), Grow()}});
+  l2 := CreateBox(.{layout.dim = .{Pct(0.5), Grow()}});
   LayoutEnd();
 
-  CheckEQ(InnerDim2(level0), .{100, 10});
-  CheckEQ(InnerDim2(level1_child0), .{40, 10});
-  CheckEQ(InnerDim2(level1_child1), .{60, 10});
-  CheckEQ(InnerDim2(level2), .{30, 10});
+  CheckEQ(InnerDim2(l0), .{100, 10});
+  CheckEQ(InnerDim2(l1_a), .{40, 10});
+  CheckEQ(InnerDim2(l1_b), .{60, 10});
+  CheckEQ(InnerDim2(l2), .{30, 10});
 }
 
 tests_fit_and_grow :: ()
