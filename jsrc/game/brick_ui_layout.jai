@@ -789,7 +789,7 @@ LayoutEnd :: ()
     if inner_max >= 0 then dim.* = min(dim.*, inner_max);
   }
 
-  ResolveTreeSizes :: (root: *Box, axis: Axis2)
+  SolveSizesPass1 :: (node: *Box, axis: Axis2)
   {
     using layout_state;
 
@@ -799,206 +799,232 @@ LayoutEnd :: ()
     //   3. Put boxes&axis pairs that contain .GROW on dim into deferred subtree list.
     //   3. Calculate values for TEXT (measure text), PCT (percent of parent).
     //   4. Calculate padding.
-    for :TreeBreadthFirst root
+    parent_inner := node.parent.inner;
+    text_was_measured := false;
+    text_dim: V2;
+
+    for *layout_dim, layout_dim_index: node.layout.dimensions
     {
-      parent_inner := it.parent.inner;
-      text_was_measured := false;
-      text_dim: V2;
+      length := layout_dim.axes[axis];
+      inner := *node.inners[layout_dim_index].component[axis];
 
-      for *layout_dim, layout_dim_index: it.layout.dimensions
+      // 1. Calculate standalone sizes (px, rem, text)
+      clamp_to_zero := layout_dim_index == 0;
+      inner.* = LengthToPx(length, node, clamp_to_zero);
+
+      // 2. Put boxes&axis pairs that contain .GROW on dim into deferred subtree list.
+      if layout_dim_index == 0 && length.unit == .GROW && false
       {
-        length := layout_dim.axes[axis];
-        inner := *it.inners[layout_dim_index].component[axis];
-
-        // 1. Calculate standalone sizes (px, rem, text)
-        clamp_to_zero := layout_dim_index == 0;
-        inner.* = LengthToPx(length, it, clamp_to_zero);
-
-        // 2. Put boxes&axis pairs that contain .GROW on dim into deferred subtree list.
-        if layout_dim_index == 0 && length.unit == .GROW
+        was_added := array_add_if_unique(*deferred_subtrees, node);
+        if was_added
         {
-          // @todo
+          node.hide_children_from_iterators = true;
         }
-
-        // 3. Calculate values for TEXT (measure text), PCT (percent of parent).
-        if length.unit == .TEXT
-        {
-          if !text_was_measured
-          {
-            params := MeasureTextParams.{
-              text = it.text.str,
-              font = it.text.font,
-              font_size_px = LengthToPx(it.text.font_size, it, true),
-            };
-            text_dim = measure_text_callback(params);
-            text_was_measured = true;
-          }
-
-          inner.* = text_dim.component[axis];
-        }
-        if length.unit == .PCT
-        {
-          inner.* = parent_inner.component[axis] * length.value;
-        }
+        log("% tried to add to deferre_subtrees %; was_added: %", axis, node, was_added);
       }
 
-      ClampInnerDim(it, axis);
+      // 3. Calculate values for TEXT (measure text), PCT (percent of parent).
+      if length.unit == .TEXT
+      {
+        if !text_was_measured
+        {
+          params := MeasureTextParams.{
+            text = node.text.str,
+            font = node.text.font,
+            font_size_px = LengthToPx(node.text.font_size, node, true),
+          };
+          text_dim = measure_text_callback(params);
+          text_was_measured = true;
+        }
 
-      // 4. Calculate padding.
-      it.padding.axes[axis].lower = LengthToPx(it.layout.padding.axes[axis].lower, it, true);
-      it.padding.axes[axis].upper = LengthToPx(it.layout.padding.axes[axis].upper, it, true);
+        inner.* = text_dim.component[axis];
+      }
+      if length.unit == .PCT
+      {
+        inner.* = parent_inner.component[axis] * length.value;
+      }
     }
 
+    ClampInnerDim(node, axis);
+
+    // 4. Calculate padding.
+    node.padding.axes[axis].lower = LengthToPx(node.layout.padding.axes[axis].lower, node, true);
+    node.padding.axes[axis].upper = LengthToPx(node.layout.padding.axes[axis].upper, node, true);
+  }
+
+  SolveSizesPass2 :: (node: *Box, axis: Axis2)
+  {
     // - SIZING PASS 2 -
     // Steps:
     //   1. Calculate sizes dependent on children (fit).
-    for :TreeDepthFirstPostOrder root
+
+    has_length_with_fit_unit := false;
+    for node.layout.dimensions
     {
-      has_length_with_fit_unit := false;
-      for it.layout.dimensions
       has_length_with_fit_unit |= it.axes[axis].unit == .FIT;
-
-      // 1. Calculate size from children (fit).
-      if has_length_with_fit_unit
-      {
-        children_outer_sum: float;
-        if AxisMatchesLayoutDirection(axis, it.layout.direction)
-        {
-          for :Siblings child, child_index: it.first
-          {
-            if child_index > 0 then children_outer_sum += it.child_gap;
-            children_outer_sum += OuterDim(child, axis);
-          }
-        }
-        else
-        {
-          for :Siblings child: it.first
-          children_outer_sum = max(children_outer_sum, OuterDim(child, axis));
-        }
-
-        for layout_dim, layout_dim_index: it.layout.dimensions
-        {
-          if layout_dim.axes[axis].unit == .FIT
-          it.inners[layout_dim_index].component[axis] = children_outer_sum;
-        }
-
-        // Clamp inner using inner_min and inner_max.
-        ClampInnerDim(it, axis);
-      }
     }
 
+    // 1. Calculate size from children (fit).
+    if has_length_with_fit_unit
+    {
+      children_outer_sum: float;
+      if AxisMatchesLayoutDirection(axis, node.layout.direction)
+      {
+        for :Siblings child, child_index: node.first
+        {
+          if child_index > 0 then children_outer_sum += node.child_gap;
+          children_outer_sum += OuterDim(child, axis);
+        }
+      }
+      else
+      {
+        for :Siblings child: node.first
+        children_outer_sum = max(children_outer_sum, OuterDim(child, axis));
+      }
+
+      for layout_dim, layout_dim_index: node.layout.dimensions
+      {
+        if layout_dim.axes[axis].unit == .FIT
+        node.inners[layout_dim_index].component[axis] = children_outer_sum;
+      }
+
+      // Clamp inner using inner_min and inner_max.
+      ClampInnerDim(node, axis);
+    }
+  }
+
+  SolveSizesPass3FixChildren :: (parent: *Box, axis: Axis2)
+  {
     // - SIZING PASS 3 -
     // Steps:
     //   1. Solve overflow violations.
     //   2. Use free space from parent if grow == .TRUE.
+    is_scrolling_across_this_axis := (
+      axis == .X && parent.scroll.enable & .SCROLL_X ||
+      axis == .Y && parent.scroll.enable & .SCROLL_Y);
+    if is_scrolling_across_this_axis return;
+
+    if AxisMatchesLayoutDirection(axis, parent.layout.direction)
+    {
+      mode: enum { NOT_SET; GROWING; SHRINKING; };
+      prev_free_space := FLOAT32_MAX;
+
+      while true // GROWING might need multiple iterations to be solved.
+      {
+        // Loop over children and sum things
+        children_outer_sum := 0.0;
+        children_grow_weight_sum := 0.0;
+        children_shrinkable_sum := 0.0;
+        for :Siblings child, child_index: parent.first
+        {
+          if child_index > 0 then children_outer_sum += parent.child_gap;
+          children_outer_sum += OuterDim(child, axis);
+
+          if child.layout.dim.axes[axis].unit == .GROW
+          {
+            can_grow := (InnerDimMax(child, axis) < 0.0 ||
+              InnerDimMax(child, axis) > InnerDim(child, axis));
+
+            if can_grow then children_grow_weight_sum += 1.0; // @todo use weight in the future.
+          }
+
+          shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+          children_shrinkable_sum += shrinkable;
+        }
+
+        free_space := InnerDim(parent, axis) - children_outer_sum;
+
+        // Assign mode on first iteration
+        if !mode then mode = ifx free_space > 0.0 then .GROWING else .SHRINKING;
+
+        // Prevent endless GROWING loops when no progress was made.
+        if free_space >= prev_free_space break;
+        prev_free_space = free_space;
+
+        if mode == .GROWING
+        {
+          if free_space > 0.0 && children_grow_weight_sum > 0.0
+          {
+            grow_per_child := free_space / children_grow_weight_sum;
+
+            for :Siblings child: parent.first
+            {
+              if child.layout.dim.axes[axis].unit == .GROW
+              {
+                grow_amount := grow_per_child;
+                if InnerDimMax(child, axis) >= 0.0
+                {
+                  space_left := InnerDimMax(child, axis) - InnerDim(child, axis);
+                  grow_amount = min(grow_amount, space_left);
+                }
+                child.inner.component[axis] += grow_amount;
+              }
+            }
+
+            continue; // continue while loop iteration
+          }
+        }
+        else if mode == .SHRINKING
+        {
+          // Detect overflow. Shrink children.
+          if free_space < 0.0 && children_shrinkable_sum > 0.0
+          {
+            shrink_ratio := children_shrinkable_sum / -free_space;
+            shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
+
+            for :Siblings child: parent.first
+            {
+              shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
+              to_shrink := shrinkable * shrink_ratio;
+              child.inner.component[axis] -= to_shrink;
+            }
+          }
+        }
+
+        break; // break out of the whie loop
+      }
+    }
+    else // Axis doesn't match layout
+    {
+      for :Siblings child: parent.first
+      {
+        free_space := InnerDim(parent, axis) - OuterDim(child, axis);
+
+        // shrink child
+        if free_space < 0.0
+        {
+          max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
+          child.inner.component[axis] = PositiveMax(max_child_inner, InnerDimMin(child, axis));
+        }
+
+        // grow child
+        if free_space > 0.0 && child.layout.dim.axes[axis].unit == .GROW
+        {
+          max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
+          child.inner.component[axis] = PositiveMin(max_child_inner, InnerDimMax(child, axis));
+        }
+      }
+    }
+  }
+
+  SolveTreeSizes :: (root: *Box, axis: Axis2)
+  {
+    using layout_state;
+    log("% starting SolveTreeSizes", axis);
+
+    for :TreeBreadthFirst root
+    {
+      SolveSizesPass1(it, axis);
+    }
+
+    for :TreeDepthFirstPostOrder root
+    {
+      SolveSizesPass2(it, axis);
+    }
+
     for :TreeBreadthFirst parent: root
     {
-      is_scrolling_across_this_axis :=
-      axis == .X && parent.scroll.enable & .SCROLL_X ||
-      axis == .Y && parent.scroll.enable & .SCROLL_Y;
-      if is_scrolling_across_this_axis continue;
-
-      if AxisMatchesLayoutDirection(axis, parent.layout.direction)
-      {
-        mode: enum { NOT_SET; GROWING; SHRINKING; };
-        prev_free_space := FLOAT32_MAX;
-
-        while true // GROWING might need multiple iterations to be solved.
-        {
-          // Loop over children and sum things
-          children_outer_sum := 0.0;
-          children_grow_weight_sum := 0.0;
-          children_shrinkable_sum := 0.0;
-          for :Siblings child, child_index: parent.first
-          {
-            if child_index > 0 then children_outer_sum += parent.child_gap;
-            children_outer_sum += OuterDim(child, axis);
-
-            if child.layout.dim.axes[axis].unit == .GROW
-            {
-              can_grow := (InnerDimMax(child, axis) < 0.0 ||
-                InnerDimMax(child, axis) > InnerDim(child, axis));
-
-              if can_grow then children_grow_weight_sum += 1.0; // @todo use weight in the future.
-            }
-
-            shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
-            children_shrinkable_sum += shrinkable;
-          }
-
-          free_space := InnerDim(parent, axis) - children_outer_sum;
-
-          // Assign mode on first iteration
-          if !mode then mode = ifx free_space > 0.0 then .GROWING else .SHRINKING;
-
-          // Prevent endless GROWING loops when no progress was made.
-          if free_space >= prev_free_space break;
-          prev_free_space = free_space;
-
-          if mode == .GROWING
-          {
-            if free_space > 0.0 && children_grow_weight_sum > 0.0
-            {
-              grow_per_child := free_space / children_grow_weight_sum;
-
-              for :Siblings child: parent.first
-              {
-                if child.layout.dim.axes[axis].unit == .GROW
-                {
-                  grow_amount := grow_per_child;
-                  if InnerDimMax(child, axis) >= 0.0
-                  {
-                    space_left := InnerDimMax(child, axis) - InnerDim(child, axis);
-                    grow_amount = min(grow_amount, space_left);
-                  }
-                  child.inner.component[axis] += grow_amount;
-                }
-              }
-
-              continue; // continue while loop iteration
-            }
-          }
-          else if mode == .SHRINKING
-          {
-            // Detect overflow. Shrink children.
-            if free_space < 0.0 && children_shrinkable_sum > 0.0
-            {
-              shrink_ratio := children_shrinkable_sum / -free_space;
-              shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
-
-              for :Siblings child: parent.first
-              {
-                shrinkable := InnerDim(child, axis) - max(0.0, InnerDimMin(child, axis));
-                to_shrink := shrinkable * shrink_ratio;
-                child.inner.component[axis] -= to_shrink;
-              }
-            }
-          }
-
-          break; // break out of the whie loop
-        }
-      }
-      else // Axis doesn't match layout
-      {
-        for :Siblings child: parent.first
-        {
-          free_space := InnerDim(parent, axis) - OuterDim(child, axis);
-
-          // shrink child
-          if free_space < 0.0
-          {
-            max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
-            child.inner.component[axis] = PositiveMax(max_child_inner, InnerDimMin(child, axis));
-          }
-
-          // grow child
-          if free_space > 0.0 && child.layout.dim.axes[axis].unit == .GROW
-          {
-            max_child_inner := InnerDim(parent, axis) - PaddingDim(child, axis);
-            child.inner.component[axis] = PositiveMin(max_child_inner, InnerDimMax(child, axis));
-          }
-        }
-      }
+      SolveSizesPass3FixChildren(parent, axis);
     }
   }
 
@@ -1008,8 +1034,19 @@ LayoutEnd :: ()
     it.child_gap = LengthToPx(it.layout.child_gap, it, true);
   }
 
-  ResolveTreeSizes(root_box, .X);
-  ResolveTreeSizes(root_box, .Y);
+  for axis: Axis2.X .. Axis2.Y
+  {
+    SolveTreeSizes(root_box, axis);
+
+    for deferred_subtrees
+    {
+      log("% running deferred for %", axis, it);
+      SolveTreeSizes(it, axis);
+      it.hide_children_from_iterators = false;
+      SolveTreeSizes(it.first, axis);
+      remove it;
+    }
+  }
 
   for axis: Axis2.X .. Axis2.Y
   {
