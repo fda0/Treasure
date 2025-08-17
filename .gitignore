@@ -1,6 +1,7 @@
 build/
 .build/*
 jsrc/game/.build/*
+src/game/.build/*
 */.build/*
 gen/
 *.kajet
