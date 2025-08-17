@@ -341,7 +341,7 @@ tests_text_in_too_small_window :: ()
 //
 // Tests setup
 //
-#import,file "brick_ui_layout.jai";
+#import,file "Kintsugi_UI_Layout.jai";
 #import "Basic";
 #import "Math";
 V2 :: Vector2;

@@ -67,7 +67,7 @@ UI_DrawTextLine :: (text: string, font: FONT_Family, pixel_height: u16, color: C
 }
 
 
-UI_MeasureText :: (params: Layout.MeasureTextParams) -> V2
+UI_MeasureText :: (params: Kintsugi.MeasureTextParams) -> V2
 {
   font := params.font.(FONT_Family);
   pixel_height := Round(params.font_size_px).(u16);

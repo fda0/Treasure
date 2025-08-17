@@ -434,6 +434,6 @@ UI_Button :: (label: string) -> clicked: bool
   return !!(button.flags & .CLICK);
 }
 
-Layout :: #import,file "brick_ui_layout.jai"(Color=Color32);
+Kintsugi :: #import,file "Kintsugi_UI_Layout.jai"(Color=Color32);
 #scope_file;
-using Layout;
+using Kintsugi;

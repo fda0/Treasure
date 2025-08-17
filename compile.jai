@@ -95,7 +95,7 @@ build :: ()
     Check(Run(stage2, workdir));
 
     log("- generating SDL bindings -");
-    SDL :: #import,file "jsrc/bindings/generate_bindings_sdl3.jai";
+    SDL :: #import,file "src/bindings/generate_bindings_sdl3.jai";
     Check(SDL.GenerateBindings(.{targets = .BASE,
                                  optimizations = .DEBUG,
                                  base_directory = "libs/",
@@ -122,7 +122,7 @@ build :: ()
 
   if build_targets & .CGLTF
   {
-    CGLTF :: #import,file "jsrc/bindings/build_cgltf.jai";
+    CGLTF :: #import,file "src/bindings/build_cgltf.jai";
     CGLTF.Build();
   }
 
@@ -130,7 +130,7 @@ build :: ()
   {
     Build(.{workspace_name = "Baker",
             output_name = "Baker",
-            entry_file = "jsrc/baker/baker_entry.jai",
+            entry_file = "src/baker/baker_entry.jai",
             icon_path = "res/ico/cook.ico",
             autorun = run_baker});
   }
@@ -139,7 +139,7 @@ build :: ()
   {
     Build(.{workspace_name = "Treasure",
             output_name = "Treasure",
-            entry_file = "jsrc/game/game_sdl_entry.jai",
+            entry_file = "src/game/game_sdl_entry.jai",
             icon_path = "res/ico/coin.ico"});
   }
 
