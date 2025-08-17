@@ -256,18 +256,18 @@ UI_BuildDeveloperWindow :: ()
           CreateText("Joint hierarchy");
 
           scroll_value := *G.dev.joint_hierarchy_scroll;
-          scrollable_container := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
+          container_body_and_scrollbar := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
                                                             layout.padding = PaddingAll(Px(0)),
                                                             bg_color = Color32_RGBAf(0,1,0,0.2)})),
                                          .CANT_ACTIVATE);
 
-          if scrollable_container.flags & .HOVER
+          if container_body_and_scrollbar.flags & .HOVER
           {
             scroll_by := -G.mouse_scroll.y * 0.05;
             scroll_value.* = clamp(scroll_value.* + scroll_by, 0.0, 1.0);
           }
 
-          hierarchy := CreateBox(.{layout = .{size.pref = Grow2(),
+          scrollable_body := CreateBox(.{layout = .{size.pref = Grow2(),
                                               scroll.enable = .SCROLL_Y,
                                               child_order = .TOP_TO_BOTTOM},
                                    bg_color = Color32_RGBAf(1,0,0,0.2)});
@@ -299,8 +299,8 @@ UI_BuildDeveloperWindow :: ()
             scroll_margin0.layout.size.pref.y = Pct((scroll_value.*) * (1.0 - scroll_size_pct));
           }
 
-          Parent(hierarchy);
-          hierarchy.scroll.set_01.y = scroll_value.*;
+          Parent(scrollable_body);
+          scrollable_body.scroll.set_01.y = scroll_value.*;
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -441,6 +441,11 @@ UI_Button :: (label: string) -> clicked: bool
   label_box := CreateText(label);
   return !!(button.flags & .CLICK);
 }
+
+UI_ScrollableContainer :: (scroll_value: *float)
+{
+}
+
 
 Kintsugi :: #import,file "Kintsugi_UI_Layout.jai"(Color=Color32);
 #scope_file;
