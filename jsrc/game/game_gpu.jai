@@ -62,10 +62,10 @@ GPU_State :: struct
     shapes3d: [1024 * 2] UI_ShapeIn3D;
     shapes3d_count: u32;
 
-    clips: [1024] UI_Clip; // buffer that's uploaded to GPU
-    clips_count: u32;
-    clip_stack: [256] u32; // contains indices into clips; tracks state when UI is constructed @todo remove in the future
-    clip_stack_index: u32;
+    clip_rects: [1024] Rect; // buffer that's uploaded to GPU
+    clip_rects_count: u32;
+    active_clips: [256] u32; // contains indices into clips; tracks state when UI is constructed @todo remove in the future
+    active_clips_cursor: u32;
   };
   ui: UI_GPU;
 
@@ -152,12 +152,12 @@ GPU_Init :: ()
 
   // UI buffers
   {
-    G.gpu.ui.gpu_indices =
-    GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, size_of(type_of(G.gpu.ui.indices)), "UI Index Buffer");
-    G.gpu.ui.gpu_shape_buffer =
-    GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, size_of(type_of(G.gpu.ui.shapes)), "UI Shapes Storage Buffer");
-    G.gpu.ui.gpu_clip_buffer =
-    GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, size_of(type_of(G.gpu.ui.clips)), "UI Clips Storage Buffer");
+    G.gpu.ui.gpu_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
+      size_of(type_of(G.gpu.ui.indices)), "UI Index Buffer");
+    G.gpu.ui.gpu_shape_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+      size_of(type_of(G.gpu.ui.shapes)), "UI Shapes Storage Buffer");
+    G.gpu.ui.gpu_clip_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+      size_of(type_of(G.gpu.ui.clip_rects)), "UI Clips Storage Buffer");
   }
 
   GPU_InitPipelines();
@@ -615,15 +615,15 @@ GPU_Iterate :: ()
       transfer_size := size_of(type_of(G.gpu.ui.indices[0])) * G.gpu.ui.indices_count;
       GPU_TransferBuffer(cmd, G.gpu.ui.gpu_indices, G.gpu.ui.indices.data, xx transfer_size);
     }
-    if (G.gpu.ui.shapes_count)
+    if G.gpu.ui.shapes_count
     {
       transfer_size := size_of(type_of(G.gpu.ui.shapes[0])) * G.gpu.ui.shapes_count;
       GPU_TransferBuffer(cmd, G.gpu.ui.gpu_shape_buffer, G.gpu.ui.shapes.data, xx transfer_size);
     }
-    if (G.gpu.ui.clips_count)
+    if G.gpu.ui.clip_rects_count
     {
-      transfer_size := size_of(type_of(G.gpu.ui.clips[0])) * G.gpu.ui.clips_count;
-      GPU_TransferBuffer(cmd, G.gpu.ui.gpu_clip_buffer, G.gpu.ui.clips.data, xx transfer_size);
+      transfer_size := size_of(type_of(G.gpu.ui.clip_rects[0])) * G.gpu.ui.clip_rects_count;
+      GPU_TransferBuffer(cmd, G.gpu.ui.gpu_clip_buffer, G.gpu.ui.clip_rects.data, xx transfer_size);
     }
 
     // Start pass

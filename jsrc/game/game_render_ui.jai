@@ -4,8 +4,6 @@ UI_Uniform :: struct
   texture_dim: V2;
 }
 
-UI_Clip :: Rect;
-
 UI_Shape :: struct
 {
   rect: Rect;
@@ -58,37 +56,43 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
 
 UI_ActiveClipIndex :: () -> u32
 {
-  using G.gpu.ui;
-  clip_index := clip_stack[clip_stack_index];
-  return clip_index;
+  cursor := G.gpu.ui.active_clips_cursor;
+  if cursor >= G.gpu.ui.active_clips.count
+  {
+    cursor = 0;
+  }
+  return G.gpu.ui.active_clips[cursor];
 }
 
-UI_ActiveClip :: () -> UI_Clip
+UI_ActiveClipRect :: () -> Rect
 {
-  return G.gpu.ui.clips[UI_ActiveClipIndex()];
+  return G.gpu.ui.clip_rects[UI_ActiveClipIndex()];
 }
 
-UI_PushClip :: (clip_: UI_Clip)
+UI_PushClipRect :: (new_clip: Rect)
 {
-  using G.gpu.ui;
-  if clip_stack_index + 1 >= clip_stack.count return; // @todo increase clip_stack so PopClip does correct thing; fallback to no clip
-  if clips_count >= clips.count return;
+  prev_clip := UI_ActiveClipRect();
+  G.gpu.ui.active_clips_cursor += 1;
 
-  clip := RangeIntersection(clip_, UI_ActiveClip());
+  if G.gpu.ui.active_clips_cursor < G.gpu.ui.active_clips.count
+  {
+    rect_index := G.gpu.ui.clip_rects_count;
+    if rect_index < G.gpu.ui.clip_rects.count
+    {
+      intersection := RangeIntersection(new_clip, prev_clip);
+      // There could be a search and add only if unique step here.
+      G.gpu.ui.clip_rects[rect_index] = intersection;
+      G.gpu.ui.clip_rects_count += 1;
+    }
+    else rect_index = 0;
 
-  clip_index := clips_count;
-  clips_count += 1;
-  clips[clip_index] = clip;
-
-  clip_stack_index += 1;
-  clip_stack[clip_stack_index] = clip_index;
+    G.gpu.ui.active_clips[G.gpu.ui.active_clips_cursor] = rect_index;
+  }
 }
 
-UI_PopClip :: ()
+UI_PopClipRect :: ()
 {
-  using G.gpu.ui;
-  if clip_stack_index == 0 return;
-  clip_stack_index -= 1;
+  G.gpu.ui.active_clips_cursor -= 1;
 }
 
 UI_Translate3DShapes :: ()
@@ -116,8 +120,8 @@ UI_ClearRenderCounters :: ()
   indices_count = 0;
   shapes_count = 0;
   shapes3d_count = 0;
-  clips[0] = UI_Clip.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
-  clips_count = 1;
-  clip_stack[0] = 0;
-  clip_stack_index = 0;
+  G.gpu.ui.clip_rects[0] = Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
+  G.gpu.ui.clip_rects_count = 1;
+  G.gpu.ui.active_clips[0] = 0;
+  G.gpu.ui.active_clips_cursor = 0;
 }

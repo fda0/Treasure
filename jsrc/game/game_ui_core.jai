@@ -57,10 +57,10 @@ UI_FinishFrame :: ()
       UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p);
 
       case .CLIP_PUSH;
-      UI_PushClip(MakeRectMinDim(cmd.p, cmd.dim));
+      UI_PushClipRect(MakeRectMinDim(cmd.p, cmd.dim));
 
       case .CLIP_POP;
-      UI_PopClip();;
+      UI_PopClipRect();
     }
 
     if draw_shape

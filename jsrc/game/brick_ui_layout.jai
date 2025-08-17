@@ -1313,7 +1313,6 @@ TreeDepthFirstPostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
 TreeBreadthFirst :: (root: *Box, body: Code, flags: For_Flags) #expand
 {
   #assert(flags == 0); // Support for .REVERSE could be added but it shouldn't be needed.
-
   /* Example traversal order for a tree with 10 boxes.
         [ 0 (root)]
         /    |    \
@@ -1378,6 +1377,10 @@ TreeIteratorBFS :: (root: *Box, body: Code, after_ascend: Code, after_descend: C
      2 3   5 6 7   9 10
   */
 
+  `it: *Box;
+  `it_depth: s64;
+  `it_index: s64;
+
   box := root;
   box_depth := 0;
   box_index := 0;
@@ -1395,9 +1398,9 @@ TreeIteratorBFS :: (root: *Box, body: Code, after_ascend: Code, after_descend: C
         else break;
       }
 
-      `it := box;
-      `it_depth := box_depth;
-      `it_index := box_index;
+      `it = box;
+      `it_depth = box_depth;
+      `it_index = box_index;
       box_index += 1;
 
       defer {
@@ -1411,11 +1414,13 @@ TreeIteratorBFS :: (root: *Box, body: Code, after_ascend: Code, after_descend: C
           `it = box;
           `it_depth = box_depth;
           `it_index = box_index;
+          // #insert(break=break root_loop) after_descend;
           #insert after_descend;
         }
         else look_for_sibling = true;
       };
 
+      // #insert(break=break root_loop) body;
       #insert body;
     }
 
