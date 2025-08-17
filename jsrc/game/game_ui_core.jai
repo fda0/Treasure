@@ -31,8 +31,8 @@ UI_FinishFrame :: ()
 
   for cmd: layout_state.render_commands
   {
-    // if G.frame_number == 1
-    //   print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    if G.frame_number == 1
+      print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
@@ -43,18 +43,27 @@ UI_FinishFrame :: ()
       corner_radius = cmd.corner_radius,
       tex_layer = -1.0,
     };
-    skip_shape := false;
+    draw_shape := false;
 
     if cmd.type == {
+      case .RECTANGLE;
+      draw_shape = true;
+
       case .BORDER;
-        shape.border_thickness = cmd.border_width;
+      shape.border_thickness = cmd.border_width;
+      draw_shape = true;
 
       case .TEXT;
-      skip_shape = true;
       UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p);
+
+      case .CLIP_PUSH;
+      UI_PushClip(MakeRectMinDim(cmd.p, cmd.dim));
+
+      case .CLIP_POP;
+      UI_PopClip();;
     }
 
-    if !skip_shape
+    if draw_shape
       UI_Draw2D(shape);
   }
 }

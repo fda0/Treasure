@@ -679,7 +679,7 @@ MeasureTextStub :: (params: MeasureTextParams) -> Vector2 { return .{}; }
 //
 RenderCommand :: struct
 {
-  type: enum u8 {RECTANGLE; BORDER; TEXT;};
+  type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP_PUSH; CLIP_POP; };
   p: V2;
   dim: V2; // skipped for TEXT
   color: Color;
@@ -1169,41 +1169,65 @@ LayoutEnd :: ()
   }
 
   // - RENDER COMMANDS PASS -
-  for :TreeBreadthFirst root_box.first
+  prev_parent: *Box;
+
   {
-    base_cmd: RenderCommand;
-    base_cmd.p = it.abs_p;
-    base_cmd.dim = Outer2(it);
-    base_cmd.box = it;
-
-    if it.bg_color
+    body :: #code
     {
-      cmd := base_cmd;
-      cmd.type = .RECTANGLE;
-      cmd.color = it.bg_color;
-      array_add(*render_commands, cmd);
+      base_cmd: RenderCommand;
+      base_cmd.p = it.abs_p;
+      base_cmd.dim = Outer2(it);
+      base_cmd.box = it;
+
+      if it.bg_color
+      {
+        cmd := base_cmd;
+        cmd.type = .RECTANGLE;
+        cmd.color = it.bg_color;
+        array_add(*render_commands, cmd);
+      }
+
+      if it.border.color
+      {
+        // cmd := base_cmd;
+        // cmd.color = it.border.color;
+        // cmd.type = .BORDER;
+        // cmd.border_width = it.border.widths.left;
+        // array_add(*render_commands, cmd);
+      }
+
+      if it.text.color
+      {
+        cmd := base_cmd;
+        cmd.type = .TEXT;
+        cmd.p += V2.{it.padding.left, it.padding.top + it.inner.y};
+        cmd.color = it.text.color;
+        cmd.text = it.text.str;
+        cmd.font = it.text.font;
+        cmd.font_size_px = LengthToPx(it.text.font_size, it, true);
+        array_add(*render_commands, cmd);
+      }
     }
 
-    if it.border.color
+    after_ascend :: #code
     {
-      // cmd := base_cmd;
-      // cmd.color = it.border.color;
-      // cmd.type = .BORDER;
-      // cmd.border_width = it.border.widths.left;
-      // array_add(*render_commands, cmd);
+      clip_cmd: RenderCommand;
+      clip_cmd.type = .CLIP_POP;
+      clip_cmd.box = it;
+      array_add(*render_commands, clip_cmd);
     }
 
-    if it.text.color
+    after_descend :: #code
     {
-      cmd := base_cmd;
-      cmd.type = .TEXT;
-      cmd.p += V2.{it.padding.left, it.padding.top + it.inner.y};
-      cmd.color = it.text.color;
-      cmd.text = it.text.str;
-      cmd.font = it.text.font;
-      cmd.font_size_px = LengthToPx(it.text.font_size, it, true);
-      array_add(*render_commands, cmd);
+      clip_cmd: RenderCommand;
+      clip_cmd.type = .CLIP_PUSH;
+      clip_cmd.p = it.parent.abs_p;
+      clip_cmd.dim = Outer2(it.parent);
+      clip_cmd.box = it.parent;
+      array_add(*render_commands, clip_cmd);
     }
+
+    TreeIteratorBFS(root_box.first, body, after_ascend, after_descend);
   }
 }
 
@@ -1339,6 +1363,74 @@ TreeBreadthFirst :: (root: *Box, body: Code, flags: For_Flags) #expand
       look_for_sibling = true;
       box_depth -= 1;
       box = box.parent;
+    }
+    else break;
+  }
+}
+
+TreeIteratorBFS :: (root: *Box, body: Code, after_ascend: Code, after_descend: Code) #expand
+{
+  /* Example traversal order for a tree with 10 boxes.
+        [ 0 (root)]
+        /    |    \
+       1     4     8
+      /|    /|\    |\
+     2 3   5 6 7   9 10
+  */
+
+  box := root;
+  box_depth := 0;
+  box_index := 0;
+
+  look_for_sibling := false;
+  while root_loop := true // Parent loop
+  {
+    while true // Sibling/Child loop
+    {
+      if look_for_sibling
+      {
+        look_for_sibling = false; // Look for sibling only once until requested again
+        // Go to the next sibling or exit loop
+        if !IsNil(box.next) box = box.next;
+        else break;
+      }
+
+      `it := box;
+      `it_depth := box_depth;
+      `it_index := box_index;
+      box_index += 1;
+
+      defer {
+        // Go to the child or look_for_sibling
+        if !IsNil(box.first)
+        {
+          box_depth += 1;
+          box = box.first;
+
+          // after_descend injection
+          `it = box;
+          `it_depth = box_depth;
+          `it_index = box_index;
+          #insert after_descend;
+        }
+        else look_for_sibling = true;
+      };
+
+      #insert body;
+    }
+
+    // Ascend to parent or exit the tree traversal
+    if !IsNil(box.parent) && box_depth > 0
+    {
+      look_for_sibling = true;
+      box_depth -= 1;
+      box = box.parent;
+
+      // after_ascend injection
+      `it = box;
+      `it_depth = box_depth;
+      `it_index = box_index;
+      #insert after_ascend;
     }
     else break;
   }

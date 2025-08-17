@@ -64,20 +64,20 @@ Range :: struct ($T: Type)
   // Values are valid for `min <= x < max`.
 };
 
-MakeRange              :: (max: $T)                 -> Range(T) { return Range(T).{max = max}; }
-MakeRange              :: (min: $T, max: T)         -> Range(T) { return Range(T).{min, max}; }
-MakeRangeMinDim        :: (min: $T, dim: T)         -> Range(T) { return Range(T).{min, min + dim}; }
+MakeRange :: (max: $T) -> Range(T) { return Range(T).{max = max}; }
+MakeRange :: (min: $T, max: T) -> Range(T) { return Range(T).{min, max}; }
+MakeRangeMinDim :: (min: $T, dim: T) -> Range(T) { return Range(T).{min, min + dim}; }
 MakeRangeCenterHalfDim :: (center: $T, half_dim: T) -> Range(T) { return Range(T).{center - half_dim, center + half_dim}; }
-MakeRangeCenterDim     :: (center: $T, dim: T)      -> Range(T) { return Range(T).{center - dim/2, center + dim/2}; }
+MakeRangeCenterDim :: (center: $T, dim: T) -> Range(T) { return Range(T).{center - dim/2, center + dim/2}; }
 
-Rect                  :: Range(V2);
-MakeRect              :: #procedure_of_call MakeRange(V2.{});
-MakeRect              :: #procedure_of_call MakeRange(V2.{}, V2.{});
-MakeRectMinDim        :: #procedure_of_call MakeRangeMinDim(V2.{}, V2.{});
+Rect :: Range(V2);
+MakeRect :: #procedure_of_call MakeRange(V2.{});
+MakeRect :: #procedure_of_call MakeRange(V2.{}, V2.{});
+MakeRectMinDim :: #procedure_of_call MakeRangeMinDim(V2.{}, V2.{});
 MakeRectCenterHalfDim :: #procedure_of_call MakeRangeCenterHalfDim(V2.{}, V2.{});
-MakeRectCenterDim     :: #procedure_of_call MakeRangeCenterDim(V2.{}, V2.{});
-MakeRect       :: (max_x: float, max_y: float)                     -> Rect { return .{max = .{max_x, max_y}}; }
-MakeRect       :: (x: float, y: float, max_x: float, max_y: float) -> Rect { return .{.{x, y}, .{max_x, max_y}}; }
+MakeRectCenterDim :: #procedure_of_call MakeRangeCenterDim(V2.{}, V2.{});
+MakeRect :: (max_x: float, max_y: float) -> Rect { return .{max = .{max_x, max_y}}; }
+MakeRect :: (x: float, y: float, max_x: float, max_y: float) -> Rect { return .{.{x, y}, .{max_x, max_y}}; }
 MakeRectMinDim :: (x: float, y: float, dim_x: float, dim_y: float) -> Rect { return .{.{x, y}, .{x, y} + .{dim_x, dim_y}}; }
 
 operator == :: (a: Range($T), b: Range(T)) -> bool
