@@ -271,12 +271,28 @@ UI_BuildDeveloperWindow :: ()
                                                          child_order = .TOP_TO_BOTTOM},
                                               bg_color = Color32_RGBAf(0,0,1,0.2)}));
 
-            scroll_bar := CreateBox(.{layout.size.pref = .{Grow(), Pct(0.5)},
-                                      bg_color = Color32_RGBAf(0,0,1,0.4)});
+            scroll_size_pct := 0.2;
+            scroll_margin0 := CreateBox(.{layout.size.pref = Grow2()});
+            scroll_bar := Signal(CreateBox(.{layout.size = .{pref = .{Grow(), Pct(scroll_size_pct)}},
+                                             bg_color = Color32_RGBAf(0,1,1,0.4)}));
+            scroll_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+
+            if scroll_bar.flags & .HOVER then scroll_bar.bg_color = Color32_RGBAf(0,1,1,0.7);
+            if scroll_bar.flags & .DRAG
+            {
+              scrollable_size_px := Inner(scroll_area.old, .Y) - Inner(scroll_bar.old, .Y);
+              if scrollable_size_px > 0.0
+              {
+                scrollable_position_px := G.mouse.y - scroll_area.old.abs_p.y - layout_state.drag_box_abs_p_offset.y;
+                scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
+                G.dev.joint_hierarchy_scroll = scrollable_position_01;
+              }
+            }
+            scroll_margin0.layout.size.pref.y = Pct(G.dev.joint_hierarchy_scroll * (1.0 - scroll_size_pct));
           }
 
           Parent(hierarchy);
-          hierarchy.scroll.set_01.y = Cos01(G.at*0.2);
+          hierarchy.scroll.set_01.y = G.dev.joint_hierarchy_scroll;
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -307,7 +323,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 {
   Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{size.pref = .{Grow(), Fit()},
+  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
                                           child_align.y = .CENTER,
                                           child_gap = UI_WINDOW_GAP}}));

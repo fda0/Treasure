@@ -636,9 +636,28 @@ Signal :: (box: *Box) -> BoxSignal
   if mouse_overlaps_box
   {
     signal.flags |= .OVERLAPS;
+
+    if !active_box
+    {
+      signal.flags |= .HOVER;
+
+      for buttons
+      {
+        if it & .PRESSED
+        {
+          active_box = box.key;
+          drag_start_p = mouse;
+          drag_box_abs_p_offset = mouse - box.old.abs_p;
+          signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
+        }
+      }
+    }
+  }
+
+  if active_box == box.key
+  {
     signal.flags |= .HOVER;
-    if buttons[MOUSE_LEFT]  & .PRESSED then signal.flags |= .CLICK;
-    if buttons[MOUSE_RIGHT] & .PRESSED then signal.flags |= .RIGHT_CLICK;
+    signal.flags |= .DRAG;
   }
 
   return signal;
@@ -681,7 +700,7 @@ RenderCommand :: struct
 //
 // LayoutBegin initializes internal layout state according to LayoutSpec
 //
-ButtonType :: enum u32 { MOUSE_LEFT; MOUSE_MIDDLE; MOUSE_RIGHT; };
+ButtonType :: enum u8 { MOUSE_LEFT; MOUSE_MIDDLE; MOUSE_RIGHT; };
 ButtonTypeCount :: #run enum_highest_value(ButtonType) + 1;
 ButtonFlags :: enum_flags u8
 {
@@ -730,6 +749,13 @@ LayoutBegin :: (new_spec: LayoutSpec)
       (ifx is_down              then HELD     else 0) |
       (ifx is_down && !was_down then PRESSED  else 0) |
       (ifx !is_down && was_down then RELEASED else 0);
+  }
+
+  if !!active_box
+  {
+    not_held := true;
+    for buttons      not_held &&= !(it & .HELD);
+    if not_held then active_box = .{};
   }
 
   // Assing new spec
@@ -882,11 +908,21 @@ LayoutEnd :: ()
   {
     // - SIZING PASS 3 -
     // Steps:
-    //   1. Solve overflow violations.
-    //   2. Use free space from parent if grow == .TRUE.
+    //   1. Fix percentages.
+    //   2. Clamp inner dim.
+    //   3. Solve overflow violations.
+    //   4. Use free space from parent if grow == .TRUE.
+
+    FREE_SPACE_EPSILON :: 0.1;
 
     for :Siblings child: parent.first
     {
+      // 1. Fix percentages.
+      if child.layout.size.pref.axes[axis].unit == .PCT
+      {
+        child.inner.component[axis] = parent.inner.component[axis] * child.layout.size.pref.axes[axis].value;
+      }
+      // 2. Clamp inner dim.
       ClampInnerDim(child, axis);
     }
 
@@ -926,7 +962,7 @@ LayoutEnd :: ()
         free_space := Inner(parent, axis, .FINAL) - children_outer_sum;
 
         // Assign mode on first iteration
-        if !mode then mode = ifx free_space > 0.0 then .GROWING else .SHRINKING;
+        if !mode then mode = ifx free_space > FREE_SPACE_EPSILON then .GROWING else .SHRINKING;
 
         // Prevent endless GROWING loops when no progress was made.
         if free_space >= prev_free_space break;
@@ -934,7 +970,7 @@ LayoutEnd :: ()
 
         if mode == .GROWING
         {
-          if free_space > 0.0 && children_grow_weight_sum > 0.0
+          if free_space > FREE_SPACE_EPSILON && children_grow_weight_sum > FREE_SPACE_EPSILON
           {
             grow_per_child := free_space / children_grow_weight_sum;
 
@@ -958,7 +994,7 @@ LayoutEnd :: ()
         else if mode == .SHRINKING
         {
           // Detect overflow. Shrink children.
-          if free_space < 0.0 && children_shrinkable_sum > 0.0
+          if free_space < -FREE_SPACE_EPSILON && children_shrinkable_sum > FREE_SPACE_EPSILON
           {
             shrink_ratio := children_shrinkable_sum / -free_space;
             shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
@@ -982,28 +1018,18 @@ LayoutEnd :: ()
         free_space := Inner(parent, axis, .FINAL) - Outer(child, axis, .FINAL);
 
         // shrink child
-        if free_space < 0.0
+        if free_space < -FREE_SPACE_EPSILON
         {
           max_child_inner := Inner(parent, axis, .FINAL) - PaddingDim(child, axis);
           child.inner.component[axis] = PositiveMax(max_child_inner, Inner(child, axis, .MIN));
         }
 
         // grow child
-        if free_space > 0.0 && child.layout.size.pref.axes[axis].unit == .GROW
+        if free_space > FREE_SPACE_EPSILON && child.layout.size.pref.axes[axis].unit == .GROW
         {
           max_child_inner := Inner(parent, axis, .FINAL) - PaddingDim(child, axis);
           child.inner.component[axis] = PositiveMin(max_child_inner, Inner(child, axis, .MAX));
         }
-      }
-    }
-
-    // Fix percentages.
-    for :TreeBreadthFirst parent.first
-    {
-      if it.layout.size.pref.axes[axis].unit == .PCT
-      {
-        it.inner.component[axis] = it.parent.inner.component[axis] * it.layout.size.pref.axes[axis].value;
-        ClampInnerDim(it, axis);
       }
     }
   }
@@ -1328,6 +1354,10 @@ LayoutState :: struct
   buttons: [ButtonTypeCount] ButtonFlags;
 
   boxes_count: s32;
+
+  active_box: BoxKey;
+  drag_start_p: V2;
+  drag_box_abs_p_offset: V2;
 
   // Double-buffer system.
   // Each LayoutBegin call flips boxes_index between 0-1.
