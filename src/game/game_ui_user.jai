@@ -255,9 +255,17 @@ UI_BuildDeveloperWindow :: ()
         {
           CreateText("Joint hierarchy");
 
-          scrollable_container := Parent(CreateBox(.{layout.size.pref = Grow2(),
-                                                     layout.padding = PaddingAll(Px(0)),
-                                                     bg_color = Color32_RGBAf(0,1,0,0.2)}));
+          scroll_value := *G.dev.joint_hierarchy_scroll;
+          scrollable_container := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
+                                                            layout.padding = PaddingAll(Px(0)),
+                                                            bg_color = Color32_RGBAf(0,1,0,0.2)})),
+                                         .CANT_ACTIVATE);
+
+          if scrollable_container.flags & .HOVER
+          {
+            scroll_by := -G.mouse_scroll.y * 0.05;
+            scroll_value.* = clamp(scroll_value.* + scroll_by, 0.0, 1.0);
+          }
 
           hierarchy := CreateBox(.{layout = .{size.pref = Grow2(),
                                               scroll.enable = .SCROLL_Y,
@@ -285,14 +293,14 @@ UI_BuildDeveloperWindow :: ()
               {
                 scrollable_position_px := G.mouse.y - scroll_area.old.abs_p.y - layout_state.drag_box_abs_p_offset.y;
                 scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-                G.dev.joint_hierarchy_scroll = scrollable_position_01;
+                scroll_value.* = scrollable_position_01;
               }
             }
-            scroll_margin0.layout.size.pref.y = Pct(G.dev.joint_hierarchy_scroll * (1.0 - scroll_size_pct));
+            scroll_margin0.layout.size.pref.y = Pct((scroll_value.*) * (1.0 - scroll_size_pct));
           }
 
           Parent(hierarchy);
-          hierarchy.scroll.set_01.y = G.dev.joint_hierarchy_scroll;
+          hierarchy.scroll.set_01.y = scroll_value.*;
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {

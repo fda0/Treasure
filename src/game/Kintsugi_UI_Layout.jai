@@ -145,7 +145,7 @@ LengthToPx :: (length: Length, owner_box: *Box, clamp_at_zero: bool) -> float
 
     case;
     st := get_stack_trace_string(context.stack_trace,, temp);
-    // log("[BRICK] Length with dynamic unit is not supported here. %", st);
+    // log("[KINTSUGI] Length with dynamic unit is not supported here. %", st);
     return min(value, 0.0);
   }
   return value;
@@ -498,7 +498,7 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
     check := FindBox(spec.key);
     if !IsNil(check)
     {
-      log_error("brick_ui_layout - Found BoxKey collision when creating a new box. Collided on key: %. Tried to create a box from: %. Collided with box from: %.", spec.key, loc, check.loc);
+      log_error("[KINTSUGI] - Found BoxKey collision when creating a new box. Collided on key: %. Tried to create a box from: %. Collided with box from: %.", spec.key, loc, check.loc);
     }
   }
 
@@ -601,7 +601,13 @@ BoxSignal :: struct
   };
 };
 
-Signal :: (box: *Box) -> BoxSignal
+BoxSignalMask :: enum_flags u32
+{
+  CANT_ACTIVATE;
+  NONE :: 0;
+}
+
+Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
 {
   using layout_state;
   using ButtonType;
@@ -633,11 +639,13 @@ Signal :: (box: *Box) -> BoxSignal
     }
   }
 
+  assign_active := false;
+
   if mouse_overlaps_box
   {
     signal.flags |= .OVERLAPS;
 
-    if !active_box
+    if !active_key
     {
       signal.flags |= .HOVER;
 
@@ -645,7 +653,7 @@ Signal :: (box: *Box) -> BoxSignal
       {
         if it & .PRESSED
         {
-          active_box = box.key;
+          if !(mask & .CANT_ACTIVATE) then active_key = box.key;
           drag_start_p = mouse;
           drag_box_abs_p_offset = mouse - box.old.abs_p;
           signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
@@ -654,7 +662,7 @@ Signal :: (box: *Box) -> BoxSignal
     }
   }
 
-  if active_box == box.key
+  if active_key == box.key
   {
     signal.flags |= .HOVER;
     signal.flags |= .DRAG;
@@ -751,11 +759,11 @@ LayoutBegin :: (new_spec: LayoutSpec)
       (ifx !is_down && was_down then RELEASED else 0);
   }
 
-  if !!active_box
+  if !!active_key
   {
     not_held := true;
     for buttons      not_held &&= !(it & .HELD);
-    if not_held then active_box = .{};
+    if not_held then active_key = .{};
   }
 
   // Assing new spec
@@ -805,7 +813,7 @@ LayoutEnd :: ()
     err |= nil_box.parent != *nil_box;
     if err
     {
-      log_error("[BRICK_UI_LAYOUT] error detected - nil_box was modified. Make sure you check with IsNil before modifying a box.");
+      log_error("[KINTSUGI] error detected - nil_box was modified. Make sure you check with IsNil before modifying a box.");
       nil_box = .{};
       LinkToNil(*nil_box);
     }
@@ -1452,7 +1460,7 @@ LayoutState :: struct
 
   boxes_count: s32;
 
-  active_box: BoxKey;
+  active_key: BoxKey;
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
