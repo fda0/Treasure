@@ -67,7 +67,7 @@ main :: ()
     };
     // log("generated source_flags:\n%", source_flags);
 
-    base_dir := "../jsrc/shader/";
+    base_dir := "../src/shader/";
     source_util := read_entire_file(join(base_dir, "shader_util.hlsl"));
 
     GetArgs :: (source_file: string, entry: string, shader_type: Shader_Type) -> Dxc_Shader_Compiler_Args #expand

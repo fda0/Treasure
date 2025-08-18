@@ -254,53 +254,7 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-
-          scroll_value := *G.dev.joint_hierarchy_scroll;
-          container_body_and_scrollbar := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
-                                                            layout.padding = PaddingAll(Px(0)),
-                                                            bg_color = Color32_RGBAf(0,1,0,0.2)})),
-                                         .CANT_ACTIVATE);
-
-          if container_body_and_scrollbar.flags & .HOVER
-          {
-            scroll_by := -G.mouse_scroll.y * 0.05;
-            scroll_value.* = clamp(scroll_value.* + scroll_by, 0.0, 1.0);
-          }
-
-          scrollable_body := CreateBox(.{layout = .{size.pref = Grow2(),
-                                              scroll.enable = .SCROLL_Y,
-                                              child_order = .TOP_TO_BOTTOM},
-                                   bg_color = Color32_RGBAf(1,0,0,0.2)});
-
-          {
-            Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
-            scroll_area := Parent(CreateBox(.{layout = .{size.min.x = Rem(1),
-                                                         size.pref.y = Grow(),
-                                                         child_order = .TOP_TO_BOTTOM},
-                                              bg_color = Color32_RGBAf(0,0,1,0.2)}));
-
-            scroll_size_pct := 0.2;
-            scroll_margin0 := CreateBox(.{layout.size.pref = Grow2()});
-            scroll_bar := Signal(CreateBox(.{layout.size = .{pref = .{Grow(), Pct(scroll_size_pct)}},
-                                             bg_color = Color32_RGBAf(0,1,1,0.4)}));
-            scroll_margin1 := CreateBox(.{layout.size.pref = Grow2()});
-
-            if scroll_bar.flags & .HOVER then scroll_bar.bg_color = Color32_RGBAf(0,1,1,0.7);
-            if scroll_bar.flags & .DRAG
-            {
-              scrollable_size_px := Inner(scroll_area.old, .Y) - Inner(scroll_bar.old, .Y);
-              if scrollable_size_px > 0.0
-              {
-                scrollable_position_px := G.mouse.y - scroll_area.old.abs_p.y - layout_state.drag_box_abs_p_offset.y;
-                scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-                scroll_value.* = scrollable_position_01;
-              }
-            }
-            scroll_margin0.layout.size.pref.y = Pct((scroll_value.*) * (1.0 - scroll_size_pct));
-          }
-
-          Parent(scrollable_body);
-          scrollable_body.scroll.set_01.y = scroll_value.*;
+          scroll_container := Parent(UI_ScrollableContainer(*G.dev.joint_hierarchy_scroll));
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -442,8 +396,61 @@ UI_Button :: (label: string) -> clicked: bool
   return !!(button.flags & .CLICK);
 }
 
-UI_ScrollableContainer :: (scroll_value: *float)
+UI_ScrollableContainer :: (scroll_value: *float) -> *Box
 {
+  COLOR_BAR_BG :: #run Color32_SetAlphai(UI_FG, 24);
+  COLOR_SCROLL :: #run Color32_SetAlphai(UI_FG, 52);
+  COLOR_SCROLL_ACTIVE :: #run Color32_SetAlphai(UI_FG, 128);
+  BAR_THICKNESS :: #run Rem(0.75);
+
+  body_and_scrollbar := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
+                                                  layout.padding = PaddingAll(Px(0))})),
+                               .CANT_ACTIVATE);
+
+  if body_and_scrollbar.flags & .HOVER
+  {
+    scroll_by := -G.mouse_scroll.y * 0.05;
+    scroll_value.* = clamp(scroll_value.* + scroll_by, 0.0, 1.0);
+  }
+
+  body := CreateBox(.{layout = .{size.pref = Grow2(),
+                      scroll.enable = .SCROLL_Y,
+                      child_order = .TOP_TO_BOTTOM}/*,
+                      bg_color = Color32_RGBAf(1,0,0,0.2)*/});
+
+  {
+    Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
+    scroll_area := Parent(CreateBox(.{layout = .{size.min.x = BAR_THICKNESS,
+                                      size.pref.y = Grow(),
+                                      child_order = .TOP_TO_BOTTOM},
+                                      bg_color = COLOR_BAR_BG}));
+
+    scroll_size_pct := 0.2;
+    scroll_margin0 := CreateBox(.{layout.size.pref = Grow2()});
+    scroll_bar := Signal(CreateBox(.{layout.size = .{pref = .{Grow(), Pct(scroll_size_pct)}},
+                                     bg_color = COLOR_SCROLL_ACTIVE}));
+    scroll_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+
+    if scroll_bar.flags & .HOVER
+    {
+      scroll_bar.bg_color = UI_FG;
+    }
+    if scroll_bar.flags & .DRAG
+    {
+      scrollable_size_px := Inner(scroll_area.old, .Y) - Inner(scroll_bar.old, .Y);
+      if scrollable_size_px > 0.0
+      {
+        scrollable_position_px := G.mouse.y - scroll_area.old.abs_p.y - layout_state.drag_box_abs_p_offset.y;
+        scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
+        scroll_value.* = scrollable_position_01;
+      }
+    }
+
+    scroll_margin0.layout.size.pref.y = Pct((scroll_value.*) * (1.0 - scroll_size_pct));
+  }
+
+  body.scroll.set_01.y = scroll_value.*;
+  return body;
 }
 
 
