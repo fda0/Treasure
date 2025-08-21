@@ -84,6 +84,7 @@ GAME_State :: struct
 GAME_Init :: ()
 {
   G.frame_timestamp = GetTimestampMS(.NOW);
+  UniqueInit();
 
   if !G.headless
   {
@@ -510,3 +511,4 @@ String :: #import "String";
 #load "game_pie_loader.jai";
 #load "game_stats.jai";
 #load "game_logging.jai";
+#load "game_unique_variables.jai";

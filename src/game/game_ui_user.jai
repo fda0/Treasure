@@ -20,7 +20,6 @@ DEV_State :: struct // @todo serialize this struct to disk
 
   // objects
   show_joint_hierarchy := false;
-  joint_hierarchy_scroll: float;
 }
 
 UI_State :: struct
@@ -254,7 +253,7 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-          scroll_container := Parent(UI_ScrollableContainer(*G.dev.joint_hierarchy_scroll));
+          scroll_container := Parent(UI_ScrollableContainer(UniqueFloat()));
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
