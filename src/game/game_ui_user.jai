@@ -453,6 +453,6 @@ UI_ScrollableContainer :: (scroll_value: *float) -> *Box
 }
 
 
-Kintsugi :: #import,file "Kintsugi_UI_Layout.jai"(Color=Color32);
+BOX :: #import,file "ui_in_a_box.jai"(Color=Color32);
 #scope_file;
-using Kintsugi;
+using BOX;

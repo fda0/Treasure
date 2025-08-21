@@ -341,7 +341,7 @@ tests_text_in_too_small_window :: ()
 //
 // Tests setup
 //
-#import,file "Kintsugi_UI_Layout.jai";
+#import,file "ui_in_a_box.jai";
 #import "Basic";
 #import "Math";
 V2 :: Vector2;
