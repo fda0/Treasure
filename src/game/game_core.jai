@@ -483,6 +483,7 @@ String :: #import "String";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
 #load "../shared/game_render_world_shared.jai";
+#import "treasure_hash_table";
 
 #load "game_ui_text.jai";
 #load "game_ui_core.jai";

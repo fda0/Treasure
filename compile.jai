@@ -173,6 +173,7 @@ Build :: (using config: BuildConfig)
 
   modules_path: [..] string;
   array_add(*modules_path, "libs/");
+  array_add(*modules_path, "src/modules/");
   array_add(*modules_path, ..options.import_path);
   options.import_path = modules_path;
 

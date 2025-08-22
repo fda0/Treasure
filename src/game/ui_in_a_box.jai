@@ -507,7 +507,7 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
     stack_trace_string := get_stack_trace_string(context.stack_trace,, temp);
     spec.key = CreateKey(stack_trace_string, spec.autokey_seed);
 
-    entry, newly_added := Hash_Table.find_or_add(*layout_state.added_seeds, spec.key);
+    entry, newly_added := Hash_Table.find_or_add(*layout_state.added_seeds, spec.key.hash);
     if newly_added
     {
       entry.* = 0;
@@ -1502,9 +1502,7 @@ LayoutState :: struct
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
-  BoxKey_s64_Table :: Hash_Table.Table(Key_Type = BoxKey, Value_Type = u64,
-    given_compare_function = #procedure_of_call operator==(BoxKey.{}, BoxKey.{}),
-    given_hash_function = (b: BoxKey) -> u32 { return xx,trunc b.hash; });
+  BoxKey_s64_Table :: Hash_Table.Table(Value_Type = u64);
   added_seeds: BoxKey_s64_Table;
 
   // Double-buffer system.
@@ -1542,7 +1540,7 @@ BoxesArray :: (which: BoxStorageArray) -> *[..] Box
 #scope_file;
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
-Hash_Table :: #import "Hash_Table";
+Hash_Table :: #import "treasure_hash_table";
 
 //
 // Internal hash helpers
