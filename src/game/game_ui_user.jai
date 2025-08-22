@@ -77,7 +77,7 @@ UI_BuildDeveloperWindow :: ()
 
   // Floating developer window
   Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                size.min = .{Rem(35), Rem(40)}},
+                                size.min = .{Rem(25), Rem(20)}},
                      bg_color = UI_BG,
                      floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
                      border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
@@ -117,6 +117,9 @@ UI_BuildDeveloperWindow :: ()
       }
     }
 
+    // Scrolling
+    Parent(UI_ScrollableContainer(UniqueFloat(), UniqueFloat()));
+
     // Content box
     Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                   size.min = Fit2(), size.pref = Grow2(),
@@ -135,6 +138,14 @@ UI_BuildDeveloperWindow :: ()
       CreateText(tprint("World Camera: %", G.camera_p));
       CreateText(tprint("Camera - Player: %", G.camera_p - OBJ_Get(.NETWORK, G.client.player_key).s.p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
+
+      CreateText("more random data 1");
+      CreateText("more random data 2");
+      CreateText("more random data 3");
+      CreateText("more random data 4");
+      CreateText("more random data 5 that's very long; seriously long string");
+      CreateText("more random data 6 and that's even longer, like this won't happen in nature!");
+
 
       {
         DisplayCounter :: (label: string, c: *STATS_Counter)
@@ -253,7 +264,7 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-          scroll_container := Parent(UI_ScrollableContainer(UniqueFloat()));
+          Parent(UI_ScrollableContainer(null, UniqueFloat(), spec = .{layout.size.min.y = Rem(10)}));
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -395,60 +406,114 @@ UI_Button :: (label: string) -> clicked: bool
   return !!(button.flags & .CLICK);
 }
 
-UI_ScrollableContainer :: (scroll_value: *float) -> *Box
+UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{}) -> *Box
 {
-  COLOR_BAR_BG :: #run Color32_SetAlphai(UI_FG, 24);
-  COLOR_SCROLL :: #run Color32_SetAlphai(UI_FG, 52);
-  COLOR_SCROLL_ACTIVE :: #run Color32_SetAlphai(UI_FG, 128);
   BAR_THICKNESS :: #run Rem(0.75);
+  color_bar_bg := Color32_SetAlphai(UI_FG, 24);
+  color_scroll := Color32_SetAlphai(UI_FG, 128);
+  color_scroll_active := Color32_SetAlphai(UI_FG, 220);
 
-  body_and_scrollbar := Signal(Parent(CreateBox(.{layout.size.pref = Grow2(),
-                                                  layout.padding = PaddingAll(Px(0))})),
-                               .CANT_ACTIVATE);
+  TempParentScope();
+  Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
 
-  if body_and_scrollbar.flags & .HOVER
+  default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};
+  container_x: *Box;
+  container_y: *Box;
+  scroll_area_x: *Box;
+  scroll_area_y: *Box;
+  body: *Box;
+
+  if scroll_x
   {
-    scroll_by := -G.mouse_scroll.y * 0.05;
-    scroll_value.* = clamp(scroll_value.* + scroll_by, 0.0, 1.0);
+    container_x = CreateBox(spec, default_spec);
+    container_x.layout.child_order = .TOP_TO_BOTTOM;
+    PushParent(container_x);
   }
 
-  body := CreateBox(.{layout = .{size.pref = Grow2(),
-                      scroll.enable = .SCROLL_Y,
-                      child_order = .TOP_TO_BOTTOM}/*,
-                      bg_color = Color32_RGBAf(1,0,0,0.2)*/});
-
+  if scroll_y
   {
-    Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
-    scroll_area := Parent(CreateBox(.{layout = .{size.min.x = BAR_THICKNESS,
-                                      size.pref.y = Grow(),
-                                      child_order = .TOP_TO_BOTTOM},
-                                      bg_color = COLOR_BAR_BG}));
+    container_y = CreateBox(spec, default_spec);
+    container_y.layout.child_order = .LEFT_TO_RIGHT;
+  }
 
-    scroll_size_pct := 0.2;
-    scroll_margin0 := CreateBox(.{layout.size.pref = Grow2()});
-    scroll_bar := Signal(CreateBox(.{layout.size = .{pref = .{Grow(), Pct(scroll_size_pct)}},
-                                     bg_color = COLOR_SCROLL_ACTIVE}));
-    scroll_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+  if !scroll_y body = CreateBox();
+  if scroll_x scroll_area_x = CreateBox();
 
-    if scroll_bar.flags & .HOVER
+  if scroll_y
+  {
+    PushParent(container_y);
+    body = CreateBox();
+    scroll_area_y = CreateBox();
+  }
+
+  body.layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM};
+  if scroll_x then body.scroll.enable |= .SCROLL_X;
+  if scroll_y then body.scroll.enable |= .SCROLL_Y;
+
+  for axis: Axis2.X .. Axis2.Y
+  {
+    other_axis := (!axis).(Axis2);
+    scroll      := ifx axis == .X then scroll_x else scroll_y;
+    container   := ifx axis == .X then container_x else container_y;
+    scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
+    if !scroll continue;
+
+    container_sig := Signal(container, .CANT_ACTIVATE);
+    if container_sig.flags & .HOVER
     {
-      scroll_bar.bg_color = UI_FG;
+      scroll_by := -G.mouse_scroll.y * 0.05;
+      scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
     }
-    if scroll_bar.flags & .DRAG
+
     {
-      scrollable_size_px := Inner(scroll_area.old, .Y) - Inner(scroll_bar.old, .Y);
-      if scrollable_size_px > 0.0
+      scroll_area.bg_color = color_bar_bg;
+      scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
+      scroll_area.layout.size.pref.axes[axis] = Grow();
+      scroll_area.layout.size.min.axes[other_axis] = BAR_THICKNESS;
+      Parent(scroll_area);
+
+      bar_size_pct := 0.0;
+      children_outer_sum := SumOutersOfChildren(body.old, axis);
+      if children_outer_sum > 0.0
       {
-        scrollable_position_px := G.mouse.y - scroll_area.old.abs_p.y - layout_state.drag_box_abs_p_offset.y;
-        scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-        scroll_value.* = scrollable_position_01;
+        bar_size_pct = Inner(body.old, axis) / children_outer_sum;
+        if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
+      }
+
+      box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
+      box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
+      box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+      box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
+      box_bar.layout.size.pref.axes[other_axis] = Grow();
+
+      if bar_size_pct < 1.0
+      {
+        if box_bar.flags & .HOVER
+        {
+          box_bar.bg_color = color_scroll_active;
+        }
+        if box_bar.flags & .DRAG
+        {
+          scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
+          if scrollable_size_px > 0.0
+          {
+            scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
+            scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
+            scroll.* = scrollable_position_01;
+          }
+        }
+
+        box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
+      }
+      else
+      {
+        scroll_area.bg_color = 0;
+        box_bar.bg_color = 0;
       }
     }
 
-    scroll_margin0.layout.size.pref.y = Pct((scroll_value.*) * (1.0 - scroll_size_pct));
+    body.scroll.set_01.component[axis] = scroll.*;
   }
-
-  body.scroll.set_01.y = scroll_value.*;
   return body;
 }
 

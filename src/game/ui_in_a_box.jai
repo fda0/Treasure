@@ -28,6 +28,7 @@
 //
 Bool3 :: enum u8 { DEFAULT; FALSE; TRUE; };
 Axis2 :: enum u8 { X; Y; COUNT; };
+Axis2Flags :: enum_flags u8 { X; Y; };
 Order :: enum { DEFAULT; LEFT_TO_RIGHT; TOP_TO_BOTTOM; };
 AxisMatchesOrder :: inline (axis: Axis2, order: Order) -> bool
 {
@@ -452,6 +453,20 @@ Inner2 :: (box: *Box, dim_type := DimType.FINAL) -> V2 #expand #no_debug {
   return box.inners[dim_type];
 }
 
+SumOutersOfChildren :: (parent: *Box, axis: Axis2) -> float
+{
+  result := 0.0;
+  if AxisMatchesOrder(axis, parent.layout.child_order)
+  {
+    for :Siblings parent.first result += Outer(it, axis);
+  }
+  else
+  {
+    for :Siblings parent.first result = max(result, Outer(it, axis));
+  }
+  return result;
+}
+
 //
 // Box functions
 //
@@ -465,6 +480,7 @@ LinkToNil :: (box: *Box)
   box.parent = *nil_box;
 }
 IsNil :: (box: *Box) -> bool { return !box || box == *layout_state.nil_box; }
+GetNilBox :: (box: *Box) -> *Box { return *layout_state.nil_box; }
 
 FindBox :: (key: BoxKey, target := BoxStorageArray.CURRENT) -> *Box
 {
@@ -562,10 +578,10 @@ PushParent :: (value: *Box)
 {
   using layout_state;
   if parents_count < parents.count
-    parents[parents_count] = value;
+  parents[parents_count] = value;
   parents_count += 1;
 }
-PopParent :: (value: *Box)
+PopParent :: ()
 {
   using layout_state;
   parents_count -= 1;
@@ -573,7 +589,7 @@ PopParent :: (value: *Box)
 Parent :: (box: *Box) -> *Box #expand
 {
   PushParent(box);
-  `defer PopParent(box);
+  `defer PopParent();
   return box;
 }
 ActiveParent :: () -> *Box
@@ -582,6 +598,11 @@ ActiveParent :: () -> *Box
   if parents_count > 0 && parents_count <= parents.count
     return parents[parents_count-1];
   return *nil_box;
+}
+TempParentScope :: () #expand
+{
+  starting_parents_count := layout_state.parents_count;
+  `defer layout_state.parents_count = starting_parents_count;
 }
 
 //
@@ -1098,7 +1119,9 @@ LayoutEnd :: ()
           {
             shift_by := free_space * align_shift_ratio;
             for :Siblings child: parent.first
-            child.rel_p.component[axis] += shift_by;
+            {
+              child.rel_p.component[axis] += shift_by;
+            }
           }
         }
       }
@@ -1145,7 +1168,9 @@ LayoutEnd :: ()
 
       // Apply scroll offset to children
       for :Siblings child: parent.first
-      child.rel_p.component[axis] += parent.scroll_offset.component[axis];
+      {
+        child.rel_p.component[axis] += parent.scroll_offset.component[axis];
+      }
     }
   }
 
