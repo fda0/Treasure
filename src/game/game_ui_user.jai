@@ -450,6 +450,8 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
   if scroll_x then body.scroll.enable |= .SCROLL_X;
   if scroll_y then body.scroll.enable |= .SCROLL_Y;
 
+  scroll_wheel_was_consumed := false;
+
   for axis: Axis2.X .. Axis2.Y
   {
     other_axis := (!axis).(Axis2);
@@ -458,58 +460,61 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
     if !scroll continue;
 
+    scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
     container_sig := Signal(container, .CANT_ACTIVATE);
-    if container_sig.flags & .HOVER
+
+    if !scroll_wheel_was_consumed && container_sig.flags & .HOVER
     {
-      scroll_by := -G.mouse_scroll.y * 0.05;
-      scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
+      if scroll_area_sig.flags & .HOVER || axis == .Y
+      {
+        scroll_by := -G.mouse_scroll.y * 0.05;
+        scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
+      }
     }
 
+    scroll_area.bg_color = color_bar_bg;
+    scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
+    scroll_area.layout.size.pref.axes[axis] = Grow();
+    scroll_area.layout.size.min.axes[other_axis] = BAR_THICKNESS;
+    Parent(scroll_area);
+
+    bar_size_pct := 0.0;
+    children_outer_sum := SumOutersOfChildren(body.old, axis);
+    if children_outer_sum > 0.0
     {
-      scroll_area.bg_color = color_bar_bg;
-      scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
-      scroll_area.layout.size.pref.axes[axis] = Grow();
-      scroll_area.layout.size.min.axes[other_axis] = BAR_THICKNESS;
-      Parent(scroll_area);
+      bar_size_pct = Inner(body.old, axis) / children_outer_sum;
+      if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
+    }
 
-      bar_size_pct := 0.0;
-      children_outer_sum := SumOutersOfChildren(body.old, axis);
-      if children_outer_sum > 0.0
+    box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
+    box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
+    box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+    box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
+    box_bar.layout.size.pref.axes[other_axis] = Grow();
+
+    if bar_size_pct < 1.0
+    {
+      if box_bar.flags & .HOVER
       {
-        bar_size_pct = Inner(body.old, axis) / children_outer_sum;
-        if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
+        box_bar.bg_color = color_scroll_active;
       }
-
-      box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
-      box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
-      box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
-      box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
-      box_bar.layout.size.pref.axes[other_axis] = Grow();
-
-      if bar_size_pct < 1.0
+      if box_bar.flags & .DRAG
       {
-        if box_bar.flags & .HOVER
+        scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
+        if scrollable_size_px > 0.0
         {
-          box_bar.bg_color = color_scroll_active;
+          scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
+          scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
+          scroll.* = scrollable_position_01;
         }
-        if box_bar.flags & .DRAG
-        {
-          scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
-          if scrollable_size_px > 0.0
-          {
-            scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
-            scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-            scroll.* = scrollable_position_01;
-          }
-        }
+      }
 
-        box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
-      }
-      else
-      {
-        scroll_area.bg_color = 0;
-        box_bar.bg_color = 0;
-      }
+      box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
+    }
+    else
+    {
+      scroll_area.bg_color = 0;
+      box_bar.bg_color = 0;
     }
 
     body.scroll.set_01.component[axis] = scroll.*;

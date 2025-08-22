@@ -506,6 +506,17 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
     // spec.key = CreateKey(loc, spec.autokey_seed);
     stack_trace_string := get_stack_trace_string(context.stack_trace,, temp);
     spec.key = CreateKey(stack_trace_string, spec.autokey_seed);
+
+    entry, newly_added := Hash_Table.find_or_add(*layout_state.added_seeds, spec.key);
+    if newly_added
+    {
+      entry.* = 0;
+    }
+    else
+    {
+      entry.* += 1;
+      spec.key.hash += entry.*;
+    }
   }
   if spec.text.str then spec.text.str = copy_temporary_string(spec.text.str); // @todo This should live in some double-buffered array in layout_state
 
@@ -786,6 +797,8 @@ LayoutBegin :: (new_spec: LayoutSpec)
     for buttons      not_held &&= !(it & .HELD);
     if not_held then active_key = .{};
   }
+
+  Hash_Table.init(*added_seeds, boxes_count*2 + 1024);
 
   // Assing new spec
   layout_spec = new_spec;
@@ -1489,6 +1502,11 @@ LayoutState :: struct
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
+  BoxKey_s64_Table :: Hash_Table.Table(Key_Type = BoxKey, Value_Type = u64,
+    given_compare_function = #procedure_of_call operator==(BoxKey.{}, BoxKey.{}),
+    given_hash_function = (b: BoxKey) -> u32 { return xx,trunc b.hash; });
+  added_seeds: BoxKey_s64_Table;
+
   // Double-buffer system.
   // Each LayoutBegin call flips boxes_index between 0-1.
   // current_boxes_index points to boxes array used by current layout run.
@@ -1524,6 +1542,7 @@ BoxesArray :: (which: BoxStorageArray) -> *[..] Box
 #scope_file;
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
+Hash_Table :: #import "Hash_Table";
 
 //
 // Internal hash helpers
