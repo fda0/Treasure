@@ -327,12 +327,16 @@ expand :: (table: *Table) {
 }
 
 next_power_of_two :: inline (x : int) -> int {
-    // @Speed: This could certainly be faster.
-    // There is probably something in Hacker's Delight for this.
     Basic.assert(x != 0);
-    p := 1;
-    while x > p p += p;
-    return p;
+    x -= 1;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x |= x >> 32;
+    x += 1;
+    return x;
 }
 
 #scope_file
