@@ -9,7 +9,7 @@
 
 #module_parameters (COUNT_COLLISIONS := false)();
 
-// A hash table that maps keys to values using 32 bit hashes.
+// A hash table that maps hashes (u64 by default) to values.
 Table :: struct (Value_Type: Type, Hash_Type: Type = u64,
                  given_compare_function: (Hash_Type, Hash_Type) -> bool = null,
                  LOAD_FACTOR_PERCENT: u32 = 70,
@@ -61,7 +61,7 @@ for_expansion :: (table: *$T/Table, body: Code, flags: For_Flags) #expand {
             `it := entry.value;
         }
 
-        `it_index := entry.key;
+        `it_index := entry.hash;
 
         #insert (remove={entry.hash=REMOVED_HASH; table.count-=1;}) body;
     }
@@ -84,7 +84,7 @@ resize :: (using table: *Table, slots_to_allocate: s64 = 0) {
     table.allocated = n;
 
     // Right now we align to 8 bytes. Should we handle arbitrary alignment of both
-    // keys and values? Maybe, but that will complicate the table,
+    // hashes and values? Maybe, but that will complicate the table,
     // so let's not worry about it now unless we need it.
 
     // We used to create entries[] uninitialized for performance reasons,
@@ -117,7 +117,7 @@ table_reset :: (using table: *Table) {
 // in sync. We expect the calling site to define:
 //
 //    table: Table;
-//    key:   table.Key_Type;
+//    hash:  table.Hash_Type;
 //
 // We write back into the caller:
 //
@@ -167,11 +167,9 @@ table_ensure_space :: (table: *Table, items: s64) {
 }
 
 
-// Adds the given key value pair to the table, returns a pointer to the inserted value.
-// If you add a key twice, the table will not currently notice that this has happened,
-// so you'll just get the first one. It's unclear whether we should assert on this;
-// it sort of depends on how slow you think key comparison might be. Maybe that should
-// be a compile-time parameter to the hash table?   -jblow, 8 September 2020
+// Adds the given hash value pair to the table, returns a pointer to the inserted value.
+// If you add a hash twice, the table will not currently notice that this has happened,
+// so you'll just get the first one.
 table_add :: (table: *Table, hash: table.Hash_Type, value: table.Value_Type) -> *table.Value_Type {
     // The + 1 is here to handle the weird case when the table size is 1 and you add the first item...
     // If we just do table_count * 2 >= table.allocated, we would fill the table, causing an infinite loop on find.
@@ -210,20 +208,20 @@ table_add :: (table: *Table, hash: table.Hash_Type, value: table.Value_Type) -> 
     return *entry.value;
 }
 
-// Adds or replaces the given key value pair.
-table_set :: (table: *Table, key: table.Key_Type, value: table.Value_Type) -> *table.Value_Type {
-    value_ptr := table_find_pointer(table, key);
+// Adds or replaces the given hash value pair.
+table_set :: (table: *Table, hash: table.Hash_Type, value: table.Value_Type) -> *table.Value_Type {
+    value_ptr := table_find_pointer(table, hash);
     if value_ptr {
         value_ptr.* = value;
         return value_ptr;
     } else {
-        return table_add(table, key, value);
+        return table_add(table, hash, value);
     }
 }
 
-// Returns whether a table contains key. Useful when table is being used as a set.
-table_contains :: (table: *Table, key: table.Key_Type) -> bool {
-    return table_find_pointer(table, key) != null;
+// Returns whether a table contains hash. Useful when table is being used as a set.
+table_contains :: (table: *Table, hash: table.Hash_Type) -> bool {
+    return table_find_pointer(table, hash) != null;
 }
 
 
