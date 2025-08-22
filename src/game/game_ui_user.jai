@@ -523,6 +523,6 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 }
 
 
-BOX :: #import,file "ui_in_a_box.jai"(Color=Color32);
+BOX :: #import "treasure_box_layout"(Color=Color32);
 #scope_file;
 using BOX;

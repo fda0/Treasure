@@ -341,7 +341,7 @@ tests_text_in_too_small_window :: ()
 //
 // Tests setup
 //
-#import,file "ui_in_a_box.jai";
+#import "treasure_box_layout";
 #import "Basic";
 #import "Math";
 V2 :: Vector2;
