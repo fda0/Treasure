@@ -220,6 +220,7 @@ BoxSpec :: struct
 
   bg_color: Color;
   corner_radius: CornerRadius;
+  capture_hover: bool;
 
   scroll: struct
   {
@@ -414,6 +415,9 @@ Box :: struct
   rel_p: V2; // offset from outer dimensions of parent
   scroll_offset: V2;
   abs_p: V2; // offset from 0,0 of root box
+
+  clipped_min: V2;
+  clipped_max: V2;
 
   #place inner; inners: [3] V2;
 };
@@ -662,48 +666,30 @@ Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
   //       floating boxes and their Z-order etc are a problem to be solved.
 
   signal := BoxSignal.{box = box};
-  mouse_overlaps_box := false;
+  box.capture_hover = true;
 
-  // Test mouse overlap with box from previous frame + its parents.
-  if !IsNil(box.old)
-  {
-    mouse_overlaps_box = true;
-    tested := box.old;
-
-    while true
-    {
-      tested_min := tested.abs_p;
-      tested_max := tested_min + Outer2(tested);
-
-      mouse_overlaps_box &&= (mouse.x >= tested_min.x && mouse.x < tested_max.x &&
-                              mouse.y >= tested_min.y && mouse.y < tested_max.y);
-
-      // Advance to parent if tested wasn't floating
-      if tested.floating.attach_to then break;
-      tested = tested.parent;
-      if IsNil(tested) break;
-    }
-  }
+  mouse_overlaps_box := (mouse.x >= box.old.clipped_min.x && mouse.x < box.old.clipped_max.x &&
+                         mouse.y >= box.old.clipped_min.y && mouse.y < box.old.clipped_max.y);
 
   assign_active := false;
 
   if mouse_overlaps_box
   {
     signal.flags |= .OVERLAPS;
+  }
 
-    if !active_key
+  if !active_key && hover_key == box.key
+  {
+    signal.flags |= .HOVER;
+
+    for buttons
     {
-      signal.flags |= .HOVER;
-
-      for buttons
+      if it & .PRESSED
       {
-        if it & .PRESSED
-        {
-          if !(mask & .CANT_ACTIVATE) then active_key = box.key;
-          drag_start_p = mouse;
-          drag_box_abs_p_offset = mouse - box.old.abs_p;
-          signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
-        }
+        if !(mask & .CANT_ACTIVATE) then active_key = box.key;
+        drag_start_p = mouse;
+        drag_box_abs_p_offset = mouse - box.old.abs_p;
+        signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
       }
     }
   }
@@ -1107,7 +1093,7 @@ LayoutEnd :: ()
   for axis: Axis2.X .. Axis2.Y
   {
     for :TreeBreadthFirst        root_box SolveNodeSizePass1(it, axis);
-    for :TreeDepthFirstPostOrder root_box SolveNodeSizePass2(it, axis);
+    for :TreeDepthFirst root_box SolveNodeSizePass2(it, axis);
 
     ClampInnerDim(root_box, axis);
     for :TreeBreadthFirst        root_box FixChildrenSizes(it, axis);
@@ -1245,6 +1231,34 @@ LayoutEnd :: ()
     }
   }
 
+  // Solve clip rectangles (userful for rendering and mouse intersection testing)
+  for :TreeBreadthFirst root_box
+  {
+    it.clipped_min = it.abs_p;
+    it.clipped_max = it.abs_p + Outer2(it);
+    if !IsNil(it.parent) && !it.floating.attach_to
+    {
+      it.clipped_min = max(it.clipped_min, it.parent.clipped_min);
+      it.clipped_max = min(it.clipped_max, it.parent.clipped_max);
+    }
+    // it.clipped_max = max(it.clipped_min, it.clipped_max);
+  }
+
+  // Reserve hover key on first hit
+  hover_key = .{};
+  for :TreeDepthFirst root_box
+  {
+    if it.capture_hover
+    {
+      if mouse.x >= it.clipped_min.x && mouse.x < it.clipped_max.x &&
+         mouse.y >= it.clipped_min.y && mouse.y < it.clipped_max.y
+      {
+        hover_key = it.key;
+        break;
+      }
+    }
+  }
+
   // Debug logging.
   if log_flags
   {
@@ -1267,47 +1281,25 @@ LayoutEnd :: ()
 
   // Generate render commands.
   {
-    clip_from_parent := GetNilBox();
     prev_clip_min: V2;
     prev_clip_max: V2;
 
-    body :: #code
+    for :TreeBreadthFirst root_box.first
     {
-      if it.parent != clip_from_parent
       {
-        clip_from_parent = it.parent;
+        parent := it.parent;
+        if IsNil(parent) parent = root_box;
 
-        b := it;
-        clip_min := V2.{};
-        clip_max := Outer2(root_box);
-        while true
+        if prev_clip_min != parent.clipped_min || prev_clip_max != parent.clipped_max
         {
-          if b.floating.attach_to then break;
-          b = b.parent;
-          if IsNil(b) then break;
-
-          b_min := b.abs_p;
-          b_max := b.abs_p + Outer2(b);
-          clip_min = max(clip_min, b_min);
-          clip_max = min(clip_max, b_max);
-        }
-
-        if clip_min.x > clip_max.x || clip_min.y > clip_max.y
-        {
-          clip_min = .{};
-          clip_max = .{};
-        }
-
-        if prev_clip_min != clip_min || prev_clip_max != clip_max
-        {
-          prev_clip_min = clip_min;
-          prev_clip_max = clip_max;
+          prev_clip_min = parent.clipped_min;
+          prev_clip_max = parent.clipped_max;
 
           clip_cmd: RenderCommand;
           clip_cmd.type = .CLIP;
           clip_cmd.box = it;
-          clip_cmd.p = clip_min;
-          clip_cmd.dim = clip_max - clip_min;
+          clip_cmd.p = parent.clipped_min;
+          clip_cmd.dim = parent.clipped_max - parent.clipped_min;
           array_add(*render_commands, clip_cmd);
         }
       }
@@ -1346,18 +1338,6 @@ LayoutEnd :: ()
         array_add(*render_commands, cmd);
       }
     }
-
-    after_ascend :: #code
-    {
-      // clip_is_dirty = true;
-    }
-
-    after_descend :: #code
-    {
-      // clip_is_dirty = true;
-    }
-
-    TreeIteratorBFS(root_box.first, body, after_ascend, after_descend);
   }
 }
 
@@ -1400,16 +1380,17 @@ SiblingsNonFloating :: (first_box: *Box, body: Code, flags: For_Flags) #expand
   }
 }
 
-TreeDepthFirstPostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
+TreeDepthFirst :: (root: *Box, body: Code, flags: For_Flags) #expand
 {
+  // This is post order (in reverse breadth order? idk what is the computer sciency name for this)
   #assert(flags == 0); // Support for .REVERSE could be added but it shouldn't be needed.
 
   /* Example traversal order for a tree with 10 boxes.
         [10 (root)]
         /    |    \
-       2     6     9
+       9     6     2
       /|    /|\    |\
-     0 1   3 4 5   7 8
+     8 7   5 4 3   1 0
   */
 
   box := root;
@@ -1425,10 +1406,10 @@ TreeDepthFirstPostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
       if !coming_from_child_to_parent
       {
         // Descend depth-first to 'youngest' child
-        while !IsNil(box.first)
+        while !IsNil(box.last)
         {
           box_depth += 1;
-          box = box.first;
+          box = box.last;
         }
       }
 
@@ -1438,9 +1419,9 @@ TreeDepthFirstPostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
       box_index += 1;
 
       defer {
-        // Go to the next sibling or exit and go to parent
+        // Go to the next (prev?) sibling or exit and go to parent
         coming_from_child_to_parent = false;
-        if !IsNil(box.next) box = box.next;
+        if !IsNil(box.prev) box = box.prev;
         else siblings_and_children_not_found = true;
       };
 
@@ -1601,6 +1582,7 @@ LayoutState :: struct
   boxes_count: s32;
 
   active_key: BoxKey;
+  hover_key: BoxKey;
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
