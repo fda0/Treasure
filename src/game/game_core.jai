@@ -84,7 +84,6 @@ GAME_State :: struct
 GAME_Init :: ()
 {
   G.frame_timestamp = GetTimestampMS(.NOW);
-  UniqueInit();
 
   if !G.headless
   {

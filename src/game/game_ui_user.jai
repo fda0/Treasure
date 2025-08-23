@@ -1,9 +1,22 @@
 DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
-  win_p: V2;
 
-  category: enum {stats; switches; assets; network; sounds; objects; };
+  CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; }
+  CATEGORY_NAMES :: #run enum_names(CategoryFlags);
+  CATEGORY_VALUES :: #run enum_values_as_enum(CategoryFlags);
+  category_window_positions := INITIAL_WINDOW_POSITIONS;
+  active_categories: CategoryFlags;
+
+  INITIAL_WINDOW_POSITIONS :: #run -> [CATEGORY_NAMES.count] V2 {
+    result: [CATEGORY_NAMES.count] V2;
+    for *result
+    {
+      it.x = 200.0 + 100.0 * xx it_index;
+      it.y = 50.0 + 100.0 * xx it_index;
+    }
+    return result;
+  }
 
   selected_object: OBJ_Key;
 
@@ -57,6 +70,10 @@ UI_REGULAR_TEXT :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay,
 UI_MONO_TEXT    :: #run BoxSpec.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(0.85)},
                                  layout.padding = PaddingV(Em(0.4))};
 
+UI_WINDOW_STYLE :: BoxSpec.{bg_color = UI_BG,
+                            border = .{color = UI_BORDER_BG, widths = UI_BORDER_WIDTH},
+                            corner_radius = UI_RADIUS};
+
 UI_DeveloperKeyShortcuts :: ()
 {
   using G.dev;
@@ -73,52 +90,32 @@ UI_BuildDeveloperWindow :: ()
   Layer(.{text.color = UI_FG});
   Layer(UI_REGULAR_TEXT);
 
-
-  // Floating developer window
-  dev_window := Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                              size.min = .{Rem(25), Rem(20)}},
-                                   bg_color = UI_BG,
-                                   floating = .{attach_to = .ROOT},
-                                   border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
-                                   corner_radius = UI_RADIUS}));
-
-  // Window bar
+  // Category menu on left side.
   {
-    window_bar := Signal(Parent(CreateBox(.{layout = .{size.pref.x = Grow(), size.min.y = Fit(),
-                                                       padding = PaddingAll(Rem(0.4)),
-                                                       child_align = .{x = .CENTER, y = .CENTER}},
-                                            bg_color = UI_ORANGE2,
-                                            corner_radius = UI_RADIUS})));
+    Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
+                                  size.min = Fit2(), size.pref.y = Grow(),
+                                  padding = UI_WINDOW_PAD,
+                                  child_gap = UI_WINDOW_GAP,
+                                  child_align.x = .CENTER},
+                       floating = .{attach_to = .ROOT}},
+                     UI_WINDOW_STYLE));
 
-    if (window_bar.flags & .DRAG)  win_p += G.mouse_delta;
-    clamped_win_p := clamp(win_p, .{}, G.window_dim * 0.9);
-    dev_window.floating.offset = Px2(clamped_win_p);
-    if !(window_bar.flags & .DRAG) win_p = clamped_win_p;
-
-
-    CreateText("Developer window", .{text.color = UI_BG});
+    for CATEGORY_NAMES
+    {
+      UI_Checkbox(it, *active_categories, CATEGORY_VALUES[it_index]);
+    }
   }
 
-  // Content body
+  // Create window for each active category
+  for category_mask, category_index: CATEGORY_VALUES
   {
-    Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
-    category_names := enum_names(type_of(category));
-    category_values := enum_values_as_enum(type_of(category));
+    if !(active_categories & category_mask) continue;
 
-    // Category vertical bar
-    {
-      Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                    size.min = Fit2(), size.pref.y = Grow(),
-                                    padding = UI_WINDOW_PAD,
-                                    child_gap = UI_WINDOW_GAP,
-                                    child_align.x = .CENTER},
-                         border = .{color = UI_BORDER_BG,
-                                    widths = UI_BORDER_WIDTH}}));
-      for category_names
-      {
-        UI_ButtonRadio(it, *category, category_values[it_index]);
-      }
-    }
+    category_name := CATEGORY_NAMES[category_index];
+    window_position := *category_window_positions[category_index];
+    Parent(UI_FloatingWindow(category_name, window_position));
+
+    Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
 
     // Scrolling
     Parent(UI_ScrollableContainer(UniqueFloat(), UniqueFloat()));
@@ -129,11 +126,8 @@ UI_BuildDeveloperWindow :: ()
                                   padding = UI_WINDOW_PAD},
                        corner_radius = UI_RADIUS}));
 
-    // Header
-    CreateText(category_names[category], UI_HEADER_TEXT);
-
-    // Per category body
-    if #complete category == {
+    // Per category imlementation
+    if #complete category_mask == {
       case .stats;
       Layers(UI_MONO_TEXT);
       CreateText(tprint("dt: %ms; fps: %", Round(G.dt*1000), Round(1.0 / G.dt)));
@@ -291,6 +285,33 @@ UI_BuildDeveloperWindow :: ()
     }
   }
 }
+
+UI_FloatingWindow :: (label: string, window_position: *V2) -> *Box
+{
+  window := Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
+                                              size.min = .{Rem(25), Rem(20)}},
+                                   floating = .{attach_to = .ROOT}},
+                                 UI_WINDOW_STYLE));
+
+  // Window bar
+  {
+    window_bar := Signal(Parent(CreateBox(.{layout = .{size.pref.x = Grow(), size.min.y = Fit(),
+                                                       padding = PaddingAll(Rem(0.4)),
+                                                       child_align = .{x = .CENTER, y = .CENTER}},
+                                            bg_color = UI_ORANGE2,
+                                            corner_radius = UI_RADIUS})));
+
+    if (window_bar.flags & .DRAG) window_position.* += G.mouse_delta;
+    clamped_win_p := clamp(window_position.*, .{}, G.window_dim * 0.9);
+    window.floating.offset = Px2(clamped_win_p);
+    if !(window_bar.flags & .DRAG) window_position.* = clamped_win_p;
+
+    CreateText(label, .{text.color = UI_BG});
+  }
+
+  return window;
+}
+
 
 // UI element library
 UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)

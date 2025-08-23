@@ -1,4 +1,5 @@
 /* @todo
+- replace box storage with something that has stable pointers
 - move more Pass1 functionality into LengthToPx
 - cache text measurement
 - implementing floating,
@@ -555,7 +556,7 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
     else
     {
       box.prev = box.parent.last;
-      box.parent.last.next = box;
+      box.prev.next = box;
       box.parent.last = box;
     }
   }
@@ -596,7 +597,9 @@ PushParent :: (value: *Box)
 {
   using layout_state;
   if parents_count < parents.count
-  parents[parents_count] = value;
+  {
+    parents[parents_count] = value;
+  }
   parents_count += 1;
 }
 PopParent :: ()
@@ -614,13 +617,17 @@ ActiveParent :: () -> *Box
 {
   using layout_state;
   if parents_count > 0 && parents_count <= parents.count
+  {
     return parents[parents_count-1];
+  }
   return *nil_box;
 }
 TempParentScope :: () #expand
 {
   starting_parents_count := layout_state.parents_count;
-  `defer layout_state.parents_count = starting_parents_count;
+  `defer {
+    layout_state.parents_count = starting_parents_count;
+  }
 }
 
 //
@@ -818,6 +825,13 @@ LayoutBegin :: (new_spec: LayoutSpec)
 
   current_boxes_index = xx !current_boxes_index;
   array_reset_keeping_memory(BoxesArray(.CURRENT));
+
+  for *boxes
+  {
+    // This allocates a lot of memory because we don't handle realloc right now.
+    // @todo replace these [..] arrays with stable pointer allocations.
+    array_reserve(it, 1024 * 1024 * 64);
+  }
 
   old_boxes := BoxesArray(.OLD);
   for * old_boxes.*
@@ -1597,7 +1611,7 @@ LayoutState :: struct
   // current_boxes_index points to boxes array used by current layout run.
   // Other boxes array points to boxes from the previous frame.
   current_boxes_index: u8;
-  boxes: [2][..] Box; // @todo replace with HashTable
+  boxes: [2][..] Box; // @todo replace with HashTable // @todo The rest of the code assumes STABLE pointers here!
 
   nil_box: Box;
   root_box: *Box;
