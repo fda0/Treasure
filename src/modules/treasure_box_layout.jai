@@ -65,11 +65,11 @@ CornerRadius :: struct
 };
 RadiusAll :: (r: Length) -> CornerRadius { return .{r, r, r, r}; }
 
-AttachPoint :: enum u8
+AttachPoint :: struct
 {
-  LEFT_TOP; LEFT_CENTER; LEFT_BOTTOM;
-  CENTER_TOP; CENTER_CENTER; CENTER_BOTTOM;
-  RIGHT_TOP; RIGHT_CENTER; RIGHT_BOTTOM;
+  horizontal: enum u8 { LEFT; CENTER; RIGHT; }
+  vertical: enum u8 { TOP; CENTER; BOTTOM; }
+  add_padding: enum_flags u8 { PAD_HORIZONTAL; PAD_VERTICAL; }
 };
 
 Align :: enum u8
@@ -160,12 +160,12 @@ Length2 :: struct
 
 Len2 :: (l: Length) -> Length2 { return .{l, l}; }
 
-Px  :: (v: V2) -> Length2 { return .{Px(v.x), Px(v.y)}; }
-Rem :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
+Px2  :: (v: V2) -> Length2 { return .{Px(v.x), Px(v.y)}; }
+Rem2 :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
 
-LengthToPx :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
+LengthToPx2 :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
 {
-  return .{LenghtToPx(len2.x, owner_box, clamp_to_zero),
+  return .{LengthToPx(len2.x, owner_box, clamp_to_zero),
            LengthToPx(len2.y, owner_box, clamp_to_zero)};
 }
 
@@ -232,15 +232,15 @@ BoxSpec :: struct
     {
       NONE; // disables floating
       PARENT;
-      ELEMENT_WITH_ID;
+      REFERENCE_BOX;
       ROOT;
     }
+    reference: BoxKey;
 
     offset: Length2;
     // expand: [Axis2.COUNT] Size; do we need this?
-    parent: BoxKey;
     z_index: s16;
-    attach_points: struct { element: AttachPoint; parent: AttachPoint; }
+    attach_points: struct { itself: AttachPoint; parent: AttachPoint; }
     cursor_passthrough: bool;
   }
 
@@ -446,6 +446,13 @@ Outer :: (box: *Box, axis: Axis2, dim_type := DimType.FINAL) -> float #expand #n
          box.padding.axes[axis].lower +
          box.padding.axes[axis].upper;
 }
+
+PaddingLower2 :: (box: *Box) -> V2 #expand #no_debug {
+  return .{box.padding.left, box.padding.top};
+}
+PaddingUpper2 :: (box: *Box) -> V2 #expand #no_debug {
+  return .{box.padding.right, box.padding.bottom};
+}
 Outer2 :: (box: *Box, dim_type := DimType.FINAL) -> V2 #expand #no_debug {
   return V2.{Outer(box, .X, dim_type), Outer(box, .Y, dim_type)};
 }
@@ -458,11 +465,11 @@ SumOutersOfChildren :: (parent: *Box, axis: Axis2) -> float
   result := 0.0;
   if AxisMatchesOrder(axis, parent.layout.child_order)
   {
-    for :Siblings parent.first result += Outer(it, axis);
+    for :SiblingsNonFloating parent.first result += Outer(it, axis);
   }
   else
   {
-    for :Siblings parent.first result = max(result, Outer(it, axis));
+    for :SiblingsNonFloating parent.first result = max(result, Outer(it, axis));
   }
   return result;
 }
@@ -480,7 +487,7 @@ LinkToNil :: (box: *Box)
   box.parent = *nil_box;
 }
 IsNil :: (box: *Box) -> bool { return !box || box == *layout_state.nil_box; }
-GetNilBox :: (box: *Box) -> *Box { return *layout_state.nil_box; }
+GetNilBox :: () -> *Box { return *layout_state.nil_box; }
 
 FindBox :: (key: BoxKey, target := BoxStorageArray.CURRENT) -> *Box
 {
@@ -719,7 +726,7 @@ MeasureTextStub :: (params: MeasureTextParams) -> Vector2 { return .{}; }
 //
 RenderCommand :: struct
 {
-  type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP_PUSH; CLIP_POP; };
+  type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP_PUSH; CLIP_POP; CLIP; };
   p: V2;
   dim: V2; // skipped for TEXT
   color: Color;
@@ -823,9 +830,9 @@ LayoutBegin :: (new_spec: LayoutSpec)
   parents_count = 0;
   layers_count = 0;
 
-  root_box = CreateBox(.{layout.size = .{pref = Px(root_dim_px),
-                                         min  = Px(root_dim_px),
-                                         max  = Px(root_dim_px)}});
+  root_box = CreateBox(.{layout.size = .{pref = Px2(root_dim_px),
+                                         min  = Px2(root_dim_px),
+                                         max  = Px2(root_dim_px)}});
   PushParent(root_box);
 }
 
@@ -867,7 +874,6 @@ LayoutEnd :: ()
     using layout_state;
 
     // - SIZING PASS 1 -
-    // Steps:
     //   1. Calculate standalone sizes (px, rem, text).
     //   2. Calculate values for TEXT (measure text), PCT (percent of parent).
     //   3. Calculate padding.
@@ -913,6 +919,7 @@ LayoutEnd :: ()
 
   SolveNodeSizePass2 :: (node: *Box, axis: Axis2)
   {
+    // - SIZING PASS 2 -
     // 1. Calculate sizes dependent on children (fit).
 
     for size, dim_type: node.layout.size.all
@@ -925,7 +932,7 @@ LayoutEnd :: ()
         if AxisMatchesOrder(axis, node.layout.child_order)
         {
           children_outer_sum: float;
-          for :Siblings child, child_index: node.first
+          for :SiblingsNonFloating child, child_index: node.first
           {
             if child_index > 0 then children_outer_sum += node.child_gap;
             outer := Outer(child, axis, xx dim_type);
@@ -936,7 +943,7 @@ LayoutEnd :: ()
         else
         {
           largest_child_outer := 0.0;
-          for :Siblings child: node.first
+          for :SiblingsNonFloating child: node.first
           {
             largest_child_outer = max(largest_child_outer, Outer(child, axis, xx dim_type));
           }
@@ -949,7 +956,6 @@ LayoutEnd :: ()
   FixChildrenSizes :: (parent: *Box, axis: Axis2)
   {
     // - SIZING PASS 3 -
-    // Steps:
     //   1. Fix percentages.
     //   2. Clamp inner dim.
     //   3. Solve overflow violations.
@@ -968,6 +974,7 @@ LayoutEnd :: ()
       ClampInnerDim(child, axis);
     }
 
+    // Big pass: Grow into free space or shrink if overflowing
     is_scrolling_across_this_axis := (
       axis == .X && parent.scroll.enable & .SCROLL_X ||
       axis == .Y && parent.scroll.enable & .SCROLL_Y);
@@ -984,7 +991,7 @@ LayoutEnd :: ()
         children_outer_sum := 0.0;
         children_grow_weight_sum := 0.0;
         children_shrinkable_sum := 0.0;
-        for :Siblings child, child_index: parent.first
+        for :SiblingsNonFloating child, child_index: parent.first
         {
           if child_index > 0 then children_outer_sum += parent.child_gap;
           children_outer_sum += Outer(child, axis, .FINAL);
@@ -1016,7 +1023,7 @@ LayoutEnd :: ()
           {
             grow_per_child := free_space / children_grow_weight_sum;
 
-            for :Siblings child: parent.first
+            for :SiblingsNonFloating child: parent.first
             {
               if child.layout.size.pref.axes[axis].unit == .GROW
               {
@@ -1041,7 +1048,7 @@ LayoutEnd :: ()
             shrink_ratio := children_shrinkable_sum / -free_space;
             shrink_ratio = min(shrink_ratio, 1.0); // If there isn't enough free space then allow boxes to overflow.
 
-            for :Siblings child: parent.first
+            for :SiblingsNonFloating child: parent.first
             {
               shrinkable := Inner(child, axis, .FINAL) - max(0.0, Inner(child, axis, .MIN));
               to_shrink := shrinkable * shrink_ratio;
@@ -1055,7 +1062,7 @@ LayoutEnd :: ()
     }
     else // Axis doesn't match layout
     {
-      for :Siblings child: parent.first
+      for :SiblingsNonFloating child: parent.first
       {
         free_space := Inner(parent, axis, .FINAL) - Outer(child, axis, .FINAL);
 
@@ -1082,6 +1089,7 @@ LayoutEnd :: ()
     it.child_gap = LengthToPx(it.layout.child_gap, it, true);
   }
 
+  // Solve sizes
   for axis: Axis2.X .. Axis2.Y
   {
     for :TreeBreadthFirst        root_box SolveNodeSizePass1(it, axis);
@@ -1091,10 +1099,9 @@ LayoutEnd :: ()
     for :TreeBreadthFirst        root_box FixChildrenSizes(it, axis);
   }
 
+  // Solve non floating relative positions
   for axis: Axis2.X .. Axis2.Y
   {
-    // - POSITION PASS 1 -
-    // Compute relative positions.
     for :TreeBreadthFirst parent: root_box
     {
       align_shift_ratio := 0.0;
@@ -1109,7 +1116,7 @@ LayoutEnd :: ()
         // Set base relative positions
         {
           offset := PaddingLower(parent, axis);
-          for :Siblings child, child_index: parent.first
+          for :SiblingsNonFloating child, child_index: parent.first
           {
             if child_index > 0 then offset += parent.child_gap;
             child.rel_p.component[axis] = offset;
@@ -1121,7 +1128,7 @@ LayoutEnd :: ()
         if align_shift_ratio > 0.0
         {
           children_outer_sum := 0.0;
-          for :Siblings child, child_index: parent.first
+          for :SiblingsNonFloating child, child_index: parent.first
           {
             if child_index > 0 then children_outer_sum += parent.child_gap;
             children_outer_sum += Outer(child, axis, .FINAL);
@@ -1131,7 +1138,7 @@ LayoutEnd :: ()
           if free_space > 0.0
           {
             shift_by := free_space * align_shift_ratio;
-            for :Siblings child: parent.first
+            for :SiblingsNonFloating child: parent.first
             {
               child.rel_p.component[axis] += shift_by;
             }
@@ -1141,13 +1148,15 @@ LayoutEnd :: ()
       else
       {
         // Clear relative positions
-        for :Siblings child: parent.first
-        child.rel_p.component[axis] = PaddingLower(parent, axis);
+        for :SiblingsNonFloating child: parent.first
+        {
+          child.rel_p.component[axis] = PaddingLower(parent, axis);
+        }
 
         // Add alignment if there is free space in parent
         if align_shift_ratio > 0.0
         {
-          for :Siblings child: parent.first
+          for :SiblingsNonFloating child: parent.first
           {
             free_space := Inner(parent, axis, .FINAL) - Outer(child, axis, .FINAL);
             if free_space > 0.0
@@ -1162,10 +1171,7 @@ LayoutEnd :: ()
       // Compute scroll set_01
       if parent.scroll.set_01.component[axis] >= 0.0
       {
-        children_outer_sum := 0.0;
-        for :Siblings child: parent.first
-        children_outer_sum += Outer(child, axis, .FINAL);
-
+        children_outer_sum := SumOutersOfChildren(parent, axis);
         parent_inner := Inner(parent, axis, .FINAL);
         px_offset := 0.0;
 
@@ -1180,24 +1186,55 @@ LayoutEnd :: ()
       }
 
       // Apply scroll offset to children
-      for :Siblings child: parent.first
+      for :SiblingsNonFloating child: parent.first
       {
         child.rel_p.component[axis] += parent.scroll_offset.component[axis];
       }
     }
   }
 
-  // - POSITION PASS 2 -
-  // Compute absolute positions.
+  // Solve absolute positions.
   for :TreeBreadthFirst root_box
   {
-    it.abs_p = it.parent.abs_p + it.rel_p;
+    if it.floating.attach_to
+    {
+      it.rel_p = .{};
+      attach_box := GetNilBox();
+      if it.floating.attach_to == {
+        case .PARENT; attach_box = it.parent;
+        case .REFERENCE_BOX; log("This floating type isn't supported property: %", it.floating.attach_to);
+        case .ROOT; attach_box = root_box;
+      }
+
+      calculate_attach_offset :: (box: *Box) -> V2
+      {
+        ap := box.floating.attach_points.itself;
+        full_h := ifx ap.add_padding & .PAD_HORIZONTAL then Inner(box, .X) else Outer(box, .X);
+        full_v := ifx ap.add_padding & .PAD_VERTICAL   then Inner(box, .Y) else Outer(box, .Y);
+        ratio_h := ap.horizontal.(float) * 0.5;
+        ratio_v := ap.vertical.(float) * 0.5;
+        result := V2.{full_h * ratio_h, full_v * ratio_v};
+        if ap.add_padding & .PAD_HORIZONTAL then result.x += PaddingLower(box, .X);
+        if ap.add_padding & .PAD_VERTICAL   then result.y += PaddingLower(box, .Y);
+        return result;
+      }
+
+      it_offset := calculate_attach_offset(it);
+      attach_box_offset := calculate_attach_offset(attach_box);
+      user_offset := LengthToPx2(it.floating.offset, it, true);
+
+      it.abs_p = attach_box.abs_p + it_offset - attach_box_offset + user_offset;
+    }
+    else // non floating
+    {
+      it.abs_p = it.parent.abs_p + it.rel_p;
+    }
   }
 
-  // - DEBUG PRINT PASS -
+  // Debug logging.
   if log_flags
   {
-    print("[TreeBreadthFirst] Debug dump of root_box\n");
+    print("Breadth first traversal of box layout tree.\n");
     for :TreeBreadthFirst root_box
     {
       if log_flags & .DEPTH
@@ -1214,12 +1251,53 @@ LayoutEnd :: ()
     }
   }
 
-  // - RENDER COMMANDS PASS -
-  prev_parent: *Box;
-
+  // Generate render commands.
   {
+    clip_from_parent := GetNilBox();
+    prev_clip_min: V2;
+    prev_clip_max: V2;
+
     body :: #code
     {
+      if it.parent != clip_from_parent
+      {
+        clip_from_parent = it.parent;
+
+        b := it;
+        clip_min := V2.{};
+        clip_max := Outer2(root_box);
+        while true
+        {
+          if b.floating.attach_to then break;
+          b = b.parent;
+          if IsNil(b) then break;
+
+          b_min := b.abs_p;
+          b_max := b.abs_p + Outer2(b);
+          clip_min = max(clip_min, b_min);
+          clip_max = min(clip_max, b_max);
+        }
+
+        if clip_min.x > clip_max.x || clip_min.y > clip_max.y
+        {
+          clip_min = .{};
+          clip_max = .{};
+        }
+
+        if prev_clip_min != clip_min || prev_clip_max != clip_max
+        {
+          prev_clip_min = clip_min;
+          prev_clip_max = clip_max;
+
+          clip_cmd: RenderCommand;
+          clip_cmd.type = .CLIP;
+          clip_cmd.box = it;
+          clip_cmd.p = clip_min;
+          clip_cmd.dim = clip_max - clip_min;
+          array_add(*render_commands, clip_cmd);
+        }
+      }
+
       base_cmd: RenderCommand;
       base_cmd.p = it.abs_p;
       base_cmd.dim = Outer2(it);
@@ -1257,20 +1335,12 @@ LayoutEnd :: ()
 
     after_ascend :: #code
     {
-      clip_cmd: RenderCommand;
-      clip_cmd.type = .CLIP_POP;
-      clip_cmd.box = it;
-      array_add(*render_commands, clip_cmd);
+      // clip_is_dirty = true;
     }
 
     after_descend :: #code
     {
-      clip_cmd: RenderCommand;
-      clip_cmd.type = .CLIP_PUSH;
-      clip_cmd.p = it.parent.abs_p;
-      clip_cmd.dim = Outer2(it.parent);
-      clip_cmd.box = it.parent;
-      array_add(*render_commands, clip_cmd);
+      // clip_is_dirty = true;
     }
 
     TreeIteratorBFS(root_box.first, body, after_ascend, after_descend);
@@ -1294,6 +1364,24 @@ Siblings :: (first_box: *Box, body: Code, flags: For_Flags) #expand
     box = box.next;
     box_index += 1;
 
+    #insert body;
+  }
+}
+
+SiblingsNonFloating :: (first_box: *Box, body: Code, flags: For_Flags) #expand
+{
+  #assert(flags == 0); // Support for .REVERSE could be added.
+
+  box := first_box;
+  box_index := 0;
+
+  while !IsNil(box)
+  {
+    `it := box;
+    `it_index := box_index;
+    box = box.next;
+    if it.floating.attach_to then continue;
+    box_index += 1;
     #insert body;
   }
 }

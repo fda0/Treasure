@@ -22,13 +22,15 @@ UI_ShapeIn3D :: struct
 }
 
 
-UI_Draw2D :: (shape: UI_Shape)
+UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
 {
   using G.gpu.ui;
   if indices_count + 6 > indices.count return; // @todo log errors?
   if shapes_count + 6 > shapes.count return;
 
-  clip_i := UI_ActiveClipIndex();
+  if clip_index == U32_MAX then clip_index = G.gpu.ui.clip_rects_count-1;
+  // clip_index = 1;
+
 
   shape_i := shapes_count;
   shapes_count += 1;
@@ -36,7 +38,7 @@ UI_Draw2D :: (shape: UI_Shape)
 
   index_i := indices_count;
   indices_count += 6;
-  encoded := ((shape_i << 2) | (clip_i << 18));
+  encoded := ((shape_i << 2) | (clip_index << 18));
   indices[index_i + 0] = 0 | encoded;
   indices[index_i + 1] = 1 | encoded;
   indices[index_i + 2] = 2 | encoded;
@@ -54,45 +56,13 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
   shapes3d_count += 1;
 }
 
-UI_ActiveClipIndex :: () -> u32
+UI_SetClip :: (clip: Rect)
 {
-  cursor := G.gpu.ui.active_clips_cursor;
-  if cursor >= G.gpu.ui.active_clips.count
+  if G.gpu.ui.clip_rects_count < G.gpu.ui.clip_rects.count
   {
-    cursor = 0;
+    G.gpu.ui.clip_rects[G.gpu.ui.clip_rects_count] = clip;
+    G.gpu.ui.clip_rects_count += 1;
   }
-  return G.gpu.ui.active_clips[cursor];
-}
-
-UI_ActiveClipRect :: () -> Rect
-{
-  return G.gpu.ui.clip_rects[UI_ActiveClipIndex()];
-}
-
-UI_PushClipRect :: (new_clip: Rect)
-{
-  prev_clip := UI_ActiveClipRect();
-  G.gpu.ui.active_clips_cursor += 1;
-
-  if G.gpu.ui.active_clips_cursor < G.gpu.ui.active_clips.count
-  {
-    rect_index := G.gpu.ui.clip_rects_count;
-    if rect_index < G.gpu.ui.clip_rects.count
-    {
-      intersection := RangeIntersection(new_clip, prev_clip);
-      // There could be a search and add only if unique step here.
-      G.gpu.ui.clip_rects[rect_index] = intersection;
-      G.gpu.ui.clip_rects_count += 1;
-    }
-    else rect_index = 0;
-
-    G.gpu.ui.active_clips[G.gpu.ui.active_clips_cursor] = rect_index;
-  }
-}
-
-UI_PopClipRect :: ()
-{
-  G.gpu.ui.active_clips_cursor -= 1;
 }
 
 UI_Translate3DShapes :: ()
@@ -122,6 +92,4 @@ UI_ClearRenderCounters :: ()
   shapes3d_count = 0;
   G.gpu.ui.clip_rects[0] = Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
   G.gpu.ui.clip_rects_count = 1;
-  G.gpu.ui.active_clips[0] = 0;
-  G.gpu.ui.active_clips_cursor = 0;
 }

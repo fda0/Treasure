@@ -73,13 +73,14 @@ UI_BuildDeveloperWindow :: ()
   Layer(.{text.color = UI_FG});
   Layer(UI_REGULAR_TEXT);
 
+  win_p = G.mouse;
   clamped_win_p := clamp(win_p, .{}, G.window_dim * 0.9);
 
   // Floating developer window
   Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                 size.min = .{Rem(25), Rem(20)}},
                      bg_color = UI_BG,
-                     floating = .{attach_to = .ROOT, offset = Px(clamped_win_p)},
+                     floating = .{attach_to = .ROOT, offset = Px2(clamped_win_p)},
                      border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
                      corner_radius = UI_RADIUS}));
 

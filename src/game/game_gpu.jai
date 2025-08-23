@@ -64,8 +64,6 @@ GPU_State :: struct
 
     clip_rects: [1024] Rect; // buffer that's uploaded to GPU
     clip_rects_count: u32;
-    active_clips: [256] u32; // contains indices into clips; tracks state when UI is constructed @todo remove in the future
-    active_clips_cursor: u32;
   };
   ui: UI_GPU;
 

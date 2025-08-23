@@ -32,7 +32,7 @@ UI_FinishFrame :: ()
   for cmd: layout_state.render_commands
   {
     if G.frame_number == 1
-      print("[%] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+      print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
@@ -49,18 +49,17 @@ UI_FinishFrame :: ()
       case .RECTANGLE;
       draw_shape = true;
 
-      case .BORDER;
-      shape.border_thickness = cmd.border_width;
-      draw_shape = true;
+      // case .BORDER;
+      // shape.border_thickness = cmd.border_width;
+      // draw_shape = true;
 
       case .TEXT;
       UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p);
 
-      case .CLIP_PUSH;
-      UI_PushClipRect(MakeRectMinDim(cmd.p, cmd.dim));
-
-      case .CLIP_POP;
-      UI_PopClipRect();
+      case .CLIP;
+      // shape.color = Color32_RGBAf(1.0, Sin01(it_index.(float) * 0.37),  Cos01(it_index.(float) * 0.21), 0.1);
+      // draw_shape = true;
+      UI_SetClip(shape.rect);
     }
 
     if draw_shape
