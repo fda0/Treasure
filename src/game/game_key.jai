@@ -19,6 +19,7 @@ KEY_Flags :: enum_flags u8
   PRESSED;
   RELEASED;
   // @todo DOUBLE_PRESSED, TRIPLE_PRESSED
+  CONSUMED;
 }
 
 Key :: struct
@@ -56,12 +57,21 @@ KEY_Update :: (key_code: KEY_Code, is_down: bool)
   if is_pressed then key.held_start = GetTimestampMS(.FRAME);
 }
 
+KEY_Consume  :: (key_codes: ..KEY_Code)
+{
+  for key_codes
+  {
+    G.keys[it].f |= .CONSUMED;
+  }
+}
+
 KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for: TimestampMS = 0) -> bool
 {
   res := false;
   for key_codes
   {
     key := G.keys[it];
+    if key.f & .CONSUMED continue;
     test := (key.f & flags) && (ElapsedTimeMS(key.held_start) >= held_for);
     res |= test;
   }

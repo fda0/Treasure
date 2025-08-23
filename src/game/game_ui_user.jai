@@ -73,16 +73,14 @@ UI_BuildDeveloperWindow :: ()
   Layer(.{text.color = UI_FG});
   Layer(UI_REGULAR_TEXT);
 
-  win_p = G.mouse;
-  clamped_win_p := clamp(win_p, .{}, G.window_dim * 0.9);
 
   // Floating developer window
-  Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                size.min = .{Rem(25), Rem(20)}},
-                     bg_color = UI_BG,
-                     floating = .{attach_to = .ROOT, offset = Px2(clamped_win_p)},
-                     border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
-                     corner_radius = UI_RADIUS}));
+  dev_window := Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
+                                              size.min = .{Rem(25), Rem(20)}},
+                                   bg_color = UI_BG,
+                                   floating = .{attach_to = .ROOT},
+                                   border = .{color = UI_SHADOW, widths = UI_BORDER_WIDTH},
+                                   corner_radius = UI_RADIUS}));
 
   // Window bar
   {
@@ -91,8 +89,12 @@ UI_BuildDeveloperWindow :: ()
                                                        child_align = .{x = .CENTER, y = .CENTER}},
                                             bg_color = UI_ORANGE2,
                                             corner_radius = UI_RADIUS})));
-    if window_bar.flags & .DRAG  win_p += G.mouse_delta;
-    else                         win_p = clamped_win_p;
+
+    if (window_bar.flags & .DRAG)  win_p += G.mouse_delta;
+    clamped_win_p := clamp(win_p, .{}, G.window_dim * 0.9);
+    dev_window.floating.offset = Px2(clamped_win_p);
+    if !(window_bar.flags & .DRAG) win_p = clamped_win_p;
+
 
     CreateText("Developer window", .{text.color = UI_BG});
   }

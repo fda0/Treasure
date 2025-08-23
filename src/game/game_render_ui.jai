@@ -28,9 +28,7 @@ UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
   if indices_count + 6 > indices.count return; // @todo log errors?
   if shapes_count + 6 > shapes.count return;
 
-  if clip_index == U32_MAX then clip_index = G.gpu.ui.clip_rects_count-1;
-  // clip_index = 1;
-
+  if clip_index == U32_MAX then clip_index = G.gpu.ui.active_clip_index;
 
   shape_i := shapes_count;
   shapes_count += 1;
@@ -56,12 +54,20 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
   shapes3d_count += 1;
 }
 
-UI_SetClip :: (clip: Rect)
+UI_SetActiveClipIndex :: (clip_index: u32)
+{
+  G.gpu.ui.active_clip_index = clip_index;
+}
+
+UI_SetClipRect :: (clip: Rect)
 {
   if G.gpu.ui.clip_rects_count < G.gpu.ui.clip_rects.count
   {
-    G.gpu.ui.clip_rects[G.gpu.ui.clip_rects_count] = clip;
+    index := G.gpu.ui.clip_rects_count;
     G.gpu.ui.clip_rects_count += 1;
+
+    G.gpu.ui.active_clip_index = index;
+    G.gpu.ui.clip_rects[index] = clip;
   }
 }
 
@@ -92,4 +98,5 @@ UI_ClearRenderCounters :: ()
   shapes3d_count = 0;
   G.gpu.ui.clip_rects[0] = Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
   G.gpu.ui.clip_rects_count = 1;
+  G.gpu.ui.active_clip_index = 0;
 }

@@ -158,6 +158,9 @@ GAME_Iterate :: ()
       G.grab_mouse = true;
 
     UI_DeveloperKeyShortcuts();
+    UI_BeginBoxLayout();
+    UI_BuildDeveloperWindow();
+    UI_FinishBoxLayout();
 
     if G.dev.noclip
     {
@@ -371,10 +374,7 @@ GAME_Iterate :: ()
 
     WORLD_DrawObjects();
     UI_Translate3DShapes();
-
-    UI_StartFrame();
-    UI_BuildDeveloperWindow();
-    UI_FinishFrame();
+    UI_ProcessBoxRenderCommands();
 
     GPU_Iterate();
 

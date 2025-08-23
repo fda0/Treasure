@@ -1590,8 +1590,7 @@ LayoutState :: struct
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
-  BoxKey_s64_Table :: Hash_Table.Table(Value_Type = u64);
-  added_seeds: BoxKey_s64_Table;
+  added_seeds: Hash_Table.Table(Value_Type = u64);
 
   // Double-buffer system.
   // Each LayoutBegin call flips boxes_index between 0-1.

@@ -2,7 +2,7 @@
 using BOX;
 #scope_export;
 
-UI_StartFrame :: ()
+UI_BeginBoxLayout :: ()
 {
   spec := LayoutSpec.{
     root_dim_px = G.window_dim,
@@ -11,7 +11,7 @@ UI_StartFrame :: ()
     mouse = G.mouse,
   };
 
-  dump_logs := G.frame_number == 1;
+  dump_logs := G.frame_number == 1 && false;
   if KEY_Pressed(.F4) dump_logs = true;
 
   spec.log_flags = ifx dump_logs then .ALL else .NONE;
@@ -25,14 +25,22 @@ UI_StartFrame :: ()
   LayoutBegin(spec);
 }
 
-UI_FinishFrame :: ()
+UI_FinishBoxLayout :: ()
 {
   LayoutEnd();
 
+  if !!layout_state.active_key
+  {
+    KEY_Consume(.MOUSE_LEFT, .MOUSE_RIGHT);
+  }
+}
+
+UI_ProcessBoxRenderCommands :: ()
+{
   for cmd: layout_state.render_commands
   {
-    if G.frame_number == 1
-      print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    // if G.frame_number == 1
+    //   print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
@@ -59,10 +67,12 @@ UI_FinishFrame :: ()
       case .CLIP;
       // shape.color = Color32_RGBAf(1.0, Sin01(it_index.(float) * 0.37),  Cos01(it_index.(float) * 0.21), 0.1);
       // draw_shape = true;
-      UI_SetClip(shape.rect);
+      UI_SetClipRect(shape.rect);
     }
 
     if draw_shape
-      UI_Draw2D(shape);
+    UI_Draw2D(shape);
   }
+
+  UI_SetActiveClipIndex(0);
 }
