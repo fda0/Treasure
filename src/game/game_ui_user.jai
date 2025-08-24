@@ -2,19 +2,28 @@ DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
 
+  active_categories: CategoryFlags;
   CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; }
   CATEGORY_NAMES :: #run enum_names(CategoryFlags);
   CATEGORY_VALUES :: #run enum_values_as_enum(CategoryFlags);
-  category_window_positions := INITIAL_WINDOW_POSITIONS;
-  active_categories: CategoryFlags;
+  CATEGORY_COUNT :: CATEGORY_NAMES.count;
 
-  INITIAL_WINDOW_POSITIONS :: #run -> [CATEGORY_NAMES.count] V2 {
-    result: [CATEGORY_NAMES.count] V2;
+  category_window_positions := INITIAL_WINDOW_POSITIONS;
+  category_window_sizes := INITIAL_WINDOW_SIZES;
+  category_window_scrolls: [CATEGORY_COUNT] V2;
+
+  INITIAL_WINDOW_POSITIONS :: #run -> [CATEGORY_COUNT] V2 {
+    result: [CATEGORY_COUNT] V2;
     for *result
     {
-      it.x = 200.0 + 100.0 * xx it_index;
-      it.y = 50.0 + 100.0 * xx it_index;
+      it.x = 200.0 + 210.0 * xx it_index;
+      it.y = 50.0 + 10.0 * xx it_index;
     }
+    return result;
+  }
+  INITIAL_WINDOW_SIZES :: #run -> [CATEGORY_COUNT] V2 {
+    result: [CATEGORY_COUNT] V2;
+    for *result it.* = .{200, 300};
     return result;
   }
 
@@ -113,18 +122,10 @@ UI_BuildDeveloperWindow :: ()
 
     category_name := CATEGORY_NAMES[category_index];
     window_position := *category_window_positions[category_index];
-    Parent(UI_FloatingWindow(category_name, window_position));
+    window_size := *category_window_sizes[category_index];
+    window_scroll := *category_window_scrolls[category_index];
+    Parent(UI_FloatingWindow(category_name, window_position, window_size, window_scroll));
 
-    Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
-
-    // Scrolling
-    Parent(UI_ScrollableContainer(UniqueFloat(), UniqueFloat()));
-
-    // Content box
-    Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                  size.min = Fit2(), size.pref = Grow2(),
-                                  padding = UI_WINDOW_PAD},
-                       corner_radius = UI_RADIUS}));
 
     // Per category imlementation
     if #complete category_mask == {
@@ -261,7 +262,7 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-          Parent(UI_ScrollableContainer(null, UniqueFloat(), spec = .{layout.size.min.y = Rem(10)}));
+          Parent(UI_ScrollableContainer(null, UniqueFloat(), null, spec = .{layout.size.min.y = Rem(10)}));
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -286,12 +287,11 @@ UI_BuildDeveloperWindow :: ()
   }
 }
 
-UI_FloatingWindow :: (label: string, window_position: *V2) -> *Box
+UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> *Box
 {
-  window := Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
-                                              size.min = .{Rem(25), Rem(20)}},
-                                   floating = .{attach_to = .ROOT}},
-                                 UI_WINDOW_STYLE));
+  window := Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
+                               floating.attach_to = .ROOT},
+                             UI_WINDOW_STYLE));
 
   // Window bar
   {
@@ -309,7 +309,19 @@ UI_FloatingWindow :: (label: string, window_position: *V2) -> *Box
     CreateText(label, .{text.color = UI_BG});
   }
 
-  return window;
+  Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
+
+  // Scrolling
+  Parent(UI_ScrollableContainer(*window_scroll.x, *window_scroll.y, window_size));
+
+  // Content box
+  content := CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
+                                    size.min = Fit2(), size.pref = Grow2(),
+                                    padding = UI_WINDOW_PAD},
+                         corner_radius = UI_RADIUS});
+
+  window.layout.size.min = Px2(window_size.*);
+  return content;
 }
 
 
@@ -430,45 +442,35 @@ UI_Button :: (label: string) -> clicked: bool
   return !!(button.flags & .CLICK);
 }
 
-UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{}) -> *Box
+UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, container_size: *V2, spec := BoxSpec.{}) -> *Box
 {
   BAR_THICKNESS :: #run Rem(0.75);
   color_bar_bg := Color32_SetAlphai(UI_FG, 24);
   color_scroll := Color32_SetAlphai(UI_FG, 128);
   color_scroll_active := Color32_SetAlphai(UI_FG, 220);
 
-  TempParentScope();
   Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
-
   default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};
-  container_x: *Box;
-  container_y: *Box;
+
+  // Prepare a bunch of boxes with correct hierarchy.
+  container_x := CreateBox(spec, .{layout.child_order = .TOP_TO_BOTTOM}, default_spec);
+
+  Parent(container_x);
+  container_y := CreateBox(spec, .{layout.child_order = .LEFT_TO_RIGHT}, default_spec);
+
   scroll_area_x: *Box;
-  scroll_area_y: *Box;
-  body: *Box;
-
-  if scroll_x
+  resize_button: *Box;
   {
-    container_x = CreateBox(spec, default_spec);
-    container_x.layout.child_order = .TOP_TO_BOTTOM;
-    PushParent(container_x);
+    container_scroll_area_x := CreateBox(.{layout.size.min = Fit2(),
+                                           layout.size.pref.x = Grow()});
+    Parent(container_scroll_area_x);
+    scroll_area_x = CreateBox();
+    resize_button = CreateBox(.{layout.size.min = Len2(BAR_THICKNESS), bg_color = Color32_RGBf(1,0,0)});
   }
 
-  if scroll_y
-  {
-    container_y = CreateBox(spec, default_spec);
-    container_y.layout.child_order = .LEFT_TO_RIGHT;
-  }
-
-  if !scroll_y body = CreateBox();
-  if scroll_x scroll_area_x = CreateBox();
-
-  if scroll_y
-  {
-    PushParent(container_y);
-    body = CreateBox();
-    scroll_area_y = CreateBox();
-  }
+  Parent(container_y);
+  body := CreateBox();
+  scroll_area_y := CreateBox();
 
   body.layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM};
   if scroll_x then body.scroll.enable |= .SCROLL_X;
@@ -486,15 +488,6 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
     scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
     container_sig := Signal(container, .CANT_ACTIVATE);
-
-    if !scroll_wheel_was_consumed && container_sig.flags & .HOVER
-    {
-      if scroll_area_sig.flags & .HOVER || axis == .Y
-      {
-        scroll_by := -G.mouse_scroll.y * 0.05;
-        scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
-      }
-    }
 
     scroll_area.bg_color = color_bar_bg;
     scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -515,6 +508,14 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
     box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
     box_bar.layout.size.pref.axes[other_axis] = Grow();
+
+    // @feature(box_layout) a way to check "is this or its children hovered"
+    is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
+    if is_scroll_area_hovered || (container_sig.flags & .HOVER && axis == .Y)
+    {
+      scroll_by := -G.mouse_scroll.y * 0.05;
+      scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
+    }
 
     if bar_size_pct < 1.0
     {
@@ -543,6 +544,18 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
     body.scroll.set_01.component[axis] = scroll.*;
   }
+
+  // Resize button
+  if container_size
+  {
+    resize_button_sig := Signal(resize_button);
+    if resize_button_sig.flags & .DRAG
+    {
+      container_size.* += G.mouse_delta;
+      container_size.* = clamp(container_size.*, .{50, 50}, .{500, 500}); // @todo this is not a good way to do this; this needs to be done like FloatingWindow
+    }
+  }
+
   return body;
 }
 
