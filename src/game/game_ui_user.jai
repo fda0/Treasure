@@ -312,7 +312,108 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
   Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
 
   // Scrolling
-  Parent(UI_ScrollableContainer(*window_scroll.x, *window_scroll.y, window_size));
+  scroll_body: *Box;
+  resize_button: BoxSignal;
+  {
+    BAR_THICKNESS :: #run Rem(0.75);
+    color_bar_bg := Color32_SetAlphai(UI_FG, 24);
+    color_scroll := Color32_SetAlphai(UI_FG, 128);
+    color_scroll_active := Color32_SetAlphai(UI_FG, 220);
+
+    Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
+    default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};
+
+    // Prepare a bunch of boxes with correct hierarchy.
+    container_x := CreateBox(.{layout.child_order = .TOP_TO_BOTTOM}, default_spec);
+
+    Parent(container_x);
+    container_y := CreateBox(.{layout.child_order = .LEFT_TO_RIGHT}, default_spec);
+
+    scroll_area_x: *Box;
+    {
+      container_scroll_area_x := CreateBox(.{layout.size.min = Fit2(),
+                                             layout.size.pref.x = Grow()});
+      Parent(container_scroll_area_x);
+      scroll_area_x = CreateBox();
+      resize_button = Signal(CreateBox(.{layout.size.min = Len2(BAR_THICKNESS),
+                                         bg_color = color_bar_bg,
+                                         border.color = color_scroll,
+                                         border.widths = .{right = Pct(0.25), left = Pct(0.25)}}));
+    }
+
+    Parent(container_y);
+    scroll_body = CreateBox(.{layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM},
+                              scroll.enable = .SCROLL_X | .SCROLL_Y});
+    scroll_area_y := CreateBox();
+
+    for axis: Axis2.X .. Axis2.Y
+    {
+      other_axis := (!axis).(Axis2);
+      scroll      := *window_scroll.component[axis];
+      container   := ifx axis == .X then container_x else container_y;
+      scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
+      if !scroll continue;
+
+      scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
+      container_sig := Signal(container, .CANT_ACTIVATE);
+
+      scroll_area.bg_color = color_bar_bg;
+      scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
+      scroll_area.layout.size.pref.axes[axis] = Grow();
+      scroll_area.layout.size.min.axes[other_axis] = BAR_THICKNESS;
+      Parent(scroll_area);
+
+      bar_size_pct := 0.0;
+      children_outer_sum := SumOutersOfChildren(scroll_body.old, axis);
+      if children_outer_sum > 0.0
+      {
+        bar_size_pct = Inner(scroll_body.old, axis) / children_outer_sum;
+        if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
+      }
+
+      box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
+      box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
+      box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
+      box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
+      box_bar.layout.size.pref.axes[other_axis] = Grow();
+
+      // @feature(box_layout) a way to check "is this or its children hovered"
+      is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
+      if is_scroll_area_hovered || (container_sig.flags & .HOVER && axis == .Y)
+      {
+        scroll_by := -G.mouse_scroll.y * 0.05;
+        scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
+      }
+
+      if bar_size_pct < 1.0
+      {
+        if box_bar.flags & .HOVER
+        {
+          box_bar.bg_color = color_scroll_active;
+        }
+        if box_bar.flags & .DRAG
+        {
+          scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
+          if scrollable_size_px > 0.0
+          {
+            scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
+            scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
+            scroll.* = scrollable_position_01;
+          }
+        }
+
+        box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
+      }
+      else
+      {
+        scroll_area.bg_color = 0;
+        box_bar.bg_color = 0;
+      }
+
+      scroll_body.scroll.set_01.component[axis] = scroll.*;
+    }
+  }
+  Parent(scroll_body);
 
   // Content box
   content := CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
@@ -320,7 +421,12 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
                                     padding = UI_WINDOW_PAD},
                          corner_radius = UI_RADIUS});
 
-  window.layout.size.min = Px2(window_size.*);
+  // Resize button signal
+  if (resize_button.flags & .DRAG) then window_size.* += G.mouse_delta;
+  clamped_window_size := clamp(window_size.*, .{200, 100}, .{1200, 800});
+  if !(resize_button.flags & .DRAG) then window_size.* = clamped_window_size;
+  window.layout.size.min = Px2(clamped_window_size);
+
   return content;
 }
 
@@ -475,8 +581,6 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, container_size: *
   body.layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM};
   if scroll_x then body.scroll.enable |= .SCROLL_X;
   if scroll_y then body.scroll.enable |= .SCROLL_Y;
-
-  scroll_wheel_was_consumed := false;
 
   for axis: Axis2.X .. Axis2.Y
   {

@@ -116,41 +116,25 @@ operator * :: (length: Length, scale: float) -> Length #symmetric {
   return .{length.unit, length.value * scale};
 }
 
-LengthToPx :: (length: Length, owner_box: *Box, clamp_at_zero: bool) -> float
+LengthToPx :: (length: Length, relative_to: *Box, clamp_at_zero: bool) -> float
 {
-  using layout_state;
-  value := length.value;
-  if clamp_at_zero then value = max(value, 0.0);
+  result := length.value;
+  if clamp_at_zero then result = max(result, 0.0);
 
   if length.unit == {
-  case .PX;
-  return value;
+    case .PX; return result;
 
-  case .EM;
-    box := owner_box;
-    while !IsNil(box)
-    {
-      if box.text.font_size.value > 0.0
-      {
-        // Defining font_size as EM recursively is not allowed for now!
-        // EM on font_size will be interpreted as REM instead.
-        if box.text.font_size.unit == .EM
-          return value * rem_to_px;
-        return LengthToPx(value * box.text.font_size, box, clamp_at_zero);
-      }
-      box = box.parent;
+    case .EM;
+    if relative_to.text.font_size.value > 0.0 {
+      return result * LengthToPx(relative_to.text.font_size, relative_to.parent, clamp_at_zero);
+    } else {
+      return result * layout_state.rem_to_px;
     }
-    return value * rem_to_px; // fallback to REM
 
-    case .REM;
-    return value * rem_to_px;
+    case .REM; return result * layout_state.rem_to_px;
 
-    case;
-    st := get_stack_trace_string(context.stack_trace,, temp);
-    // log("[KINTSUGI] Length with dynamic unit is not supported here. %", st);
-    return min(value, 0.0);
+    case; return min(result, 0.0);
   }
-  return value;
 }
 
 Length2 :: struct
@@ -888,7 +872,7 @@ LayoutEnd :: ()
 
       // 1. Calculate standalone sizes (px, rem, text)
       clamp_to_zero := dim_type == xx DimType.PREF;
-      inner.* = LengthToPx(length, node, clamp_to_zero);
+      inner.* = LengthToPx(length, node.parent, clamp_to_zero);
 
       // 2. Calculate values for TEXT (measure text), PCT (percent of parent).
       if length.unit == .TEXT
@@ -898,7 +882,7 @@ LayoutEnd :: ()
           params := MeasureTextParams.{
             text = node.text.str,
             font = node.text.font,
-            font_size_px = LengthToPx(node.text.font_size, node, true),
+            font_size_px = LengthToPx(node.text.font_size, node.parent, true),
           };
           text_dim = measure_text_callback(params);
           text_was_measured = true;
@@ -1319,9 +1303,9 @@ LayoutEnd :: ()
 
       if it.border.color
       {
-        // cmd := base_cmd;
-        // cmd.color = it.border.color;
-        // cmd.type = .BORDER;
+        cmd := base_cmd;
+        cmd.color = it.border.color;
+        cmd.type = .BORDER;
         // cmd.border_width = it.border.widths.left;
         // array_add(*render_commands, cmd);
       }
@@ -1334,7 +1318,7 @@ LayoutEnd :: ()
         cmd.color = it.text.color;
         cmd.text = it.text.str;
         cmd.font = it.text.font;
-        cmd.font_size_px = LengthToPx(it.text.font_size, it, true);
+        cmd.font_size_px = LengthToPx(it.text.font_size, it.parent, true);
         array_add(*render_commands, cmd);
       }
     }

@@ -57,8 +57,8 @@ UI_ProcessBoxRenderCommands :: ()
       case .RECTANGLE;
       draw_shape = true;
 
-      // case .BORDER;
-      // shape.border_thickness = cmd.border_width;
+      case .BORDER;
+      shape.border_thickness = cmd.border_width;
       // draw_shape = true;
 
       case .TEXT;
