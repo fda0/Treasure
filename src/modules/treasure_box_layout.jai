@@ -1,6 +1,5 @@
 /* @todo
 - replace box storage with something that has stable pointers
-- move more Pass1 functionality into LengthToPx
 - cache text measurement
 - implementing floating,
 - implement mouse-box interactions like dragging, detect direct hover,
@@ -116,7 +115,7 @@ operator * :: (length: Length, scale: float) -> Length #symmetric {
   return .{length.unit, length.value * scale};
 }
 
-LengthToPx :: (length: Length, relative_to: *Box, clamp_at_zero: bool) -> float
+LengthToPx :: (length: Length, relative_to: *Box, axis: Axis2, clamp_at_zero: bool) -> float
 {
   result := length.value;
   if clamp_at_zero then result = max(result, 0.0);
@@ -126,12 +125,14 @@ LengthToPx :: (length: Length, relative_to: *Box, clamp_at_zero: bool) -> float
 
     case .EM;
     if relative_to.text.font_size.value > 0.0 {
-      return result * LengthToPx(relative_to.text.font_size, relative_to.parent, clamp_at_zero);
+      return result * LengthToPx(relative_to.text.font_size, relative_to.parent, axis, clamp_at_zero);
     } else {
       return result * layout_state.rem_to_px;
     }
 
     case .REM; return result * layout_state.rem_to_px;
+
+    case .PCT; return relative_to.inner.component[axis] * result;
 
     case; return min(result, 0.0);
   }
@@ -150,8 +151,8 @@ Rem2 :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
 
 LengthToPx2 :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
 {
-  return .{LengthToPx(len2.x, owner_box, clamp_to_zero),
-           LengthToPx(len2.y, owner_box, clamp_to_zero)};
+  return .{LengthToPx(len2.x, owner_box, .X, clamp_to_zero),
+           LengthToPx(len2.y, owner_box, .Y, clamp_to_zero)};
 }
 
 Fit :: () -> Length    { return .{.FIT, 1.0}; }
@@ -872,7 +873,7 @@ LayoutEnd :: ()
 
       // 1. Calculate standalone sizes (px, rem, text)
       clamp_to_zero := dim_type == xx DimType.PREF;
-      inner.* = LengthToPx(length, node.parent, clamp_to_zero);
+      inner.* = LengthToPx(length, node.parent, axis, clamp_to_zero);
 
       // 2. Calculate values for TEXT (measure text), PCT (percent of parent).
       if length.unit == .TEXT
@@ -882,7 +883,7 @@ LayoutEnd :: ()
           params := MeasureTextParams.{
             text = node.text.str,
             font = node.text.font,
-            font_size_px = LengthToPx(node.text.font_size, node.parent, true),
+            font_size_px = LengthToPx(node.text.font_size, node.parent, .Y, true),
           };
           text_dim = measure_text_callback(params);
           text_was_measured = true;
@@ -897,8 +898,8 @@ LayoutEnd :: ()
     }
 
     // 3. Calculate padding.
-    node.padding.axes[axis].lower = LengthToPx(node.layout.padding.axes[axis].lower, node, true);
-    node.padding.axes[axis].upper = LengthToPx(node.layout.padding.axes[axis].upper, node, true);
+    node.padding.axes[axis].lower = LengthToPx(node.layout.padding.axes[axis].lower, node, axis, true);
+    node.padding.axes[axis].upper = LengthToPx(node.layout.padding.axes[axis].upper, node, axis, true);
   }
 
   SolveNodeSizePass2 :: (node: *Box, axis: Axis2)
@@ -1070,7 +1071,8 @@ LayoutEnd :: ()
   // Solve child_gaps
   for :TreeBreadthFirst root_box
   {
-    it.child_gap = LengthToPx(it.layout.child_gap, it, true);
+    axis: Axis2 = ifx it.layout.child_order == .TOP_TO_BOTTOM then .Y else .X;
+    it.child_gap = LengthToPx(it.layout.child_gap, it, axis, true);
   }
 
   // Solve sizes
@@ -1318,7 +1320,7 @@ LayoutEnd :: ()
         cmd.color = it.text.color;
         cmd.text = it.text.str;
         cmd.font = it.text.font;
-        cmd.font_size_px = LengthToPx(it.text.font_size, it.parent, true);
+        cmd.font_size_px = LengthToPx(it.text.font_size, it.parent, .Y, true);
         array_add(*render_commands, cmd);
       }
     }
