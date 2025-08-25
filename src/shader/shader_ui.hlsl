@@ -1,4 +1,4 @@
-//#include "shader_util.hlsl"
+// #include "shader_util.hlsl"
 
 struct UI_DX_Vertex
 {
@@ -17,10 +17,10 @@ struct UI_DX_Shape
   V2 p_max;
   V2 tex_min; // in pixel space
   V2 tex_max; // in pixel space
+  V4 border_widths; // left, right, top, bottom
   float tex_layer;
   float corner_radius;
   float edge_softness;
-  float border_thickness;
   U32 color; // @todo array of 4 colors for gradients
 };
 
@@ -33,13 +33,13 @@ struct UI_DX_Clip
 struct UI_DX_Fragment
 {
   V4 color               : TEXCOORD0;
-  V3 tex_uv              : TEXCOORD1;
-  V2 pos                 : TEXCOORD2;
-  V2 center              : TEXCOORD3;
-  V2 half_dim            : TEXCOORD4;
-  float corner_radius    : TEXCOORD5;
-  float edge_softness    : TEXCOORD6;
-  float border_thickness : TEXCOORD7;
+  V4 border_widths       : TEXCOORD1;
+  V3 tex_uv              : TEXCOORD2;
+  V2 pos                 : TEXCOORD3;
+  V2 center              : TEXCOORD4;
+  V2 half_dim            : TEXCOORD5;
+  float corner_radius    : TEXCOORD6;
+  float edge_softness    : TEXCOORD7;
   V4 vertex_p            : SV_Position;
 };
 
@@ -104,13 +104,13 @@ UI_DX_Fragment UI_DxShaderVS(UI_DX_Vertex input)
   //
   UI_DX_Fragment frag;
   frag.color = UnpackColor32(shape.color);
+  frag.border_widths = shape.border_widths;
   frag.tex_uv = V3(tex_uv, shape.tex_layer);
   frag.pos = pos;
   frag.center   = (shape.p_min + shape.p_max) * 0.5f;
   frag.half_dim = (shape.p_max - shape.p_min) * 0.5f;
   frag.corner_radius    = shape.corner_radius;
   frag.edge_softness    = shape.edge_softness;
-  frag.border_thickness = shape.border_thickness;
   frag.vertex_p = V4(2.f*pos / UniV.window_dim - 1.f, 1, 1);
   frag.vertex_p.y = -frag.vertex_p.y; // Flip Y so 0 means top of the window
   return frag;
@@ -138,9 +138,16 @@ V4 UI_DxShaderPS(UI_DX_Fragment frag) : SV_Target0
   }
 
   // border rendering: removing inner-rect
-  if (frag.border_thickness > 0.f)
+  bool has_border = frag.border_widths.x > 0.0 || frag.border_widths.y > 0.0 || frag.border_widths.z > 0.0 || frag.border_widths.w > 0.0;
+  if (has_border)
   {
-    V2 inner_half_dim = frag.half_dim - V2(frag.border_thickness, frag.border_thickness);
+    bool is_left = frag.pos.x <= frag.center.x;
+    bool is_up = frag.pos.y <= frag.center.y;
+
+    float border_h = is_left ? frag.border_widths.x : frag.border_widths.y;
+    float border_v = is_up ? frag.border_widths.z : frag.border_widths.w;
+
+    V2 inner_half_dim = frag.half_dim - V2(border_h, border_v);
     float inner_r_coef = min(inner_half_dim.x / frag.half_dim.x,
                              inner_half_dim.y / frag.half_dim.y);
     float inner_r = frag.corner_radius * inner_r_coef * inner_r_coef;

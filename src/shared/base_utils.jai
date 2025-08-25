@@ -4,7 +4,13 @@ Kilobyte :: v => v * 1024;
 Megabyte :: v => v * 1024 * 1024;
 Gigabyte :: v => v * 1024 * 1024 * 1024;
 
-EnumCount :: ($t: Type) -> s64
+SameSizePointerCast :: ($DstType: Type, ptr: *$SrcType) -> *DstType #expand
+{
+  #assert(size_of(DstType) == size_of(SrcType));
+  return ptr.(*DstType);
+}
+
+EnumMaxPlus1 :: ($t: Type) -> s64
 {
   return enum_highest_value(t) + 1;
 }

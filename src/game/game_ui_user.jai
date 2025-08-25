@@ -2,7 +2,7 @@ DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
 
-  active_categories: CategoryFlags;
+  active_categories: CategoryFlags = .stats;
   CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; }
   CATEGORY_NAMES :: #run enum_names(CategoryFlags);
   CATEGORY_VALUES :: #run enum_values_as_enum(CategoryFlags);
@@ -335,10 +335,22 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
                                              layout.size.pref.x = Grow()});
       Parent(container_scroll_area_x);
       scroll_area_x = CreateBox();
-      resize_button = Signal(CreateBox(.{layout.size.min = Len2(BAR_THICKNESS),
-                                         bg_color = color_bar_bg,
-                                         border.color = color_scroll,
-                                         border.widths = .{right = Pct(0.25), left = Pct(0.25)}}));
+
+      resize_button = Signal(CreateBox(.{layout.size.min = Len2(Rem(0.5)),
+                                         layout.padding = PaddingAll(Rem(0.125)),
+                                         bg_color = color_bar_bg}));
+
+      decoration_color := ifx resize_button.flags & .HOVER then color_scroll_active else color_scroll;
+
+      Parent(resize_button);
+      Parent(CreateBox(.{layout.size.min = Len2(Rem(0.25)),
+                         layout.padding = PaddingAll(Rem(0.125)),
+                         border.color = decoration_color,
+                         border.widths = .{right = Rem(0.125), bottom = Rem(0.125)}}));
+      Parent(CreateBox(.{layout.size.min = Len2(Rem(0.125)),
+                         layout.padding = PaddingAll(Rem(0.0625)),
+                         border.color = decoration_color,
+                         border.widths = .{right = Rem(0.125), bottom = Rem(0.125)}}));
     }
 
     Parent(container_y);
@@ -352,7 +364,6 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       scroll      := *window_scroll.component[axis];
       container   := ifx axis == .X then container_x else container_y;
       scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
-      if !scroll continue;
 
       scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
       container_sig := Signal(container, .CANT_ACTIVATE);
@@ -403,11 +414,6 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
         }
 
         box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
-      }
-      else
-      {
-        scroll_area.bg_color = 0;
-        box_bar.bg_color = 0;
       }
 
       scroll_body.scroll.set_01.component[axis] = scroll.*;

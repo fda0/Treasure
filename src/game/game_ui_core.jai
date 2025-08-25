@@ -39,8 +39,8 @@ UI_ProcessBoxRenderCommands :: ()
 {
   for cmd: layout_state.render_commands
   {
-    // if G.frame_number == 1
-    //   print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    if G.frame_number == 1
+      print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
@@ -58,8 +58,8 @@ UI_ProcessBoxRenderCommands :: ()
       draw_shape = true;
 
       case .BORDER;
-      shape.border_thickness = cmd.border_width;
-      // draw_shape = true;
+      shape.border_widths = SameSizePointerCast([4] float, *cmd.border_widths).*;
+      draw_shape = true;
 
       case .TEXT;
       UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p);
@@ -70,8 +70,7 @@ UI_ProcessBoxRenderCommands :: ()
       UI_SetClipRect(shape.rect);
     }
 
-    if draw_shape
-    UI_Draw2D(shape);
+    if draw_shape UI_Draw2D(shape);
   }
 
   UI_SetActiveClipIndex(0);

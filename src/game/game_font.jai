@@ -48,7 +48,7 @@ FONT_State :: struct
   active_layer_index: u8;
 
   ft_library: FT_Library;
-  ft_faces: [#run EnumCount(FONT_Family)] FT_Face;
+  ft_faces: [#run EnumMaxPlus1(FONT_Family)] FT_Face;
 };
 
 FONT_Init :: ()

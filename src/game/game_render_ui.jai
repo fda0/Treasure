@@ -8,10 +8,10 @@ UI_Shape :: struct
 {
   rect: Rect;
   tex_rect: Rect;
+  border_widths: [4] float;
   tex_layer: float = -1.0;
   corner_radius: float;
   edge_softness: float;
-  border_thickness: float;
   color: Color32; // @todo array of 4 colors for gradients
 }
 

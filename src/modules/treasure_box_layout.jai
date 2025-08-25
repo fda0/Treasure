@@ -132,7 +132,7 @@ LengthToPx :: (length: Length, relative_to: *Box, axis: Axis2, clamp_at_zero: bo
 
     case .REM; return result * layout_state.rem_to_px;
 
-    case .PCT; return relative_to.inner.component[axis] * result;
+    case .PCT; return relative_to.inner.component[axis] * result; // @todo PCT can't really work in places like padding if parent is .FIT; remove PCT from here?
 
     case; return min(result, 0.0);
   }
@@ -710,7 +710,7 @@ RenderCommand :: struct
   color: Color;
 
   corner_radius: float; // @todo [4] float
-  border_width: float;
+  border_widths: struct { left, right, top, bottom: float; }
   // edge_softness: float; add?
 
   // .TEXT only
@@ -1308,8 +1308,11 @@ LayoutEnd :: ()
         cmd := base_cmd;
         cmd.color = it.border.color;
         cmd.type = .BORDER;
-        // cmd.border_width = it.border.widths.left;
-        // array_add(*render_commands, cmd);
+        cmd.border_widths.left   = LengthToPx(it.border.widths.left,   it, .X, true);
+        cmd.border_widths.right  = LengthToPx(it.border.widths.right,  it, .X, true);
+        cmd.border_widths.top    = LengthToPx(it.border.widths.top,    it, .Y, true);
+        cmd.border_widths.bottom = LengthToPx(it.border.widths.bottom, it, .Y, true);
+        array_add(*render_commands, cmd);
       }
 
       if it.text.color

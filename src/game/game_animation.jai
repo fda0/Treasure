@@ -2,7 +2,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
-  animation_records: [#run EnumCount(ANIMATION_Type)] ANIMATION_Record;
+  animation_records: [#run EnumMaxPlus1(ANIMATION_Type)] ANIMATION_Record;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
