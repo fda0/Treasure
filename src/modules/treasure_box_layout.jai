@@ -712,6 +712,8 @@ RenderCommand :: struct
   type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP; };
   p: V2;
   dim: V2; // skipped for TEXT
+  clip_min: V2;
+  clip_max: V2;
   color: Color;
 
   corner_radius: float; // @todo [4] float
@@ -1261,7 +1263,6 @@ LayoutEnd :: ()
       if log_flags & .DEPTH
       {
         for 0..it_depth-1 print("  ");
-        // print("[d %; i %]; ", it_depth, it_index);
         print("[d %]; ", it_depth);
       }
       if log_flags & .DIMENSIONS then print("size%;\t", it.layout.size);
@@ -1278,38 +1279,41 @@ LayoutEnd :: ()
     }
   }
 
-  // log("box_layout hash collisions: %", hash_collisions);
-
 
   // Generate render commands.
   {
-    prev_clip_min: V2;
-    prev_clip_max: V2;
+    nil_box.clipped_min = .{};
+    nil_box.clipped_max = .{FLOAT32_MAX, FLOAT32_MAX};
 
     for :TreeBreadthFirst root_box.first
     {
-      {
-        parent := it.parent;
-        if IsNil(parent) parent = root_box;
-
-        if prev_clip_min != parent.clipped_min || prev_clip_max != parent.clipped_max
-        {
-          prev_clip_min = parent.clipped_min;
-          prev_clip_max = parent.clipped_max;
-
-          clip_cmd: RenderCommand;
-          clip_cmd.type = .CLIP;
-          clip_cmd.box = it;
-          clip_cmd.p = parent.clipped_min;
-          clip_cmd.dim = parent.clipped_max - parent.clipped_min;
-          array_add(*render_commands, clip_cmd);
-        }
-      }
-
       base_cmd: RenderCommand;
       base_cmd.p = it.abs_p;
       base_cmd.dim = Outer2(it);
+      base_cmd.clip_max = .{FLOAT32_MAX, FLOAT32_MAX};
       base_cmd.box = it;
+
+      // apply clipping for scrolling
+      {
+        parent := it.parent;
+        while true
+        {
+          if IsNil(parent) break;
+          if parent.scroll.enable & .SCROLL_X
+          {
+            base_cmd.clip_min.x = parent.clipped_min.x;
+            base_cmd.clip_max.x = parent.clipped_max.x;
+          }
+          if parent.scroll.enable & .SCROLL_Y
+          {
+            base_cmd.clip_min.y = parent.clipped_min.y;
+            base_cmd.clip_max.y = parent.clipped_max.y;
+          }
+
+          if parent.floating.attach_to break;
+          parent = parent.parent;
+        }
+      }
 
       if it.bg_color
       {
@@ -1336,6 +1340,8 @@ LayoutEnd :: ()
         cmd := base_cmd;
         cmd.type = .TEXT;
         cmd.p += V2.{it.padding.left, it.padding.top + it.inner.y};
+        cmd.clip_min = it.parent.clipped_min;
+        cmd.clip_max = it.parent.clipped_max;
         cmd.color = it.text.color;
         cmd.text = it.text.str;
         cmd.font = it.text.font;

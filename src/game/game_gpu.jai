@@ -50,7 +50,6 @@ GPU_State :: struct
     gpu_atlas_sampler: *SDL_GPUSampler;
     gpu_indices: *SDL_GPUBuffer;
     gpu_shape_buffer: *SDL_GPUBuffer;
-    gpu_clip_buffer: *SDL_GPUBuffer;
 
     // @todo move some of these things to game_render_ui.jai and use GPU_BATCH?
     indices: [1024 * 64] u32;
@@ -61,10 +60,6 @@ GPU_State :: struct
 
     shapes3d: [1024 * 2] UI_ShapeIn3D;
     shapes3d_count: u32;
-
-    clip_rects: [1024 * 4] Rect; // buffer that's uploaded to GPU
-    clip_rects_count: u32;
-    active_clip_index: u32;
   };
   ui: UI_GPU;
 
@@ -155,8 +150,6 @@ GPU_Init :: ()
       size_of(type_of(G.gpu.ui.indices)), "UI Index Buffer");
     G.gpu.ui.gpu_shape_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
       size_of(type_of(G.gpu.ui.shapes)), "UI Shapes Storage Buffer");
-    G.gpu.ui.gpu_clip_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-      size_of(type_of(G.gpu.ui.clip_rects)), "UI Clips Storage Buffer");
   }
 
   GPU_InitPipelines();
@@ -304,7 +297,7 @@ GPU_InitPipelines :: ()
       create_info := SDL_GPUShaderCreateInfo.{
         stage = .SDL_GPU_SHADERSTAGE_VERTEX,
         num_samplers = 0,
-        num_storage_buffers = 2,
+        num_storage_buffers = 1,
         num_storage_textures = 0,
         num_uniform_buffers = 1,
 
@@ -619,11 +612,6 @@ GPU_Iterate :: ()
       transfer_size := size_of(type_of(G.gpu.ui.shapes[0])) * G.gpu.ui.shapes_count;
       GPU_TransferBuffer(cmd, G.gpu.ui.gpu_shape_buffer, G.gpu.ui.shapes.data, xx transfer_size);
     }
-    if G.gpu.ui.clip_rects_count
-    {
-      transfer_size := size_of(type_of(G.gpu.ui.clip_rects[0])) * G.gpu.ui.clip_rects_count;
-      GPU_TransferBuffer(cmd, G.gpu.ui.gpu_clip_buffer, G.gpu.ui.clip_rects.data, xx transfer_size);
-    }
 
     // Start pass
     color_target := SDL_GPUColorTargetInfo.{
@@ -646,7 +634,6 @@ GPU_Iterate :: ()
     // Bind storage buffers
     storage_bufs := *SDL_GPUBuffer.[
       G.gpu.ui.gpu_shape_buffer,
-      G.gpu.ui.gpu_clip_buffer,
     ];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
 
@@ -955,5 +942,4 @@ GPU_Deinit :: ()
   SDL_ReleaseGPUSampler(G.gpu.device, G.gpu.ui.gpu_atlas_sampler);
   SDL_ReleaseGPUBuffer(G.gpu.device, G.gpu.ui.gpu_indices);
   SDL_ReleaseGPUBuffer(G.gpu.device, G.gpu.ui.gpu_shape_buffer);
-  SDL_ReleaseGPUBuffer(G.gpu.device, G.gpu.ui.gpu_clip_buffer);
 }

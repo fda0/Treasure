@@ -17,17 +17,13 @@ struct UI_DX_Shape
   V2 p_max;
   V2 tex_min; // in pixel space
   V2 tex_max; // in pixel space
+  V2 clip_min;
+  V2 clip_max;
   V4 border_widths; // left, right, top, bottom
   float tex_layer;
   float corner_radius;
   float edge_softness;
   U32 color; // @todo array of 4 colors for gradients
-};
-
-struct UI_DX_Clip
-{
-  V2 p_min;
-  V2 p_max;
 };
 
 struct UI_DX_Fragment
@@ -47,7 +43,6 @@ struct UI_DX_Fragment
 cbuffer VertexUniformBuf : register(b0, space1) { UI_DX_Uniform UniV; };
 
 StructuredBuffer<UI_DX_Shape> ShapeBuf : register(t0);
-StructuredBuffer<UI_DX_Clip>  ClipBuf  : register(t1);
 
 Texture2DArray<V4> AtlasTexture : register(t0, space2);
 SamplerState AtlasSampler : register(s0, space2);
@@ -56,9 +51,7 @@ SamplerState AtlasSampler : register(s0, space2);
 UI_DX_Fragment UI_DxShaderVS(UI_DX_Vertex input)
 {
   U32 corner_index = input.vertex_index & 3u; // 2 bits; [0:1]
-  U32 shape_index = (input.vertex_index >> 2u) & 0xFFFFu; // 16 bits; [2:17]
-  U32 clip_index = (input.vertex_index >> 18u) & 0x3FFFu; // 14 bits; [18:31]
-  UI_DX_Clip clip = ClipBuf[clip_index];
+  U32 shape_index = (input.vertex_index >> 2u) & 0x3FFFFFFF; // 30 bits; [2:31]
   UI_DX_Shape shape = ShapeBuf[shape_index];
 
   // position
@@ -71,29 +64,29 @@ UI_DX_Fragment UI_DxShaderVS(UI_DX_Vertex input)
   V2 tex_max = shape.tex_max;
 
   // clipping
-  if (clip.p_min.x > pos.x)
+  if (shape.clip_min.x > pos.x)
   {
-    float delta = clip.p_min.x - pos.x;
+    float delta = shape.clip_min.x - pos.x;
     tex_min.x += delta;
-    pos.x = clip.p_min.x;
+    pos.x = shape.clip_min.x;
   }
-  if (clip.p_min.y > pos.y)
+  if (shape.clip_min.y > pos.y)
   {
-    float delta = clip.p_min.y - pos.y;
+    float delta = shape.clip_min.y - pos.y;
     tex_min.y += delta;
-    pos.y = clip.p_min.y;
+    pos.y = shape.clip_min.y;
   }
-  if (clip.p_max.x < pos.x)
+  if (shape.clip_max.x < pos.x)
   {
-    float delta = clip.p_max.x - pos.x;
+    float delta = shape.clip_max.x - pos.x;
     tex_max.x += delta;
-    pos.x = clip.p_max.x;
+    pos.x = shape.clip_max.x;
   }
-  if (clip.p_max.y < pos.y)
+  if (shape.clip_max.y < pos.y)
   {
-    float delta = clip.p_max.y - pos.y;
+    float delta = shape.clip_max.y - pos.y;
     tex_max.y += delta;
-    pos.y = clip.p_max.y;
+    pos.y = shape.clip_max.y;
   }
 
   V2 tex_uv = V2(tex_min.x, tex_min.y);

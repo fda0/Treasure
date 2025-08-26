@@ -8,11 +8,14 @@ UI_Shape :: struct
 {
   rect: Rect;
   tex_rect: Rect;
+  clip_rect: Rect = INIT_CLIP;
   border_widths: [4] float;
   tex_layer: float = -1.0;
   corner_radius: float;
   edge_softness: float;
   color: Color32; // @todo array of 4 colors for gradients
+
+  INIT_CLIP :: Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
 }
 
 UI_ShapeIn3D :: struct
@@ -22,7 +25,7 @@ UI_ShapeIn3D :: struct
 }
 
 
-UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
+UI_Draw2D :: (shape: UI_Shape)
 {
   using G.gpu.ui;
   if indices_count + 6 > indices.count ||
@@ -32,15 +35,14 @@ UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
     return;
   }
 
-  if clip_index == U32_MAX then clip_index = G.gpu.ui.active_clip_index;
-
   shape_i := shapes_count;
   shapes_count += 1;
   shapes[shape_i] = shape;
 
   index_i := indices_count;
   indices_count += 6;
-  encoded := ((shape_i << 2) | (clip_index << 18));
+
+  encoded := shape_i << 2;
   indices[index_i + 0] = 0 | encoded;
   indices[index_i + 1] = 1 | encoded;
   indices[index_i + 2] = 2 | encoded;
@@ -60,24 +62,6 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
 
   shapes3d[shapes3d_count] = .{world_p, shape};
   shapes3d_count += 1;
-}
-
-UI_SetActiveClipIndex :: (clip_index: u32)
-{
-  G.gpu.ui.active_clip_index = clip_index;
-}
-
-UI_SetClipRect :: (clip: Rect)
-{
-  if G.gpu.ui.clip_rects_count < G.gpu.ui.clip_rects.count
-  {
-    index := G.gpu.ui.clip_rects_count;
-    G.gpu.ui.clip_rects_count += 1;
-
-    G.gpu.ui.active_clip_index = index;
-    G.gpu.ui.clip_rects[index] = clip;
-  }
-  else log_error("Out of space in UI_SetClipRect");
 }
 
 UI_Translate3DShapes :: ()
@@ -105,7 +89,4 @@ UI_ClearRenderCounters :: ()
   indices_count = 0;
   shapes_count = 0;
   shapes3d_count = 0;
-  G.gpu.ui.clip_rects[0] = Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
-  G.gpu.ui.clip_rects_count = 1;
-  G.gpu.ui.active_clip_index = 0;
 }

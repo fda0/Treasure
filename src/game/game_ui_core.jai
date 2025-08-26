@@ -50,6 +50,7 @@ UI_ProcessBoxRenderCommands :: ()
 
     shape := UI_Shape.{
       rect = MakeRangeMinDim(cmd.p, cmd.dim),
+      clip_rect = MakeRange(cmd.clip_min, cmd.clip_max),
       color = c32,
       corner_radius = cmd.corner_radius,
       tex_layer = -1.0,
@@ -65,16 +66,10 @@ UI_ProcessBoxRenderCommands :: ()
       draw_shape = true;
 
       case .TEXT;
-      UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p);
-
-      case .CLIP;
-      // shape.color = Color32_RGBAf(1.0, Sin01(it_index.(float) * 0.37),  Cos01(it_index.(float) * 0.21), 0.1);
-      // draw_shape = true;
-      UI_SetClipRect(shape.rect);
+      UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p, shape.clip_rect);
     }
 
     if draw_shape UI_Draw2D(shape);
   }
-
-  UI_SetActiveClipIndex(0);
 }
+

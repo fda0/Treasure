@@ -2,6 +2,7 @@ UI_TextLineParams :: struct
 {
   draw: bool;
   draw_p: V2; // .y is the baseline position - it's under the text.
+  draw_clip: Rect = UI_Shape.INIT_CLIP;
   draw_color: Color32;
 
   dimensions: V2; // out
@@ -42,6 +43,7 @@ UI_ProcessTextLine :: (text: string, font: FONT_Family, pixel_height: u16, using
 
         shape := UI_Shape.{
           rect = MakeRangeMinDim(p, tex_dim),
+          clip_rect = draw_clip,
           tex_rect = MakeRangeMinDim(tex_p, tex_dim),
           tex_layer = xx glyph.layer,
           color = draw_color,
@@ -56,16 +58,16 @@ UI_ProcessTextLine :: (text: string, font: FONT_Family, pixel_height: u16, using
   }
 }
 
-UI_DrawTextLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2)
+UI_DrawTextLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2, clip := UI_Shape.INIT_CLIP)
 {
   params := UI_TextLineParams.{
     draw = true,
     draw_p = pos,
+    draw_clip = clip,
     draw_color = color,
   };
   UI_ProcessTextLine(text, font, pixel_height, *params);
 }
-
 
 UI_MeasureText :: (params: BOX.MeasureTextParams) -> V2
 {
