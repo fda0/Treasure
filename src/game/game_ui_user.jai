@@ -119,6 +119,7 @@ UI_BuildDeveloperWindow :: ()
   for category_mask, category_index: CATEGORY_VALUES
   {
     if !(active_categories & category_mask) continue;
+    Layer(.{seed = xx category_mask});
 
     category_name := CATEGORY_NAMES[category_index];
     window_position := *category_window_positions[category_index];
@@ -262,7 +263,7 @@ UI_BuildDeveloperWindow :: ()
         if show_joint_hierarchy
         {
           CreateText("Joint hierarchy");
-          Parent(UI_ScrollableContainer(null, UniqueFloat(), null, spec = .{layout.size.min.y = Rem(10)}));
+          Parent(UI_ScrollableContainer(null, UniqueFloat(), .{layout.size = .{min.y = Rem(10), pref.y = Grow()}}));
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
@@ -289,6 +290,8 @@ UI_BuildDeveloperWindow :: ()
 
 UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> *Box
 {
+  Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64), window_scroll.(u64))});
+
   window := Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                floating.attach_to = .ROOT},
                              UI_WINDOW_STYLE));
@@ -415,6 +418,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 
         box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
       }
+      else box_bar.bg_color = 0;
 
       scroll_body.scroll.set_01.component[axis] = scroll.*;
     }
@@ -441,7 +445,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 #modify { return IsEnumFlags(T); }
 {
-  Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
+  Layer(.{seed = Hash64Any(label, checkbox_value.(u64))});
 
   button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
@@ -478,7 +482,7 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 
 UI_Checkbox :: (label: string, checkbox_value: *bool)
 {
-  Layer(.{autokey_seed = Hash64Any(label, checkbox_value.(u64))});
+  Layer(.{seed = Hash64Any(label, checkbox_value.(u64))});
 
   button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
@@ -510,7 +514,7 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 
 UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
 {
-  Layer(.{autokey_seed = Hash64Any(label, button_value.(u64), set_value)});
+  Layer(.{seed = Hash64Any(label, button_value.(u64), set_value)});
 
   button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
@@ -538,7 +542,7 @@ UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
 
 UI_Button :: (label: string) -> clicked: bool
 {
-  Layer(.{autokey_seed = Hash64Any(label)});
+  Layer(.{seed = Hash64Any(label)});
 
   button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
                                           padding = UI_BUTTON_PAD,
@@ -554,8 +558,10 @@ UI_Button :: (label: string) -> clicked: bool
   return !!(button.flags & .CLICK);
 }
 
-UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, container_size: *V2, spec := BoxSpec.{}) -> *Box
+UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{}) -> *Box
 {
+  Layer(.{seed = Hash64Any(scroll_x.(u64), scroll_y.(u64))});
+
   BAR_THICKNESS :: #run Rem(0.75);
   color_bar_bg := Color32_SetAlphai(UI_FG, 24);
   color_scroll := Color32_SetAlphai(UI_FG, 128);
@@ -569,16 +575,7 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, container_size: *
 
   Parent(container_x);
   container_y := CreateBox(spec, .{layout.child_order = .LEFT_TO_RIGHT}, default_spec);
-
-  scroll_area_x: *Box;
-  resize_button: *Box;
-  {
-    container_scroll_area_x := CreateBox(.{layout.size.min = Fit2(),
-                                           layout.size.pref.x = Grow()});
-    Parent(container_scroll_area_x);
-    scroll_area_x = CreateBox();
-    resize_button = CreateBox(.{layout.size.min = Len2(BAR_THICKNESS), bg_color = Color32_RGBf(1,0,0)});
-  }
+  scroll_area_x := CreateBox();
 
   Parent(container_y);
   body := CreateBox();
@@ -653,17 +650,6 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, container_size: *
     }
 
     body.scroll.set_01.component[axis] = scroll.*;
-  }
-
-  // Resize button
-  if container_size
-  {
-    resize_button_sig := Signal(resize_button);
-    if resize_button_sig.flags & .DRAG
-    {
-      container_size.* += G.mouse_delta;
-      container_size.* = clamp(container_size.*, .{50, 50}, .{500, 500}); // @todo this is not a good way to do this; this needs to be done like FloatingWindow
-    }
   }
 
   return body;

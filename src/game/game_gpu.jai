@@ -53,16 +53,16 @@ GPU_State :: struct
     gpu_clip_buffer: *SDL_GPUBuffer;
 
     // @todo move some of these things to game_render_ui.jai and use GPU_BATCH?
-    indices: [1024 * 8] u32;
+    indices: [1024 * 64] u32;
     indices_count: u32;
 
-    shapes: [1024 * 2] UI_Shape;
+    shapes: [1024 * 16] UI_Shape;
     shapes_count: u32;
 
     shapes3d: [1024 * 2] UI_ShapeIn3D;
     shapes3d_count: u32;
 
-    clip_rects: [1024] Rect; // buffer that's uploaded to GPU
+    clip_rects: [1024 * 4] Rect; // buffer that's uploaded to GPU
     clip_rects_count: u32;
     active_clip_index: u32;
   };

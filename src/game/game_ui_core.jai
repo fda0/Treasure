@@ -11,7 +11,8 @@ UI_BeginBoxLayout :: ()
     mouse = G.mouse,
   };
 
-  dump_logs := G.frame_number == 1 && false;
+  dump_logs := false;
+  // if G.frame_number == 1 then dump_logs = true;
   if KEY_Pressed(.F4) dump_logs = true;
 
   spec.log_flags = ifx dump_logs then .ALL else .NONE;
@@ -37,10 +38,12 @@ UI_FinishBoxLayout :: ()
 
 UI_ProcessBoxRenderCommands :: ()
 {
+  debug_dump := false;
+  if KEY_Pressed(.F3) then debug_dump = true;
+
   for cmd: layout_state.render_commands
   {
-    if G.frame_number == 1
-      print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    if debug_dump then print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);

@@ -172,8 +172,7 @@ operator ! :: (a: BoxKey) -> bool { return !a.hash; }
 CreateKey :: (loc: Source_Code_Location, seed: u64 = 0) -> BoxKey
 {
   h := HashLocFunc(loc, seed);
-  key := BoxKey.{hash};
-  return key;
+  return BoxKey.{h};
 }
 
 CreateKey :: (text: string, seed: u64 = 0) -> BoxKey
@@ -185,7 +184,7 @@ CreateKey :: (text: string, seed: u64 = 0) -> BoxKey
 BoxSpec :: struct
 {
   key: BoxKey;
-  autokey_seed: u64;
+  seed: u64;
 
   layout: struct
   {
@@ -327,7 +326,7 @@ Merge :: (c: *BorderWidths, p: BorderWidths) {
   Merge(*c.between_children, p.between_children);
 }
 Merge :: (c: *BoxSpec, p: BoxSpec) {
-  Merge(*c.autokey_seed,         p.autokey_seed); // @todo hash 2 seeds together
+  c.seed = HashTwoU64(c.seed, p.seed);
 
   Merge(*c.layout.size.pref,     p.layout.size.pref);
   Merge(*c.layout.size.min,      p.layout.size.min);
@@ -382,6 +381,8 @@ Box :: struct
   next, prev, first, last, parent: *Box;
   loc: Source_Code_Location; // creation loc
   old: *Box; // Pointer to this Box from previous frame. Otherwise should point to nil_box.
+
+  key_would_collide: bool;
 
   // in pixels
   inner: V2;
@@ -498,11 +499,12 @@ FindBox :: (key: BoxKey, target := BoxStorageArray.CURRENT) -> *Box
 CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
 {
   spec := source_spec;
+  key_would_collide := false;
   if !spec.key
   {
-    // spec.key = CreateKey(loc, spec.autokey_seed);
-    stack_trace_string := get_stack_trace_string(context.stack_trace,, temp);
-    spec.key = CreateKey(stack_trace_string, spec.autokey_seed);
+    spec.key = CreateKey(loc, spec.seed);
+    // stack_trace_string := get_stack_trace_string(context.stack_trace,, temp);
+    // spec.key = CreateKey(stack_trace_string, spec.seed);
 
     entry, newly_added := Hash_Table.find_or_add(*layout_state.added_seeds, spec.key.hash);
     if newly_added
@@ -513,6 +515,8 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
     {
       entry.* += 1;
       spec.key.hash += entry.*;
+      layout_state.hash_collisions += 1;
+      key_would_collide = true;
     }
   }
   if spec.text.str then spec.text.str = copy_temporary_string(spec.text.str); // @todo This should live in some double-buffered array in layout_state
@@ -531,6 +535,7 @@ CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
   box := array_add(BoxesArray(.CURRENT));
   box.spec = spec;
   box.loc = loc;
+  box.key_would_collide = key_would_collide;
 
   // links
   LinkToNil(box);
@@ -569,7 +574,7 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   merged = Merge(merged, ..ActiveLayers(), reverse_order=true);
 
   merged.text.str = text;
-  merged.autokey_seed = HashStringFunc(text, merged.autokey_seed);
+  // merged.seed = HashStringFunc(text, merged.seed);
 
   // Text specific
   if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
@@ -704,7 +709,7 @@ MeasureTextStub :: (params: MeasureTextParams) -> Vector2 { return .{}; }
 //
 RenderCommand :: struct
 {
-  type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP_PUSH; CLIP_POP; CLIP; };
+  type: enum u8 {RECTANGLE; BORDER; TEXT; CLIP; };
   p: V2;
   dim: V2; // skipped for TEXT
   color: Color;
@@ -740,6 +745,7 @@ LayoutLogFlags :: enum_flags {
   SIZES;
   MINMAX;
   POSITIONS;
+  KEY;
   LOCATION;
 
   NONE :: 0;
@@ -783,7 +789,8 @@ LayoutBegin :: (new_spec: LayoutSpec)
     if not_held then active_key = .{};
   }
 
-  Hash_Table.init(*added_seeds, boxes_count*2 + 1024);
+  Hash_Table.init(*added_seeds, boxes_count*2 + 1024); // @todo this just leaks memory atm? api of the table could be better here?
+  hash_collisions = 0;
 
   // Assing new spec
   layout_spec = new_spec;
@@ -801,7 +808,7 @@ LayoutBegin :: (new_spec: LayoutSpec)
   {
     // This allocates a lot of memory because we don't handle realloc right now.
     // @todo replace these [..] arrays with stable pointer allocations.
-    array_reserve(it, 1024 * 1024 * 64);
+    array_reserve(it, 1024 * 1024 * 1);
   }
 
   old_boxes := BoxesArray(.OLD);
@@ -1254,16 +1261,25 @@ LayoutEnd :: ()
       if log_flags & .DEPTH
       {
         for 0..it_depth-1 print("  ");
-        print("[d %; i %]; ", it_depth, it_index);
+        // print("[d %; i %]; ", it_depth, it_index);
+        print("[d %]; ", it_depth);
       }
       if log_flags & .DIMENSIONS then print("size%;\t", it.layout.size);
       if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, Outer2(it));
       if log_flags & .MINMAX     then print("inner_min%, inner_max%;\t", it.inner_min, it.inner_max);
       if log_flags & .POSITIONS  then print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);
+      if log_flags & .KEY
+      {
+        print("key%", it.key);
+        if it.key_would_collide then print("(would_collide)");
+      }
       if log_flags & .LOCATION   then print("%", it.loc);
       print("\n");
     }
   }
+
+  // log("box_layout hash collisions: %", hash_collisions);
+
 
   // Generate render commands.
   {
@@ -1576,6 +1592,7 @@ LayoutState :: struct
   drag_box_abs_p_offset: V2;
 
   added_seeds: Hash_Table.Table(Value_Type = u64);
+  hash_collisions := 0;
 
   // Double-buffer system.
   // Each LayoutBegin call flips boxes_index between 0-1.
@@ -1628,12 +1645,19 @@ HashStringFunc :: (s: string, init_seed: u64) -> u64
   str := cast([] u8) s;
   return LayoutHash(seed, str);
 }
-HashLocFunc :: (loc: Source_Code_Location) -> u64
+HashLocFunc :: (loc: Source_Code_Location, init_seed: u64) -> u64
 {
+  seed := ObjectToByteArray(*init_seed);
   filename := cast([] u8) loc.fully_pathed_filename;
   line_number := ObjectToByteArray(*loc.line_number);
   character_number := ObjectToByteArray(*loc.character_number);
   return LayoutHash(seed, filename, line_number, character_number);
+}
+HashTwoU64 :: (a: u64, b: u64) -> u64
+{
+  a2 := ObjectToByteArray(*a);
+  b2 := ObjectToByteArray(*b);
+  return LayoutHash(a2, b2);
 }
 
 //

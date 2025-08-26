@@ -25,8 +25,12 @@ UI_ShapeIn3D :: struct
 UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
 {
   using G.gpu.ui;
-  if indices_count + 6 > indices.count return; // @todo log errors?
-  if shapes_count + 6 > shapes.count return;
+  if indices_count + 6 > indices.count ||
+     shapes_count + 6 > shapes.count
+  {
+    log_error("Out of space in UI_Draw2D");
+    return;
+  }
 
   if clip_index == U32_MAX then clip_index = G.gpu.ui.active_clip_index;
 
@@ -48,7 +52,11 @@ UI_Draw2D :: (shape: UI_Shape, clip_index: u32 = U32_MAX)
 UI_Draw3D :: (world_p: V3, shape: UI_Shape)
 {
   using G.gpu.ui;
-  if shapes3d_count + 1 > shapes3d.count return;
+  if shapes3d_count + 1 > shapes3d.count
+  {
+    log_error("Out of space in UI_Draw3D");
+    return;
+  }
 
   shapes3d[shapes3d_count] = .{world_p, shape};
   shapes3d_count += 1;
@@ -69,6 +77,7 @@ UI_SetClipRect :: (clip: Rect)
     G.gpu.ui.active_clip_index = index;
     G.gpu.ui.clip_rects[index] = clip;
   }
+  else log_error("Out of space in UI_SetClipRect");
 }
 
 UI_Translate3DShapes :: ()
