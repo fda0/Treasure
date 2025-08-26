@@ -118,8 +118,7 @@ V4 UI_DxShaderPS(UI_DX_Fragment frag) : SV_Target0
     color *= tex_color;
   }
 
-  float softness_padding = frag.edge_softness * 2 - 1;
-  V2 soft_pad = V2(softness_padding, softness_padding);
+  V2 soft_pad = V2(frag.edge_softness, frag.edge_softness);
 
   // outter-rect
   {
@@ -131,7 +130,7 @@ V4 UI_DxShaderPS(UI_DX_Fragment frag) : SV_Target0
   }
 
   // border rendering: removing inner-rect
-  bool has_border = frag.border_widths.x > 0.0 || frag.border_widths.y > 0.0 || frag.border_widths.z > 0.0 || frag.border_widths.w > 0.0;
+  bool has_border = length(frag.border_widths) > 0.0;
   if (has_border)
   {
     bool is_left = frag.pos.x <= frag.center.x;
@@ -141,13 +140,14 @@ V4 UI_DxShaderPS(UI_DX_Fragment frag) : SV_Target0
     float border_v = is_up ? frag.border_widths.z : frag.border_widths.w;
 
     V2 inner_half_dim = frag.half_dim - V2(border_h, border_v);
+
     float inner_r_coef = min(inner_half_dim.x / frag.half_dim.x,
                              inner_half_dim.y / frag.half_dim.y);
     float inner_r = frag.corner_radius * inner_r_coef * inner_r_coef;
     float inner_dist = RoundedRectSDF(frag.pos, frag.center,
                                       inner_half_dim - soft_pad,
                                       inner_r);
-    float inner_factor = smoothstep(0, 2*frag.edge_softness, inner_dist);
+    float inner_factor = smoothstep(0, frag.edge_softness, inner_dist);
     color.a *= inner_factor;
   }
 

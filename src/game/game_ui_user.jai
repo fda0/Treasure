@@ -67,11 +67,13 @@ UI_BUTTON_HOVER_BG :: #run Color32_RGBi(102, 92, 84);
 UI_SHADOW    :: #run Color32_RGBAi(29, 32, 33, 96);
 UI_DARKER    :: #run Color32_RGBAi(0, 0, 0, 64);
 
-UI_RADIUS :: #run RadiusAll(Px(3));
+UI_RADIUS :: #run RadiusAll(Px(2));
 UI_BORDER_WIDTH :: #run BorderOutside(Px(1));
 UI_WINDOW_GAP :: #run Rem(0.5);
 UI_WINDOW_PAD :: #run PaddingAll(UI_WINDOW_GAP);
 UI_BUTTON_PAD :: #run Padding.{UI_WINDOW_GAP, UI_WINDOW_GAP, UI_WINDOW_GAP*0.5, UI_WINDOW_GAP*0.5};
+
+UI_EDGE_SOFTNESS :: #run Px(1);
 
 UI_HEADER_TEXT  :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1.5)},
                                  layout.padding = PaddingV(Rem(0.2), Rem(0.6))};
@@ -349,11 +351,11 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       Parent(CreateBox(.{layout.size.min = Len2(Rem(0.25)),
                          layout.padding = PaddingAll(Rem(0.125)),
                          border.color = decoration_color,
-                         border.widths = .{right = Rem(0.125), bottom = Rem(0.125)}}));
+                         border.widths = .{right = Rem(0.0625), bottom = Rem(0.0625)}}));
       Parent(CreateBox(.{layout.size.min = Len2(Rem(0.125)),
                          layout.padding = PaddingAll(Rem(0.0625)),
                          border.color = decoration_color,
-                         border.widths = .{right = Rem(0.125), bottom = Rem(0.125)}}));
+                         border.widths = .{right = Rem(0.0625), bottom = Rem(0.0625)}}));
     }
 
     Parent(container_y);
@@ -474,7 +476,8 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
                                   child_align = .{x = .CENTER, y = .CENTER}},
                        bg_color = UI_BUTTON_BG,
                        border = .{color = UI_FG, widths = UI_BORDER_WIDTH},
-                       corner_radius = UI_RADIUS},));
+                       corner_radius = UI_RADIUS,
+                       edge_softness = UI_EDGE_SOFTNESS},));
     CreateText(square_text, .{text.font_size = square_length});
   }
   CreateText(label);

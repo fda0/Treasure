@@ -41,9 +41,21 @@ UI_ProcessBoxRenderCommands :: ()
   debug_dump := false;
   if KEY_Pressed(.F3) then debug_dump = true;
 
-  for cmd: layout_state.render_commands
+  if debug_dump then print("[UI render commands dump from frame: %]\n", G.frame_number);
+
+  for cmd_: layout_state.render_commands
   {
-    if debug_dump then print("[frame: %] render_command: % (%)\n", G.frame_number, cmd, cmd.box.loc);
+    cmd := cmd_;
+    // @todo box_layout feature in BoxSpec that aligns box to full pixels?
+    cmd.p.x = Round(cmd.p.x);
+    cmd.p.y = Round(cmd.p.y);
+    // cmd.dim.x = Round(cmd.dim.x);
+    // cmd.dim.y = Round(cmd.dim.y);
+
+    if debug_dump
+    {
+      print("type = %; p = %; dim = %; clip_min = %; clip_max = %; color = %; border_widths = %; corner_radius = %; text = %; font = %; font_size_px = %; LOC = %\n", cmd.type, cmd.p, cmd.dim, cmd.clip_min, cmd.clip_max, cmd.color, cmd.border_widths, cmd.corner_radius, cmd.text, cmd.font, cmd.font_size_px, cmd.box.loc);
+    }
 
     c4 := ColorV4_32(cmd.color);
     c32 := Color32_RGBAf(c4);
@@ -52,7 +64,8 @@ UI_ProcessBoxRenderCommands :: ()
       rect = MakeRangeMinDim(cmd.p, cmd.dim),
       clip_rect = MakeRange(cmd.clip_min, cmd.clip_max),
       color = c32,
-      corner_radius = cmd.corner_radius,
+      corner_radius = cmd.corner_radius.top_left,
+      edge_softness = cmd.edge_softness,
       tex_layer = -1.0,
     };
     draw_shape := false;

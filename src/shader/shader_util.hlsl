@@ -106,7 +106,7 @@ static Mat3 Mat3_Rotation_Quat(Quat q)
 
 static float RoundedRectSDF(V2 pos, V2 center, V2 half_dim, float r)
 {
-  V2 d2 = (abs(center - pos) - half_dim + V2(r,r));
+  V2 d2 = (abs(pos - center) - half_dim + V2(r,r));
   float l = length(max(d2, V2(0.f,0.f)));
   return min(max(d2.x, d2.y), 0.f) + l - r;
 }

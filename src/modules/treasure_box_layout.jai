@@ -204,6 +204,7 @@ BoxSpec :: struct
 
   bg_color: Color;
   corner_radius: CornerRadius;
+  edge_softness: Length;
   capture_hover: bool;
 
   scroll: struct
@@ -339,6 +340,7 @@ Merge :: (c: *BoxSpec, p: BoxSpec) {
 
   Merge(*c.bg_color,      p.bg_color);
   Merge(*c.corner_radius, p.corner_radius);
+  Merge(*c.edge_softness, p.edge_softness);
 
   // floating isn't merged - at least for now
 
@@ -716,9 +718,9 @@ RenderCommand :: struct
   clip_max: V2;
   color: Color;
 
-  corner_radius: float; // @todo [4] float
+  corner_radius: struct { top_left, top_right, bottom_left, bottom_right: float; }
   border_widths: struct { left, right, top, bottom: float; }
-  // edge_softness: float; add?
+  edge_softness: float;
 
   // .TEXT only
   text: string;
@@ -1291,6 +1293,11 @@ LayoutEnd :: ()
       base_cmd.p = it.abs_p;
       base_cmd.dim = Outer2(it);
       base_cmd.clip_max = .{FLOAT32_MAX, FLOAT32_MAX};
+      base_cmd.corner_radius.top_left     = LengthToPx(it.corner_radius.top_left,     it, .Y, true);
+      base_cmd.corner_radius.top_right    = LengthToPx(it.corner_radius.top_right,    it, .Y, true);
+      base_cmd.corner_radius.bottom_left  = LengthToPx(it.corner_radius.bottom_left,  it, .Y, true);
+      base_cmd.corner_radius.bottom_right = LengthToPx(it.corner_radius.bottom_right, it, .Y, true);
+      base_cmd.edge_softness = LengthToPx(it.edge_softness, it, .Y, true);
       base_cmd.box = it;
 
       // apply clipping for scrolling
