@@ -486,7 +486,8 @@ String :: #import "String";
 
 #load "game_text.jai";
 #load "game_ui_core.jai";
-#load "game_ui_user.jai";
+#load "game_ui_developer.jai";
+#load "game_ui_player.jai";
 #load "game_time.jai";
 #load "game_key.jai";
 #load "game_action.jai";
