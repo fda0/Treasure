@@ -1,4 +1,4 @@
-UI_TextLineParams :: struct
+TEXT_LineParams :: struct
 {
   draw: bool;
   draw_p: V2; // .y is the baseline position - it's under the text.
@@ -9,7 +9,7 @@ UI_TextLineParams :: struct
 };
 
 // All in one text function - can do layout, drawing and/or text dimension measurement
-UI_ProcessTextLine :: (text: string, font: FONT_Family, pixel_height: u16, using params: *UI_TextLineParams)
+TEXT_ProcessLine :: (text: string, font: FONT_Family, pixel_height: u16, using params: *TEXT_LineParams)
 {
   metrics := FONT_GetFaceMetrics(font, pixel_height);
 
@@ -58,23 +58,23 @@ UI_ProcessTextLine :: (text: string, font: FONT_Family, pixel_height: u16, using
   }
 }
 
-UI_DrawTextLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2, clip := UI_Shape.INIT_CLIP)
+TEXT_DrawLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2, clip := UI_Shape.INIT_CLIP)
 {
-  params := UI_TextLineParams.{
+  params := TEXT_LineParams.{
     draw = true,
     draw_p = pos,
     draw_clip = clip,
     draw_color = color,
   };
-  UI_ProcessTextLine(text, font, pixel_height, *params);
+  TEXT_ProcessLine(text, font, pixel_height, *params);
 }
 
-UI_MeasureText :: (params: BOX.MeasureTextParams) -> V2
+TEXT_Measure :: (params: BOX.MeasureTextParams) -> V2
 {
   font := params.font.(FONT_Family);
   pixel_height := Round(params.font_size_px).(u16);
 
-  process_params: UI_TextLineParams;
-  UI_ProcessTextLine(params.text, font, pixel_height, *process_params);
+  process_params: TEXT_LineParams;
+  TEXT_ProcessLine(params.text, font, pixel_height, *process_params);
   return process_params.dimensions;
 }

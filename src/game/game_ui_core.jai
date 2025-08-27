@@ -7,7 +7,7 @@ UI_BeginBoxLayout :: ()
   spec := LayoutSpec.{
     root_dim_px = G.window_dim,
     rem_to_px = 12.0 + 2.0 * floor(G.window_dim.y / 256.0),
-    measure_text_callback = UI_MeasureText,
+    measure_text_callback = TEXT_Measure,
     mouse = G.mouse,
   };
 
@@ -79,7 +79,7 @@ UI_ProcessBoxRenderCommands :: ()
       draw_shape = true;
 
       case .TEXT;
-      UI_DrawTextLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p, shape.clip_rect);
+      TEXT_DrawLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p, shape.clip_rect);
     }
 
     if draw_shape UI_Draw2D(shape);
