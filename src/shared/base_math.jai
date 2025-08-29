@@ -155,6 +155,12 @@ DirectionXYToRotationZ :: (not_normalized_dir3: V3) -> Quat
   return rotation;
 }
 
+SafeDiv :: (dividend: $T, divisor: T) -> T
+{
+  if divisor == 0 return divisor;
+  return dividend / divisor;
+}
+
 CastSaturate :: ($Tdst: Type, value: $Tstr) -> Tdst
 #modify { return IsInteger(Tdst) && IsInteger(Tstr), "Both arguments have to be of an integer type."; }
 {
