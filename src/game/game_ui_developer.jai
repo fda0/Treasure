@@ -1,6 +1,45 @@
+#scope_file;
+using BOX;
+UI_RED1      :: #run Color32_RGBi(0xcc, 0x24, 0x1d);
+UI_RED2      :: #run Color32_RGBi(0xfb, 0x49, 0x34);
+UI_GREEN1    :: #run Color32_RGBi(0x98, 0x97, 0x1a);
+UI_GREEN2    :: #run Color32_RGBi(0xb8, 0xbb, 0x26);
+UI_YELLOW1   :: #run Color32_RGBi(0xd7, 0x99, 0x21);
+UI_YELLOW2   :: #run Color32_RGBi(0xfa, 0xbd, 0x2f);
+UI_BLUE1     :: #run Color32_RGBi(0x45, 0x85, 0x88);
+UI_BLUE2     :: #run Color32_RGBi(0x83, 0xa5, 0x98);
+UI_ORANGE1   :: #run Color32_RGBi(0xd6, 0x5d, 0x0e);
+UI_ORANGE2   :: #run Color32_RGBi(0xfe, 0x80, 0x19);
+UI_BG        :: #run Color32_RGBi(40, 40, 40);
+UI_FG        :: #run Color32_RGBi(235, 219, 178);
+UI_BORDER_BG :: #run Color32_RGBi(29, 32, 33);
+UI_BUTTON_BG :: #run Color32_RGBi(80, 73, 69);
+UI_BUTTON_HOVER_BG :: #run Color32_RGBi(102, 92, 84);
+UI_SHADOW    :: #run Color32_RGBAi(29, 32, 33, 96);
+UI_DARKER    :: #run Color32_RGBAi(0, 0, 0, 64);
+
+UI_RADIUS :: #run RadiusAll(Px(2));
+UI_BORDER_WIDTH :: #run BorderOutside(Px(1));
+UI_WINDOW_GAP :: #run Rem(0.5);
+UI_WINDOW_PAD :: #run PaddingAll(UI_WINDOW_GAP);
+UI_BUTTON_PAD :: #run Padding.{UI_WINDOW_GAP, UI_WINDOW_GAP, UI_WINDOW_GAP*0.5, UI_WINDOW_GAP*0.5};
+
+UI_EDGE_SOFTNESS :: #run Px(1);
+
+UI_HEADER_TEXT  :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1.5)},
+                                 layout.padding = PaddingV(Rem(0.2), Rem(0.6))};
+UI_REGULAR_TEXT :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1)}};
+UI_MONO_TEXT    :: #run BoxSpec.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(0.85)},
+                                 layout.padding = PaddingV(Em(0.4))};
+
+UI_WINDOW_STYLE :: BoxSpec.{bg_color = UI_BG,
+                            border = .{color = UI_BORDER_BG, widths = UI_BORDER_WIDTH},
+                            corner_radius = UI_RADIUS};
+#scope_export;
+
 DEV_State :: struct // @todo serialize this struct to disk
 {
-  show := true;
+  show := false;
 
   active_categories: CategoryFlags = .stats;
   CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; }
@@ -43,47 +82,6 @@ DEV_State :: struct // @todo serialize this struct to disk
   // objects
   show_joint_hierarchy := false;
 }
-
-UI_State :: struct
-{
-  payload: u64;
-}
-
-UI_RED1      :: #run Color32_RGBi(0xcc, 0x24, 0x1d);
-UI_RED2      :: #run Color32_RGBi(0xfb, 0x49, 0x34);
-UI_GREEN1    :: #run Color32_RGBi(0x98, 0x97, 0x1a);
-UI_GREEN2    :: #run Color32_RGBi(0xb8, 0xbb, 0x26);
-UI_YELLOW1   :: #run Color32_RGBi(0xd7, 0x99, 0x21);
-UI_YELLOW2   :: #run Color32_RGBi(0xfa, 0xbd, 0x2f);
-UI_BLUE1     :: #run Color32_RGBi(0x45, 0x85, 0x88);
-UI_BLUE2     :: #run Color32_RGBi(0x83, 0xa5, 0x98);
-UI_ORANGE1   :: #run Color32_RGBi(0xd6, 0x5d, 0x0e);
-UI_ORANGE2   :: #run Color32_RGBi(0xfe, 0x80, 0x19);
-UI_BG        :: #run Color32_RGBi(40, 40, 40);
-UI_FG        :: #run Color32_RGBi(235, 219, 178);
-UI_BORDER_BG :: #run Color32_RGBi(29, 32, 33);
-UI_BUTTON_BG :: #run Color32_RGBi(80, 73, 69);
-UI_BUTTON_HOVER_BG :: #run Color32_RGBi(102, 92, 84);
-UI_SHADOW    :: #run Color32_RGBAi(29, 32, 33, 96);
-UI_DARKER    :: #run Color32_RGBAi(0, 0, 0, 64);
-
-UI_RADIUS :: #run RadiusAll(Px(2));
-UI_BORDER_WIDTH :: #run BorderOutside(Px(1));
-UI_WINDOW_GAP :: #run Rem(0.5);
-UI_WINDOW_PAD :: #run PaddingAll(UI_WINDOW_GAP);
-UI_BUTTON_PAD :: #run Padding.{UI_WINDOW_GAP, UI_WINDOW_GAP, UI_WINDOW_GAP*0.5, UI_WINDOW_GAP*0.5};
-
-UI_EDGE_SOFTNESS :: #run Px(1);
-
-UI_HEADER_TEXT  :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1.5)},
-                                 layout.padding = PaddingV(Rem(0.2), Rem(0.6))};
-UI_REGULAR_TEXT :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1)}};
-UI_MONO_TEXT    :: #run BoxSpec.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(0.85)},
-                                 layout.padding = PaddingV(Em(0.4))};
-
-UI_WINDOW_STYLE :: BoxSpec.{bg_color = UI_BG,
-                            border = .{color = UI_BORDER_BG, widths = UI_BORDER_WIDTH},
-                            corner_radius = UI_RADIUS};
 
 UI_DeveloperKeyShortcuts :: ()
 {
@@ -658,7 +656,3 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
   return body;
 }
 
-
-BOX :: #import "treasure_box_layout"(Color=Color32);
-#scope_file;
-using BOX;

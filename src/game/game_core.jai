@@ -28,7 +28,6 @@ GAME_State :: struct
   net: NET_State;
   client: CLIENT_State;
   server: SERVER_State;
-  ui: UI_State;
   dev: DEV_State;
   stats: STATS_State;
   log: LOG_State;
@@ -158,6 +157,7 @@ GAME_Iterate :: ()
 
     UI_DeveloperKeyShortcuts();
     UI_BeginBoxLayout();
+    UI_BuildHUD();
     UI_BuildDeveloperWindow();
     UI_FinishBoxLayout();
 

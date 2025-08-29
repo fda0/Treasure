@@ -144,16 +144,17 @@ Length2 :: struct
   #place x; axes: [2] Length;
 }
 
-Len2 :: (l: Length) -> Length2 { return .{l, l}; }
-
-Px2  :: (v: V2) -> Length2 { return .{Px(v.x), Px(v.y)}; }
-Rem2 :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
-
 LengthToPx2 :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
 {
   return .{LengthToPx(len2.x, owner_box, .X, clamp_to_zero),
            LengthToPx(len2.y, owner_box, .Y, clamp_to_zero)};
 }
+
+Len2 :: (l: Length) -> Length2 { return .{l, l}; }
+Px2  :: (a: float) -> Length2 { return .{Px(a), Px(a)}; }
+Rem2 :: (a: float) -> Length2 { return .{Rem(a), Rem(a)}; }
+Px2  :: (v: V2) -> Length2 { return .{Px(v.x), Px(v.y)}; }
+Rem2 :: (v: V2) -> Length2 { return .{Rem(v.x), Rem(v.y)}; }
 
 Fit :: () -> Length    { return .{.FIT, 1.0}; }
 Fit2 :: () -> Length2  { return .{.{.FIT, 1.0}, .{.FIT, 1.0}}; }
@@ -1203,9 +1204,8 @@ LayoutEnd :: ()
         case .ROOT; attach_box = root_box;
       }
 
-      calculate_attach_offset :: (box: *Box) -> V2
+      calculate_attach_offset :: (box: *Box, ap: AttachPoint) -> V2
       {
-        ap := box.floating.attach_points.itself;
         full_h := ifx ap.add_padding & .PAD_HORIZONTAL then Inner(box, .X) else Outer(box, .X);
         full_v := ifx ap.add_padding & .PAD_VERTICAL   then Inner(box, .Y) else Outer(box, .Y);
         ratio_h := ap.horizontal.(float) * 0.5;
@@ -1216,11 +1216,11 @@ LayoutEnd :: ()
         return result;
       }
 
-      it_offset := calculate_attach_offset(it);
-      attach_box_offset := calculate_attach_offset(attach_box);
+      it_offset := calculate_attach_offset(it, it.floating.attach_points.itself);
+      attach_box_offset := calculate_attach_offset(attach_box, it.floating.attach_points.parent);
       user_offset := LengthToPx2(it.floating.offset, it, true);
 
-      it.abs_p = attach_box.abs_p + it_offset - attach_box_offset + user_offset;
+      it.abs_p = attach_box.abs_p - it_offset + attach_box_offset + user_offset;
     }
     else // non floating
     {
