@@ -95,8 +95,8 @@ OBJ_Sync :: struct
   team: OBJ_Team;
   init: bool;
 
-  creation_time: TimestampMS;
-  death_time: TimestampMS;
+  creation_time: Timestamp;
+  death_time: Timestamp;
   p: V3; // XY center, Z at bottom
   desired_dp: V3; // move that Object wanted to make
   moved_dp: V3; // move that Object did after collision simulation
@@ -118,7 +118,7 @@ OBJ_Sync :: struct
   animation_requests: Queue(3, ANIMATION_Request);
   sound_requests: Queue(3, AUDIO_Request);
 
-  action: Action;
+  action: Action; // what object is trying to do currently
 
   // visuals
   color: Color32 = 0xffff_ffff; // unused?
@@ -148,7 +148,7 @@ OBJ_Local :: struct
   // animation_requests_hot_t: [3] float;
   animation_tracks: [10] ANIMATION_Track;
 
-  audio_handled: TimestampMS; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
+  audio_handled: Timestamp; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
 };
 
 Object :: struct
@@ -502,7 +502,7 @@ OBJ_FromNetIndex :: (net_index: u32) -> *Object
 OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   req := AUDIO_Request.{
-    start = GetTimestampMS(),
+    start = GetTimestamp(),
     type = type,
   };
   QueuePush(*obj.s.sound_requests, req);
@@ -510,11 +510,7 @@ OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 
 OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
-  ar := ANIMATION_Request.{
-    start = GetTimestampMS(),
-    type = type,
-  };
-  QueuePush(*obj.s.animation_requests, ar);
+  QueuePush(*obj.s.animation_requests, .{GetTick(), type});
 }
 
 OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
@@ -562,7 +558,7 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
                             index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)));
 
   obj.s.init = true;
-  obj.s.creation_time = GetTimestampMS();
+  obj.s.creation_time = GetTimestamp();
   obj.s.flags = flags;
   obj.s.team = team;
   return obj;

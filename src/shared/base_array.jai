@@ -53,9 +53,10 @@ ArraySuffix :: (array: [] $T, count: s64) -> [] T
   return res;
 }
 
-IndexInBounds :: (array: [] $T, index: s64) -> bool
+IndexInBounds :: (array: [] $T, index: $Y) -> bool
 {
-  return index >= 0 && index < array.count;
+  index_s64: s64 = xx index;
+  return index_s64 >= 0 && index_s64 < array.count;
 }
 
 // Dynamic array helpers

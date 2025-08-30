@@ -63,7 +63,7 @@ ANIMATION_Type :: enum u8
 
 ANIMATION_Request :: struct
 {
-  start: TimestampMS = ~0; // @todo use type like ServerTick here; And add functions like TimeElapsedFromServerTick(tick)
+  start: Tick = Tick_MAX;
   type: ANIMATION_Type;
 }
 
@@ -221,7 +221,7 @@ ANIMATION_AnimateObjects :: ()
       offset0 := RngF_01(*rng);
       offset1 := RngF_01(*rng);
 
-      t := ElapsedTimeS(obj.s.creation_time);
+      t := ElapsedSeconds(obj.s.creation_time);
       obj.l.animated_rot =
         RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
         RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
@@ -347,7 +347,7 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 2);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
+            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
@@ -356,7 +356,7 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 1);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
+            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
@@ -365,7 +365,7 @@ ANIMATION_AnimateObjects :: ()
           {
             anim_mode = .MANUAL01;
             p := QueuePeek(obj.s.animation_requests, 0);
-            pt := ElapsedTimeS(p.start, max_on_fail=true) * 1.0;
+            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
             it.type = p.type;
             it.t = pt;
             it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
@@ -375,7 +375,7 @@ ANIMATION_AnimateObjects :: ()
             if obj.s.death_time
             {
               it.type = .DEATH;
-              it.t = ElapsedTimeS(obj.s.death_time) * 1.0;
+              it.t = ElapsedSeconds(obj.s.death_time) * 1.0;
               it.weight = min(1.0, it.t * 10.0);
             }
             else it.weight = 0.0;

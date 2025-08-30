@@ -12,6 +12,8 @@ CLIENT_State :: struct
   //
   player_key: OBJ_Key;
   player_key_latest_tick_id: u64;
+
+  server_tick_to_client_timestamps: [..] Timestamp;
 };
 
 CLIENT_ObjSnapshots :: struct

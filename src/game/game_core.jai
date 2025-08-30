@@ -5,9 +5,9 @@ GAME_State :: struct
   // core game state
   in_shutdown: bool;
   frame_number: s64;
-  frame_timestamp: TimestampMS;
+  frame_timestamp: Timestamp;
   tick_number: u64 = NET_CLIENT_MAX_SNAPSHOTS;
-  tick_timestamp_accumulator: TimestampMS;
+  tick_timestamp_accumulator: Timestamp;
   dt: float; // frame delta time
   at: float; // animation time
 
@@ -82,7 +82,7 @@ GAME_State :: struct
 
 GAME_Init :: ()
 {
-  G.frame_timestamp = GetTimestampMS(.NOW);
+  G.frame_timestamp = GetTimestamp(.NOW);
 
   if !G.headless
   {
@@ -104,7 +104,7 @@ GAME_Iterate :: ()
 {
   // pre frame logic
   {
-    new_timestamp := GetTimestampMS(.NOW);
+    new_timestamp := GetTimestamp(.NOW);
     delta_timestamp := min(new_timestamp - G.frame_timestamp, 100); // clamp dt to 100ms (10fps)
     G.frame_timestamp = new_timestamp;
 

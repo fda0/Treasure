@@ -48,14 +48,14 @@ TICK_AdvanceSimulation :: ()
     obj.s.attack_continous_t = 0.0;
   }
 
-  if TimeSinceTickS(G.last_sleeper_group_spawn) >= 15.0
+  if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 15.0
   {
     G.sleepers_spawned_in_group_count = 0;
     G.last_sleeper_group_spawn = GetTick();
   }
 
   if G.sleepers_spawned_in_group_count < 5 &&
-     TimeSinceTickS(G.last_sleeper_spawn) >= 0.5
+     ServerSecondsSinceServerTick(G.last_sleeper_spawn, false) >= 0.5
   {
     G.last_sleeper_spawn = GetTick();
     G.sleepers_spawned_in_group_count += 1;
@@ -289,7 +289,7 @@ TICK_AdvanceSimulation :: ()
       gap := target_p - projectile.s.p;
       gap_length := length(gap);
 
-      fly_speed := 1.0 + 5.0*min(1.0, ElapsedTimeS(projectile.s.creation_time));
+      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSeconds(projectile.s.creation_time));
       fly_speed *= TICK_FLOAT_STEP;
 
       if gap_length > 0.0
@@ -323,9 +323,9 @@ TICK_AdvanceSimulation :: ()
     }
     else // IS_DEAD
     {
-      if !obj.s.death_time then obj.s.death_time = GetTimestampMS();
+      if !obj.s.death_time then obj.s.death_time = GetTimestamp();
 
-      death_t := ElapsedTimeS(obj.s.death_time);
+      death_t := ElapsedSeconds(obj.s.death_time);
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
       {

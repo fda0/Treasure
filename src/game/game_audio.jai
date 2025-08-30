@@ -23,14 +23,14 @@ AUDIO_Sound :: struct
 AUDIO_ActiveSound :: struct
 {
   type: AUDIO_SoundType;
-  start_time: TimestampMS;
-  duration: TimestampMS;
+  start_time: Timestamp;
+  duration: Timestamp;
   stream: *SDL_AudioStream;
 }
 
 AUDIO_Request :: struct
 {
-  start: TimestampMS = ~0; // @todo use type like ServerTick here; And add functions like TimeElapsedFromServerTick(tick)
+  start: Timestamp = Timestamp_MAX; // @todo use type like ServerTick here; And add functions like TimeElapsedFromServerTick(tick)
   type: AUDIO_SoundType;
 }
 
@@ -81,7 +81,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 
   active := AUDIO_ActiveSound.{
     type = sound_type,
-    start_time = GetTimestampMS(),
+    start_time = GetTimestamp(),
     duration = xx (sound.data.count*1000 / duration_divisor),
     stream = stream,
   };

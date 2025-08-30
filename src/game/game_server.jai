@@ -8,6 +8,7 @@ SERVER_PlayerActions :: struct
 
 SERVER_State :: struct
 {
+  tick: Tick;
   users: [NET_MAX_PLAYERS] NET_User;
   player_keys: [NET_MAX_PLAYERS] OBJ_Key;
   player_actions: [NET_MAX_PLAYERS] SERVER_PlayerActions;

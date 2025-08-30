@@ -25,7 +25,7 @@ KEY_Flags :: enum_flags u8
 Key :: struct
 {
   f: KEY_Flags;
-  held_start: TimestampMS;
+  held_start: Timestamp;
 };
 
 KEY_Update :: (key_code: KEY_Code, is_down: bool)
@@ -54,7 +54,7 @@ KEY_Update :: (key_code: KEY_Code, is_down: bool)
   if is_pressed   key.f |= PRESSED;
   if is_released  key.f |= RELEASED;
 
-  if is_pressed then key.held_start = GetTimestampMS(.FRAME);
+  if is_pressed then key.held_start = GetTimestamp(.FRAME);
 }
 
 KEY_Consume  :: (key_codes: ..KEY_Code)
@@ -65,18 +65,18 @@ KEY_Consume  :: (key_codes: ..KEY_Code)
   }
 }
 
-KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for: TimestampMS = 0) -> bool
+KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for := 0.0) -> bool
 {
   res := false;
   for key_codes
   {
     key := G.keys[it];
     if key.f & .CONSUMED continue;
-    test := (key.f & flags) && (ElapsedTimeMS(key.held_start) >= held_for);
+    test := (key.f & flags) && (ElapsedSeconds(key.held_start) >= held_for);
     res |= test;
   }
   return res;
 }
-KEY_Held     :: (key_codes: ..KEY_Code, held_for: TimestampMS = 0) -> bool { return KEY_CheckMany(.HELD, ..key_codes, held_for); }
+KEY_Held     :: (key_codes: ..KEY_Code, held_for := 0.0) -> bool { return KEY_CheckMany(.HELD, ..key_codes, held_for); }
 KEY_Pressed  :: (key_codes: ..KEY_Code) -> bool { return KEY_CheckMany(.PRESSED, ..key_codes); }
 KEY_Released :: (key_codes: ..KEY_Code) -> bool { return KEY_CheckMany(.RELEASED, ..key_codes); }

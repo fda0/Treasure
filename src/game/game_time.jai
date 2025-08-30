@@ -1,79 +1,126 @@
-// TimestampMS
-TimestampMS :: #type,distinct u64;
+Timestamp :: #type,distinct u64; // @todo make this a signed type?
+Timestamp_MAX :: U64_MAX;
 
-TimestampType :: enum
+TimeReference :: enum
 {
   FRAME; // timestamp taken at the start of the frame
   NOW; // new timestamp measurement
 }
 
-GetTimestampMS :: (type := TimestampType.FRAME) -> TimestampMS
+GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
-  if #complete type == {
+  if #complete reference == {
     case .FRAME; return G.frame_timestamp;
     case .NOW; return xx SDL_GetTicks();
   }
 }
 
-ElapsedTimeMS :: (from: TimestampMS, to: TimestampMS, max_on_fail := false) -> TimestampMS
+ElapsedTimestamp :: (start: Timestamp, finish: Timestamp, max_on_fail := false) -> Timestamp
 {
-  if from > to return cast(TimestampMS) ifx max_on_fail then ~0 else 0;
-  return to - from;
+  if start > finish return FailTimestamp(max_on_fail);
+  return finish - start;
 }
 
-ElapsedTimeMS :: (from: TimestampMS, to_type := TimestampType.FRAME, max_on_fail := false) -> TimestampMS
+ElapsedTimestamp :: (start: Timestamp, finish_reference := TimeReference.FRAME, max_on_fail := false) -> Timestamp
 {
-  return ElapsedTimeMS(from, GetTimestampMS(to_type), max_on_fail);
+  return ElapsedTimestamp(start, GetTimestamp(finish_reference), max_on_fail);
 }
 
-ElapsedTimeS :: (from: TimestampMS, to: TimestampMS, max_on_fail := false) -> float
+ElapsedSeconds :: (start: Timestamp, finish: Timestamp, max_on_fail := false) -> float, bool
 {
-  if from > to return ifx max_on_fail then FLOAT32_MAX else 0;
-  if (to - from) > FLOAT32_MAX.(u64) return FLOAT32_MAX;
-  return (to - from).(float) * 0.001;
+  if start > finish return FailSeconds(max_on_fail), false;
+  if (finish - start) > xx FLOAT32_MAX return FLOAT32_MAX, true;
+  return (finish - start).(float) * 0.001, true;
 }
 
-ElapsedTimeS :: (from: TimestampMS, to_type := TimestampType.FRAME, max_on_fail := false) -> float
+ElapsedSeconds :: (start: Timestamp, finish_reference := TimeReference.FRAME, max_on_fail := false) -> float, bool
 {
-  return ElapsedTimeS(from, GetTimestampMS(to_type), max_on_fail);
+  f, b := ElapsedSeconds(start, GetTimestamp(finish_reference), max_on_fail);
+  return f, b;
 }
+
+FailTimestamp :: (max_on_fail: bool) -> Timestamp
+{
+  return cast(Timestamp) (ifx max_on_fail then Timestamp_MAX else 0);
+}
+
+FailSeconds :: (max_on_fail: bool) -> float
+{
+  return ifx max_on_fail then FLOAT32_MAX else 0.0;
+}
+
 
 // Tick
-Tick :: #type,distinct u64;
+Tick :: #type,distinct s64;
+STick :: #type,isa Tick; // Server tick
+CTick :: #type,isa Tick; // Client tick
+Tick_MAX :: S64_MAX;
 
 GetTick :: () -> Tick
 {
   return xx G.tick_number;
 }
 
-TimeBetweenTicksMS :: (start: Tick, end: Tick, max_on_fail := false) -> TimestampMS
+
+ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timestamp, bool
 {
-  if start > end
-  {
-    if max_on_fail return ~0;
-    else           return  0;
-  }
-  delta := end - start;
-  return xx (delta * TICK_MILLISECONDS_STEP);
+  // @todo debug mode assert to check that this is called from client thread
+
+  if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
+  return G.client.server_tick_to_client_timestamps[server_tick], true;
 }
 
-TimeSinceTickMS :: (start: Tick, max_on_fail := false) -> TimestampMS
+ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  return TimeBetweenTicksMS(start, GetTick(), max_on_fail);
+  // @todo debug mode assert to check that this is called from client thread
+
+  if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
+  start_client_timestamp := G.client.server_tick_to_client_timestamps[start_server_tick];
+  f, b := ElapsedSeconds(start_client_timestamp);
+  return f, b;
 }
 
-TimeBetweenTicksS :: (start: Tick, end: Tick, max_on_fail := false) -> float
+ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  if start > end
-  {
-    if max_on_fail return FLOAT32_MAX;
-    else           return 0.0;
-  }
-  delta := end - start;
-  return delta * TICK_FLOAT_STEP;
+  // @todo debug mode assert to check that this is called from server thread
+
+  current_server_tick := G.server.tick;
+  if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;
+
+  max_tick := FLOAT32_MAX.(Tick) * TICK_RATE;
+  ticks_delta := current_server_tick - start_server_tick;
+  if ticks_delta > max_tick return FLOAT32_MAX, true;
+
+  return ticks_delta.(float) * TICK_FLOAT_STEP, true;
 }
 
-TimeSinceTickS :: (start: Tick, max_on_fail := false) -> float
-{
-  return TimeBetweenTicksS(start, GetTick(), max_on_fail);
-}
+
+
+// TimeBetweenTicksMS :: (start: Tick, end: Tick, max_on_fail := false) -> TimestampMS
+// {
+//   if start > end
+//   {
+//     if max_on_fail return TimestampMS_MAX;
+//     else           return 0;
+//   }
+//   delta := end - start;
+//   return xx (delta * TICK_MILLISECONDS_STEP);
+// }
+// TimeSinceTickMS :: (start: Tick, max_on_fail := false) -> TimestampMS
+// {
+//   return TimeBetweenTicksMS(start, GetTick(), max_on_fail);
+// }
+// TimeBetweenTicksS :: (start: Tick, end: Tick, max_on_fail := false) -> float
+// {
+//   if start > end
+//   {
+//     if max_on_fail return FLOAT32_MAX;
+//     else           return 0.0;
+//   }
+//   delta := end - start;
+//   return delta * TICK_FLOAT_STEP;
+// }
+// TimeSinceTickS :: (start: Tick, max_on_fail := false) -> float
+// {
+//   return TimeBetweenTicksS(start, GetTick(), max_on_fail);
+// }

@@ -119,7 +119,7 @@ WORLD_DrawObjects :: ()
 
       if obj.s.death_time
       {
-        death_t := ElapsedTimeS(obj.s.death_time);
+        death_t := ElapsedSeconds(obj.s.death_time);
         death_t = clamp((death_t - 0.25) * 2.0, 0.0, 1.0);
         alpha = 1.0 - death_t;
       }

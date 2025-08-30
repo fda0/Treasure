@@ -196,7 +196,7 @@ UI_BuildDeveloperWindow :: ()
       for G.audio.actives
       {
         // @todo not related to dev_ui but add data driver way to tweak volume, pitch etc
-        CreateText(tprint("%, %ms / %ms", it.type, ElapsedTimeMS(it.start_time), it.duration));
+        CreateText(tprint("%, %ms / %ms", it.type, ElapsedTimestamp(it.start_time), it.duration));
       }
       // @todo log recently finished sounds too
 
