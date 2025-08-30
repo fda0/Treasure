@@ -4,7 +4,6 @@ Action :: struct
   {
     IDLE;
     PATHING;
-    PATHING_DIRECTION;
     ATTACK;
   };
 

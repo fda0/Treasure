@@ -6,7 +6,6 @@ GAME_State :: struct
   in_shutdown: bool;
   frame_number: s64;
   frame_timestamp: Timestamp;
-  tick_number: u64 = NET_CLIENT_MAX_SNAPSHOTS;
   tick_timestamp_accumulator: Timestamp;
   dt: float; // frame delta time
   at: float; // animation time
@@ -130,9 +129,50 @@ GAME_Iterate :: ()
   }
 
   NET_IterateReceive();
-  TICK_Iterate();
-  NET_IterateTimeoutUsers();
-  NET_IterateSend();
+
+  {
+    #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+    #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+    tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+    G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+
+    if NET_IsServer() && tick_count > 1
+    {
+      log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
+      tick_count = 1;
+    }
+
+    for MakeRange(tick_count)
+    {
+      if NET_IsServer()
+      {
+        G.server.tick += 1;
+        SIM_AdvanceByTick();
+      }
+
+      if NET_IsClient()
+      {
+        G.client.tick += 1;
+
+        PLAYBACK_PlayTick();
+        if G.client.playable_tick_deltas.tick_catchup > 0
+        {
+          G.client.playable_tick_deltas.tick_catchup -= 1;
+          PLAYBACK_PlayTick();
+        }
+      }
+    }
+  }
+
+  if NET_IsServer()
+  {
+    SERVER_IterateTimeoutUsers();
+    SERVER_IterateSend();
+  }
+  if NET_IsClient()
+  {
+    CLIENT_IterateSend();
+  }
 
   if !G.headless && G.frame_number == 1
   {
@@ -298,7 +338,7 @@ GAME_Iterate :: ()
     {
       move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
       move_pressed := KEY_Pressed(..move_buttons);
-      move_held := KEY_Held(..move_buttons, held_for=250);
+      move_held := KEY_Held(..move_buttons, held_for = 0.25);
 
       if G.world_mouse_valid
       {
@@ -326,19 +366,6 @@ GAME_Iterate :: ()
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
-      }
-
-      if !G.dev.noclip && KEY_Held(.W, .S, .A, .D)
-      {
-        dir: V3;
-        if KEY_Held(.W) dir.x += 1;
-        if KEY_Held(.S) dir.x -= 1;
-        if KEY_Held(.A) dir.y += 1;
-        if KEY_Held(.D) dir.y -= 1;
-
-        Initialize(*G.action);
-        G.action.type = .PATHING_DIRECTION;
-        G.action.world_p = OBJ_Get(.NETWORK, G.client.player_key).s.p + dir;
       }
     }
 
@@ -500,7 +527,8 @@ String :: #import "String";
 #load "game_network.jai";
 #load "game_client.jai";
 #load "game_server.jai";
-#load "game_tick.jai";
+#load "game_simulation.jai";
+#load "game_playback.jai";
 #load "game_audio.jai";
 #load "game_gpu.jai";
 #load "game_gpu_batch.jai";

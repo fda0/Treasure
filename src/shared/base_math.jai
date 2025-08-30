@@ -26,8 +26,14 @@ Mat4 :: struct // @todo change to row-major matrices in the future?
 IsInteger :: (T: Type) -> bool
 {
   ti := T.(*Type_Info);
+  while ti.type == .VARIANT
+  {
+    tv := ti.(*Type_Info_Variant);
+    ti = tv.variant_of;
+  }
   return ti.type == .INTEGER;
 }
+
 IsEnumFlags :: (T: Type) -> bool
 {
   ti := T.(*Type_Info);

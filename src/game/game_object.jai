@@ -510,7 +510,7 @@ OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 
 OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
-  QueuePush(*obj.s.animation_requests, .{GetTick(), type});
+  QueuePush(*obj.s.animation_requests, .{GetServerTick(), type});
 }
 
 OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object

@@ -69,7 +69,7 @@ NET_SendKind :: enum u32
 
 NET_SendHeader :: struct
 {
-  tick_id: u64; // this is already send via packet header
+  tick: Tick; // this is already send via packet header
   kind: NET_SendKind;
 };
 
@@ -222,186 +222,6 @@ NET_IterateReceive :: ()
   }
 }
 
-NET_IterateSend :: ()
-{
-  is_server := G.net.is_server;
-  is_client := !G.net.is_server;
-  if G.net.err return;
-
-  {
-    // hacky temporary network activity rate-limitting
-    if ElapsedTimestamp(G.net.hacky_last_send_timestamp, .FRAME) < 16 then return;
-    G.net.hacky_last_send_timestamp = GetTimestamp(.FRAME);
-  }
-
-  if (is_server)
-  {
-    client_count := 0;
-    for G.server.users
-      if it.address client_count += 1;
-
-    // iterate over connected users
-    player_number := 0;
-    for user, user_index: G.server.users
-    {
-      if !user.address continue;
-      player_number += 1;
-
-      // create player characters and send them to users
-      {
-        player_key := *G.server.player_keys[user_index];
-
-        if OBJ_KeyIsZero(player_key)
-        {
-          model_keys := MODEL_Key.[
-            ModelKey("Dude"),
-            ModelKey("Zombie"),
-            // ModelKey("Worker"),
-            // ModelKey("Formal"),
-            // ModelKey("Casual"),
-          ];
-
-          model := model_keys[user_index % model_keys.count];
-          team := (user_index % 2 + 1).(OBJ_Team);
-          player := OBJ_CreateHero(.NETWORK, model, team);
-          if !OBJ_IsNil(player)
-          {
-            player.s.p.y = -1.5 + user_index * 0.7;
-            r := ifx user_index & 4 then 0.3 else 0.8;
-            g := ifx user_index & 2 then 0.3 else 0.8;
-            b := ifx user_index & 1 then 0.3 else 0.8;
-            player.s.color = Color32_RGBf(r, g, b);
-          }
-          player_key.* = player.s.key;
-        }
-
-        head: NET_SendHeader;
-        head.tick_id = G.tick_number;
-        head.kind = .AssignPlayerKey;
-        NET_PayloadAppendType(head);
-
-        assign: NET_SendAssignPlayerKey;
-        assign.player_key = player_key.*;
-        NET_PayloadAppendType(assign);
-
-        NET_PacketSendAndResetPayload(user);
-      }
-
-      // calculate autolayout for clients
-      // @todo this doesn't have to be done on iterate send
-      if G.window_autolayout
-      {
-        window_count := 1 + client_count;
-
-        rows := 1;
-        cols := 1;
-        for 0..15
-        {
-          total_slots := rows * cols;
-          if total_slots >= window_count
-            break;
-
-          if rows > cols  cols += 1;
-          else            rows += 1;
-        }
-
-        #if 0 // @impl
-        {
-          win_x := G.init_window_px;
-          win_y := G.init_window_py;
-          win_w := G.init_window_width / cols;
-          win_h := G.init_window_height / rows;
-
-          // calc server window
-          GAME_AutoLayoutApply(client_count, win_x, win_y, win_w, win_h);
-
-          // calc client window
-          {
-            window_index := player_number;
-            x := window_index / rows;
-            y := window_index % rows;
-
-            head: NET_SendHeader;
-            head.tick_id = G.tick_id;
-            head.kind = .WindowLayout;
-            NET_PayloadMemcpy(*head, sizeof(head));
-
-            body: NET_SendWindowLayout;
-            body.user_count = client_count;
-            body.px = win_x + x*win_w;
-            body.py = win_y + y*win_h;
-            body.w = win_w;
-            body.h = win_h;
-            NET_PayloadMemcpy(*body, sizeof(body));
-
-            NET_PacketSendAndResetPayload(user);
-          }
-        }
-      }
-    }
-
-    // iterate over network objects
-    for G.obj.network_objects
-    {
-      if OBJ_HasData(it)
-      {
-        head: NET_SendHeader;
-        head.tick_id = G.tick_number;
-        head.kind = .ObjUpdate;
-        NET_PayloadAppendType(head);
-
-        update: NET_SendObjSync;
-        update.net_index = xx it_index;
-        update.sync = it.s;
-        NET_PayloadAppendType(update);
-      }
-      else
-      {
-        head: NET_SendHeader;
-        head.tick_id = G.tick_number;
-        head.kind = .ObjEmpty;
-        NET_PayloadAppendType(head);
-
-        update: NET_SendObjEmpty;
-        update.net_index = xx it_index;
-        NET_PayloadAppendType(update);
-      }
-
-      NET_PacketSendAndResetPayloadBroadcast();
-    }
-  }
-
-  if is_client
-  {
-    {
-      head: NET_SendHeader;
-      head.tick_id = G.tick_number;
-      head.kind = .Ping;
-      NET_PayloadAppendType(head);
-
-      ping: NET_SendPing;
-      NET_PayloadAppendType(ping);
-      NET_PacketSendAndResetPayloadToServer();
-    }
-
-    {
-      head: NET_SendHeader;
-      head.tick_id = G.tick_number;
-      head.kind = .Actions;
-      NET_PayloadAppendType(head);
-
-      payload: NET_SendActions;
-      for * payload.actions
-      {
-        it.* = QueuePeek(G.client.action_queue, it_index);
-      }
-
-      NET_PayloadAppendType(payload);
-      NET_PacketSendAndResetPayloadToServer();
-    }
-  }
-}
-
 NET_PayloadAlloc :: (size: u32) -> *u8
 {
   buf_start := G.net.packet_payload_buf.data;
@@ -501,29 +321,6 @@ NET_PacketSendAndResetPayloadBroadcast :: ()
       NET_SendString(it, packet);
     }
     G.net.payload_used = 0;
-  }
-}
-
-NET_IterateTimeoutUsers :: ()
-{
-  if NET_IsServer()
-  {
-    for *G.server.users
-    {
-      if !it.address continue;
-      if ElapsedSeconds(it.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
-      {
-        Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
-
-        if G.server_exit_on_disconnect
-        {
-          Nlog(LOG_Important, "Quitting server on client disconnect because -exit-on-dc argument was used.");
-          G.in_shutdown = true;
-        }
-
-        NET_RemoveUser(it);
-      }
-    }
   }
 }
 
@@ -658,30 +455,30 @@ NET_ProcessReceivedPayload :: (player_id: u16, full_message: string)
         continue;
       }
 
-      if G.client.next_playback_tick > head.tick_id
+      if G.client.next_playback_server_tick > head.tick
       {
         Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
-            head.kind, head.tick_id, G.client.next_playback_tick);
+            head.kind, head.tick, G.client.next_playback_server_tick);
         continue;
       }
 
       snap := *G.client.snaps_of_objs[update.net_index];
-      CLIENT_InsertSnapshot(snap, head.tick_id, update.sync);
+      CLIENT_InsertSnapshot(snap, head.tick, update.sync);
     }
     else if head.kind == .Actions
     {
       in_net := NET_Consume(NET_SendActions, *msg);
       player := *G.server.player_actions[player_id];
-      SERVER_InsertPlayerAction(player, *in_net, head.tick_id);
+      SERVER_InsertPlayerAction(player, *in_net, head.tick);
     }
     else if head.kind == .AssignPlayerKey
     {
       assign := NET_Consume(NET_SendAssignPlayerKey, *msg);
 
-      if G.client.player_key_latest_tick_id < head.tick_id
+      if G.client.player_key_latest_tick < head.tick
       {
         G.client.player_key = assign.player_key;
-        G.client.player_key_latest_tick_id = head.tick_id;
+        G.client.player_key_latest_tick = head.tick;
       }
     }
     else if head.kind == .WindowLayout

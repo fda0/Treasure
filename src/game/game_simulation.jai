@@ -2,45 +2,14 @@ TICK_RATE :: 100;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
-TICK_Iterate :: ()
-{
-  #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-  #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-  tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-  G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
-
-  for MakeRange(tick_count)
-  {
-    G.tick_number += 1;
-
-    if NET_IsServer()
-    {
-      if tick_count > 1
-      {
-        log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
-        tick_count = min(tick_count, 1);
-      }
-      TICK_AdvanceSimulation();
-    }
-
-    if NET_IsClient()
-    {
-      TICK_Playback();
-      if G.client.playable_tick_deltas.tick_catchup > 0
-      {
-        G.client.playable_tick_deltas.tick_catchup -= 1;
-        TICK_Playback();
-      }
-    }
-  }
-}
-
 MINIMUM_MOVE_START_DISTANCE :: 0.05;
 MELEE_ATTACK_DISTANCE :: 0.8;
 PROJECTILE_HIT_DISTANCE :: 0.1;
 
-TICK_AdvanceSimulation :: ()
+SIM_AdvanceByTick :: ()
 {
+  assert(NET_IsServer());
+
   reset_attack_timers :: (obj: *Object)
   {
     obj.s.target = .{};
@@ -51,13 +20,13 @@ TICK_AdvanceSimulation :: ()
   if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 15.0
   {
     G.sleepers_spawned_in_group_count = 0;
-    G.last_sleeper_group_spawn = GetTick();
+    G.last_sleeper_group_spawn = GetServerTick();
   }
 
   if G.sleepers_spawned_in_group_count < 5 &&
      ServerSecondsSinceServerTick(G.last_sleeper_spawn, false) >= 0.5
   {
-    G.last_sleeper_spawn = GetTick();
+    G.last_sleeper_spawn = GetServerTick();
     G.sleepers_spawned_in_group_count += 1;
 
     for team: BOTH_TEAMS
@@ -122,8 +91,7 @@ TICK_AdvanceSimulation :: ()
     }
 
     obj_move_dir: V2;
-    if action.type == .PATHING ||
-       action.type == .PATHING_DIRECTION
+    if action.type == .PATHING
     {
       obj_to_destination := action.world_p.xy - obj.s.p.xy;
       distance := length(obj_to_destination);
@@ -347,7 +315,7 @@ TICK_AdvanceSimulation :: ()
     }
   }
 
-  TICK_MoveAndCollideObjects();
+  SIM_MoveAndCollideObjects();
 
   for * obj: G.obj.all_objects
   {
@@ -359,7 +327,7 @@ TICK_AdvanceSimulation :: ()
   }
 }
 
-TICK_MoveAndCollideObjects :: ()
+SIM_MoveAndCollideObjects :: ()
 {
   for * obj: G.obj.network_objects
   {
@@ -461,76 +429,4 @@ TICK_MoveAndCollideObjects :: ()
     if length(obj.s.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
       obj.s.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
   } // obj loop
-}
-
-TICK_Playback :: ()
-{
-  smallest_latest_server_tick: u64 = U64_MAX;
-  biggest_oldest_server_tick: u64 = 0;
-  for snap: G.client.snaps_of_objs
-  {
-    if snap.latest_server_tick < smallest_latest_server_tick
-      smallest_latest_server_tick = snap.latest_server_tick;
-
-    if snap.oldest_server_tick > biggest_oldest_server_tick
-      biggest_oldest_server_tick = snap.oldest_server_tick;
-  }
-
-  if biggest_oldest_server_tick > G.client.next_playback_tick
-  {
-    Nlog(LOG_NetTick, #run String.join(
-      "Server is too ahead from the client;",
-      "biggest_oldest_server_tick: %,",
-      "smallest_latest_server_tick: %,",
-      "client's next_playback_tick: %,",
-      "playback delay: %,",
-      "playback catchup %,",
-      "[bumping client's next_playback_tick]"),
-      biggest_oldest_server_tick,
-      smallest_latest_server_tick,
-      G.client.next_playback_tick,
-      G.client.current_playback_delay,
-      G.client.playable_tick_deltas.tick_catchup);
-
-    G.client.next_playback_tick = biggest_oldest_server_tick;
-  }
-
-  if smallest_latest_server_tick < G.client.next_playback_tick
-  {
-    Nlog(LOG_NetTick, #run String.join(
-      "Ran out of tick playback state; ",
-      "next_playback_tick: %, ",
-      "smallest_latest_server_tick: %, ",
-      "playback delay: %, ",
-      "playback catchup %"),
-      G.client.next_playback_tick,
-      smallest_latest_server_tick,
-      G.client.current_playback_delay,
-      G.client.playable_tick_deltas.tick_catchup);
-    return;
-  }
-
-  // calc current delay
-  {
-    current_playback_delay_u64 := smallest_latest_server_tick - G.client.next_playback_tick;
-    G.client.current_playback_delay = CastSaturate(u16, current_playback_delay_u64);
-  }
-
-  if TickDeltas_AddTick(*G.client.playable_tick_deltas, smallest_latest_server_tick)
-  {
-    TickDeltas_UpdateCatchup(*G.client.playable_tick_deltas, G.client.current_playback_delay);
-    if G.client.playable_tick_deltas.tick_catchup
-    {
-      Nlog(LOG_NetCatchup, "Current playback delay: %d,  Setting playback catchup to %d",
-        G.client.current_playback_delay, G.client.playable_tick_deltas.tick_catchup);
-    }
-  }
-
-  for net_index: MakeRange(OBJ_MAX_NETWORK_OBJECTS.(u32))
-  {
-    interpolated_sync := CLIENT_LerpObjSync(net_index, G.client.next_playback_tick);
-    net_obj := OBJ_FromNetIndex(net_index);
-    net_obj.s = interpolated_sync;
-  }
-  G.client.next_playback_tick += 1;
 }

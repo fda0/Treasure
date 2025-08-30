@@ -3,13 +3,13 @@ TickDeltas :: struct
   // This tracks things like every-increasing U64 ticks
   // last_tick == 0 is a special case that will trigger
   // init code
-  last_tick: u64;
+  last_tick: Tick;
   deltas: [64] u16;
   next_delta_index: u16;
   tick_catchup: u16;
 };
 
-TickDeltas_AddTick :: (td: *TickDeltas, tick: u64) -> bool
+TickDeltas_AddTick :: (td: *TickDeltas, tick: Tick) -> bool
 {
   if td.last_tick == tick
     return false;
