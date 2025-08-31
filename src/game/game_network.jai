@@ -319,9 +319,9 @@ NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *NET_User
 NET_Consume:: ($T: Type, packet: *string) -> T
 {
   value: T;
-  to_copy := STR_Prefix(packet.*, size_of(T));
+  to_copy := Prefix(packet.*, size_of(T));
   memcpy(*value, to_copy.data, to_copy.count);
-  packet.* = STR_Skip(packet.*, to_copy.count);
+  packet.* = Skip(packet.*, to_copy.count);
   return value;
 }
 

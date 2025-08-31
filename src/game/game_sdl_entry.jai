@@ -200,9 +200,9 @@ ImportMapForSDL :: (names: [] string)
     name := it.*;
     new_name: string;
 
-    if S.STR_StartsWith(name, "NET_")
-      new_name = B.tprint("SDLNet_%", S.STR_Skip(name, 4));
-    else if !S.STR_StartsWith(name, "SDL")
+    if S.StartsWith(name, "NET_")
+      new_name = B.tprint("SDLNet_%", S.Skip(name, 4));
+    else if !S.StartsWith(name, "SDL")
       new_name = B.tprint("SDL%", name);
 
     if new_name.count

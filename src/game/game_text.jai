@@ -24,8 +24,8 @@ TEXT_ProcessLine :: (text: string, font: FONT_Family, pixel_height: u16, using p
   t := text;
   while t.count
   {
-    codepoint, byte_length := STR_DecodeUTF8(t);
-    t = STR_Skip(t, byte_length);
+    codepoint, byte_length := DecodeUTF8(t);
+    t = Skip(t, byte_length);
 
     glyph := FONT_GetGlyph(codepoint, font, pixel_height);
 

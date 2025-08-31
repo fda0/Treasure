@@ -39,7 +39,7 @@ HOT_RELOAD_FileWatcherCallback :: (watcher: *File_Watcher(void), change: *File_C
   log("[HOT_RELOAD] Change for path %: %", change.full_path, change.events);
   if change.events & .MODIFIED
   {
-    if STR_EndsWith(change.full_path, "data.pie")
+    if EndsWith(change.full_path, "data.pie")
     {
       HOT_RELOAD_ProcessNewPIEFile(change.full_path);
     }

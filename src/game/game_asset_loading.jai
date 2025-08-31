@@ -207,7 +207,7 @@ ASSET_LoadPieFile :: (file_path: string)
   if err return;
   pie.header = header.data;
 
-  hashable := STR_Skip(PIE_LOAD_File(), size_of(type_of(pie.header.file_hash)));
+  hashable := Skip(PIE_LOAD_File(), size_of(type_of(pie.header.file_hash)));
   calculated_hash := Hash64Any(PIE_MAGIC_HASH_SEED, hashable);
   PIE_LOAD_Check(calculated_hash == pie.header.file_hash,
     tprint("Calculated hash (%) doesn't match file hash (%).", calculated_hash, pie.header.file_hash));
@@ -428,7 +428,7 @@ ASSET_InitSkeletons :: ()
 
     skel.joint_names = NewArray(name_ranges.count, string);
     for *skel.joint_names
-      it.* = STR_Substring(PIE_LOAD_File(), name_ranges[it_index].min, name_ranges[it_index].max);
+      it.* = Substring(PIE_LOAD_File(), name_ranges[it_index].min, name_ranges[it_index].max);
 
     // Animations
     pie_anims := PIE_LOAD_ListToArray(pie_skel.anims);

@@ -1,4 +1,4 @@
-STR_MatchFlags :: enum_flags u32
+MatchFlags :: enum_flags u32
 {
   FindLast;
   RightSideSloppy;
@@ -6,14 +6,14 @@ STR_MatchFlags :: enum_flags u32
   SlashInsensitive;
 };
 
-STR_Range :: (first: *u8, last: *u8) -> string
+FromRange :: (first: *u8, last: *u8) -> string
 {
   res: string;
   res.data = first;
   res.count = cast(s64)last - cast(s64)first;
   return res;
 }
-STR_Substring :: (str: string, sub_min: s64, sub_max: s64) -> string
+Substring :: (str: string, sub_min: s64, sub_max: s64) -> string
 {
   sub_max = clamp(sub_max, 0, str.count);
   sub_min = clamp(sub_min, 0, str.count);
@@ -24,7 +24,7 @@ STR_Substring :: (str: string, sub_min: s64, sub_max: s64) -> string
   res.data = str.data + sub_min;
   return res;
 }
-STR_Skip :: (str: string, distance: s64) -> string
+Skip :: (str: string, distance: s64) -> string
 {
   distance = clamp(distance, 0, str.count);
 
@@ -33,7 +33,7 @@ STR_Skip :: (str: string, distance: s64) -> string
   res.count -= distance;
   return res;
 }
-STR_Chop :: (str: string, distance_from_end: s64) -> string
+Chop :: (str: string, distance_from_end: s64) -> string
 {
   distance_from_end = clamp(distance_from_end, 0, str.count);
 
@@ -41,7 +41,7 @@ STR_Chop :: (str: string, distance_from_end: s64) -> string
   res.count -= distance_from_end;
   return res;
 }
-STR_Prefix :: (str: string, count: s64) -> string
+Prefix :: (str: string, count: s64) -> string
 {
   count = clamp(count, 0, str.count);
 
@@ -49,7 +49,7 @@ STR_Prefix :: (str: string, count: s64) -> string
   res.count = count;
   return res;
 }
-STR_Suffix :: (str: string, count: s64) -> string
+Suffix :: (str: string, count: s64) -> string
 {
   count = clamp(count, 0, str.count);
   distance := str.count - count;
@@ -60,13 +60,18 @@ STR_Suffix :: (str: string, count: s64) -> string
   return res;
 }
 
-STR_EndsWith :: (haystack: string, needle: string, flags: STR_MatchFlags = 0) -> bool
+StartsWith :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
 {
-  h := STR_Suffix(haystack, needle.count);
-  return STR_Match(h, needle, flags);
+  h := Prefix(haystack, needle.count);
+  return Match(h, needle, flags);
+}
+EndsWith :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
+{
+  h := Suffix(haystack, needle.count);
+  return Match(h, needle, flags);
 }
 
-STR_Match :: (a: string, b: string, flags: STR_MatchFlags = 0) -> bool
+Match :: (a: string, b: string, flags: MatchFlags = 0) -> bool
 {
   result := false;
   if (a.count == b.count || flags & .RightSideSloppy)
@@ -82,10 +87,13 @@ STR_Match :: (a: string, b: string, flags: STR_MatchFlags = 0) -> bool
       match := (a.data[i] == b.data[i]);
 
       // if (flags & .CaseInsensitive)
+      // {
       //   match |= (ByteToLower(a.data[i]) == ByteToLower(b.data[i]));
-
+      // }
       // if (flags & .SlashInsensitive)
+      // {
       //   match |= (ByteToForwardSlash(a.data[i]) == ByteToForwardSlash(b.data[i]));
+      // }
 
       if !match
       {
@@ -97,13 +105,7 @@ STR_Match :: (a: string, b: string, flags: STR_MatchFlags = 0) -> bool
   return result;
 }
 
-STR_StartsWith :: (haystack: string, needle: string, flags: STR_MatchFlags = 0) -> bool
-{
-  h := STR_Prefix(haystack, needle.count);
-  return STR_Match(h, needle, flags);
-}
-
-STR_DecodeUTF8 :: (str: string) -> codepoint:u32, byte_length:s64
+DecodeUTF8 :: (str: string) -> codepoint:u32, byte_length:s64
 {
   codepoint: u32 = ~cast(u32)0;
   byte_length: s64 = 1;
