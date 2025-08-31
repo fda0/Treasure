@@ -53,10 +53,16 @@ FailSeconds :: (max_on_fail: bool) -> float
 Tick :: #type,distinct s64;
 Tick_MAX :: cast(Tick) S64_MAX;
 
-GetClientTick :: () -> Tick
+GetClientActionTick :: () -> Tick
 {
   assert(NET_IsClient());
-  return G.client.tick;
+  return G.client.action_tick;
+}
+
+GetClientPlaybackTick :: () -> Tick
+{
+  assert(NET_IsClient());
+  return G.client.playback_tick;
 }
 
 GetServerTick :: () -> Tick

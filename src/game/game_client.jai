@@ -1,15 +1,17 @@
 CLIENT_State :: struct
 {
-  tick: Tick;
+  // client actions sent to the server
+  action_tick: Tick;
+  action: Action; // Accumulates actions. Flushed to client.action_queue once in a while.
+  action_queue: Queue(NET_MAX_ACTION_COUNT, Action);
 
+  // playback state received from the server
+  playback_tick: Tick;
   snaps_of_objs: [OBJ_MAX_NETWORK_OBJECTS] CLIENT_ObjSnapshots;
   next_playback_server_tick: Tick;
 
   current_playback_delay: u16;
   playable_tick_deltas: TickDeltas; // used to control playback catch-up
-
-  // circular buffer with tick inputs
-  action_queue: Queue(NET_MAX_ACTION_COUNT, Action);
 
   //
   player_key: OBJ_Key;
@@ -26,6 +28,15 @@ CLIENT_ObjSnapshots :: struct
   recent_lerp_start_tick: Tick;
   recent_lerp_end_tick: Tick;
 };
+
+CLIENT_FlushActionTick :: ()
+{
+  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+
+  G.client.action_tick += 1;
+  QueuePush(*G.client.action_queue, G.client.action);
+  // @todo clear skills queue once it exsits in Action
+}
 
 CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *OBJ_Sync
 {
@@ -187,7 +198,7 @@ CLIENT_IterateSend :: ()
 
   {
     head: NET_SendHeader;
-    head.tick = GetClientTick();
+    head.tick = GetClientActionTick();
     head.kind = .Ping;
     NET_PayloadAppendType(head);
 
@@ -198,7 +209,7 @@ CLIENT_IterateSend :: ()
 
   {
     head: NET_SendHeader;
-    head.tick = GetClientTick();
+    head.tick = GetClientActionTick();
     head.kind = .Actions;
     NET_PayloadAppendType(head);
 

@@ -58,9 +58,6 @@ GAME_State :: struct
   keys: [KEY_Code.COUNT] Key;
   hover_object: OBJ_Key;
 
-  // gameplay actions
-  action: Action;
-
   rng: Entropy = .{~12234, 92389123}; // @todo Replace with specific purpose Entropy seeds.
 
   // sun
@@ -162,7 +159,7 @@ GAME_Iterate :: ()
     {
       for MakeRange(tick_count)
       {
-        G.client.tick += 1;
+        G.client.playback_tick += 1;
 
         CLIENT_PlayTick();
         if G.client.playable_tick_deltas.tick_catchup > 0
@@ -358,18 +355,17 @@ GAME_Iterate :: ()
 
         if move_pressed && hovers_enemy
         {
-          Initialize(*G.action);
-          G.action.type = .ATTACK;
-          G.action.target_object = G.hover_object;
-          G.action.world_p = G.world_mouse;
+          G.client.action.type = .ATTACK;
+          G.client.action.target_object = G.hover_object;
+          G.client.action.world_p = G.world_mouse;
         }
 
         if (move_pressed && !hovers_enemy) ||
-           (move_held && G.action.type == .PATHING)
+           (move_held && G.client.action.type == .PATHING)
         {
-          Initialize(*G.action);
-          G.action.type = .PATHING;
-          G.action.world_p = G.world_mouse;
+          G.client.action.type = .PATHING;
+          G.client.action.world_p = G.world_mouse;
+          G.client.action.target_object = .{};
           if move_pressed
           {
             marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
@@ -378,23 +374,23 @@ GAME_Iterate :: ()
         }
       }
 
-      G.action.type = .PATHING;
-      G.action.world_p = .{10,20,0};
+      if true { // debug overwrite
+        G.client.action.type = .PATHING;
+        G.client.action.world_p = .{10,20,0};
+        G.client.action.target_object = .{};
+      }
     }
 
-    // Append action to client action queue
-    {
-      QueuePush(*G.client.action_queue, G.action);
-    }
+    CLIENT_FlushActionTick();
 
     marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if G.action.type == .PATHING
+      if G.client.action.type == .PATHING
       {
         marker.s.flags |= .DRAW_MODEL;
         marker.s.model = ModelKey("Flag");
-        marker.s.p = G.action.world_p;
+        marker.s.p = G.client.action.world_p;
         marker.l.animated_p.xy = marker.s.p.xy;
         G.obj.pathing_marker_set = true;
       }
