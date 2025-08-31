@@ -227,21 +227,87 @@ CLIENT_IterateReceive :: ()
     Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
-    dgram_error := false;
+    invalid_dgram := false;
     if !NET_UserMatchAddrPort(*G.net.server_user, dgram.addr, dgram.port)
     {
-      dgram_error = true;
+      invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",
         to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
     }
 
-    if !dgram_error
+    if !invalid_dgram
     {
       packet := string.{dgram.buflen, dgram.buf};
-      NET_ReceivePacket(NET_MAX_PLAYERS, packet);
+      payload := NET_RawPacketToPayload(packet);
+      CLIENT_ReceivePayload(payload);
     }
 
     SDLNet_DestroyDatagram(dgram);
+  }
+}
+
+CLIENT_ReceivePayload :: (full_payload: string)
+{
+  msg := full_payload;
+  while msg.count
+  {
+    head := NET_Consume(NET_SendHeader, *msg);
+
+    if head.kind == .Ping
+    {
+      ping := NET_Consume(NET_SendPing, *msg);
+    }
+    else if (head.kind == .ObjUpdate || head.kind == .ObjEmpty)
+    {
+      update: NET_SendObjSync;
+      if (head.kind == .ObjUpdate)
+      {
+        update = NET_Consume(NET_SendObjSync, *msg);
+      }
+      else
+      {
+        empty := NET_Consume(NET_SendObjEmpty, *msg);
+        update.net_index = empty.net_index;
+        update.sync.init = true;
+      }
+
+      if update.net_index >= OBJ_MAX_NETWORK_OBJECTS
+      {
+        Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", head.kind, update.net_index);
+        continue;
+      }
+
+      if G.client.next_playback_server_tick > head.tick
+      {
+        Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
+          head.kind, head.tick, G.client.next_playback_server_tick);
+        continue;
+      }
+
+      snap := *G.client.snaps_of_objs[update.net_index];
+      CLIENT_InsertSnapshot(snap, head.tick, update.sync);
+    }
+    else if head.kind == .AssignPlayerKey
+    {
+      assign := NET_Consume(NET_SendAssignPlayerKey, *msg);
+
+      if G.client.player_key_latest_tick < head.tick
+      {
+        G.client.player_key = assign.player_key;
+        G.client.player_key_latest_tick = head.tick;
+      }
+    }
+    else if head.kind == .WindowLayout
+    {
+      layout := NET_Consume(NET_SendWindowLayout, *msg);
+      if G.window_autolayout
+      GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
+    }
+    else
+    {
+      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", head.kind);
+      return;
+    }
   }
 }
 

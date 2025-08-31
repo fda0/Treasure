@@ -325,31 +325,26 @@ NET_Consume:: ($T: Type, packet: *string) -> T
   return value;
 }
 
-NET_ReceivePacket :: (player_id: u16, original_packet: string)
+NET_RawPacketToPayload :: (raw_packet: string) -> payload: string
 {
-  packet := original_packet;
-
-  if G.net.is_server && player_id >= NET_MAX_PLAYERS
-    return;
-
+  packet := raw_packet;
   if packet.count < size_of(NET_PacketHeader)
   {
     Nlog(LOG_NetPacket, "packet rejected - it's too small, size: %llu", packet.count);
-    return;
+    return "";
   }
 
   header := NET_Consume(NET_PacketHeader, *packet);
-
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);
-    return;
+    return  "";
   }
 
   if (header.magic_value != NET_MAGIC_VALUE)
   {
     Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, NET_MAGIC_VALUE);
-    return;
+    return "";
   }
 
   // validate hash
@@ -358,82 +353,10 @@ NET_ReceivePacket :: (player_id: u16, original_packet: string)
   if (hash16 != header.payload_hash)
   {
     Nlog(LOG_NetPacket, "packet rejected - invalid hash: %; calculated: %", header.payload_hash, hash16);
-    return;
+    return "";
   }
 
-  NET_ProcessReceivedPayload(player_id, packet);
-}
-
-NET_ProcessReceivedPayload :: (player_id: u16, full_message: string)
-{
-  msg := full_message;
-  while msg.count
-  {
-    head := NET_Consume(NET_SendHeader, *msg);
-
-    if head.kind == .Ping
-    {
-      ping := NET_Consume(NET_SendPing, *msg);
-    }
-    else if (head.kind == .ObjUpdate ||
-             head.kind == .ObjEmpty)
-    {
-      update: NET_SendObjSync;
-      if (head.kind == .ObjUpdate)
-      {
-        update = NET_Consume(NET_SendObjSync, *msg);
-      }
-      else
-      {
-        empty := NET_Consume(NET_SendObjEmpty, *msg);
-        update.net_index = empty.net_index;
-        update.sync.init = true;
-      }
-
-      if update.net_index >= OBJ_MAX_NETWORK_OBJECTS
-      {
-        Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", head.kind, update.net_index);
-        continue;
-      }
-
-      if G.client.next_playback_server_tick > head.tick
-      {
-        Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
-            head.kind, head.tick, G.client.next_playback_server_tick);
-        continue;
-      }
-
-      snap := *G.client.snaps_of_objs[update.net_index];
-      CLIENT_InsertSnapshot(snap, head.tick, update.sync);
-    }
-    else if head.kind == .Actions
-    {
-      in_net := NET_Consume(NET_SendActions, *msg);
-      player := *G.server.player_actions[player_id];
-      SERVER_ReceivePlayerActions(player, *in_net, head.tick);
-    }
-    else if head.kind == .AssignPlayerKey
-    {
-      assign := NET_Consume(NET_SendAssignPlayerKey, *msg);
-
-      if G.client.player_key_latest_tick < head.tick
-      {
-        G.client.player_key = assign.player_key;
-        G.client.player_key_latest_tick = head.tick;
-      }
-    }
-    else if head.kind == .WindowLayout
-    {
-      layout := NET_Consume(NET_SendWindowLayout, *msg);
-      if G.window_autolayout
-        GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
-    }
-    else
-    {
-      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", head.kind);
-      return;
-    }
-  }
+  return packet;
 }
 
 NET_IsServer :: () -> bool

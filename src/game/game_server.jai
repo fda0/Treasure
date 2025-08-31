@@ -276,26 +276,49 @@ SERVER_IterateReceive :: ()
     Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
-    player_id: u16 = NET_MAX_PLAYERS;
+    user := NET_FindUser(dgram.addr, dgram.port);
+    if !user
     {
-      user := NET_FindUser(dgram.addr, dgram.port);
-      if !user
-      {
-        Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
-        user = NET_AddUser(dgram.addr, dgram.port);
-      }
-
-      if user
-      {
-        user.last_msg_timestamp = GetTimestamp(.FRAME);
-        user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
-        player_id = user_id.(u16);
-      }
+      Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
+      user = NET_AddUser(dgram.addr, dgram.port);
     }
 
-    packet := string.{dgram.buflen, dgram.buf};
-    NET_ReceivePacket(player_id, packet);
+    if user
+    {
+      user.last_msg_timestamp = GetTimestamp(.FRAME);
+      user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
+      player_id := user_id.(u16);
+
+      packet := string.{dgram.buflen, dgram.buf};
+      payload := NET_RawPacketToPayload(packet);
+      SERVER_ReceivePayload(player_id, payload);
+    }
 
     SDLNet_DestroyDatagram(dgram);
+  }
+}
+
+SERVER_ReceivePayload :: (player_id: u16, full_payload: string)
+{
+  msg := full_payload;
+  while msg.count
+  {
+    head := NET_Consume(NET_SendHeader, *msg);
+
+    if head.kind == .Ping
+    {
+      ping := NET_Consume(NET_SendPing, *msg);
+    }
+    else if head.kind == .Actions
+    {
+      in_net := NET_Consume(NET_SendActions, *msg);
+      player := *G.server.player_actions[player_id];
+      SERVER_ReceivePlayerActions(player, *in_net, head.tick);
+    }
+    else
+    {
+      Nlog(LOG_NetPayload, "Unsupported payload header kind: %d", head.kind);
+      return;
+    }
   }
 }
