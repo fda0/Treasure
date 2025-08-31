@@ -29,7 +29,6 @@ ElapsedTimestamp :: (start: Timestamp, finish_reference := TimeReference.FRAME, 
 ElapsedSeconds :: (start: Timestamp, finish: Timestamp, max_on_fail := false) -> float, bool
 {
   if start > finish return FailSeconds(max_on_fail), false;
-  if (finish - start) > xx FLOAT32_MAX return FLOAT32_MAX, true;
   return (finish - start).(float) * 0.001, true;
 }
 
@@ -69,7 +68,7 @@ GetServerTick :: () -> Tick
 
 ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timestamp, bool
 {
-  assert(NET_IsClient());
+  // assert(NET_IsClient());
   // @todo debug mode assert to check that this is called from client thread
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
@@ -78,7 +77,7 @@ ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timesta
 
 ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  assert(NET_IsClient());
+  // assert(NET_IsClient());
   // @todo debug mode assert to check that this is called from client thread
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
@@ -95,10 +94,7 @@ ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
   current_server_tick := G.server.tick;
   if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;
 
-  max_tick := FLOAT32_MAX.(Tick) * TICK_RATE;
   ticks_delta := current_server_tick - start_server_tick;
-  if ticks_delta > max_tick return FLOAT32_MAX, true;
-
   return ticks_delta.(float) * TICK_FLOAT_STEP, true;
 }
 

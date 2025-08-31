@@ -14,33 +14,45 @@ SERVER_PlayerActions :: struct
   receive_deltas: TickDeltas;
 };
 
-SERVER_InsertPlayerAction :: (player: *SERVER_PlayerActions, net_msg: *NET_SendActions, net_msg_tick: Tick)
+SERVER_ReceiveDatagram :: ()
 {
-  // @refactor this is dumb and complicated!
-  if net_msg_tick <= player.latest_client_tick
-    return; // no new actions
+  if G.net.err return;
+  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
-  pre_insert_action_queue_count := player.action_queue.count;
+}
 
-  assert(net_msg_tick >= net_msg.actions.count);
-  first_action_tick := net_msg_tick - net_msg.actions.count;
+SERVER_ReceivePlayerActions :: (player: *SERVER_PlayerActions, net_msg: *NET_SendActions, client_tick: Tick)
+{
+  if player.latest_client_tick >= client_tick then return;
 
-  for action_index: MakeRange(net_msg.actions.count)
+  log("Client tick %; actions: %", client_tick, net_msg.actions);
+
+  new_actions := ArrayPrefix(net_msg.actions, xx client_tick); // For initial client ticks only the first elements of action buffer will be filled. Truncate the array to skip these unitialized elements.
+
+  end_tick := client_tick;
+  start_tick := end_tick - xx new_actions.count;
+
+  if player.latest_client_tick >= start_tick
   {
-    action_tick := first_action_tick + xx action_index;
-    if action_tick <= player.latest_client_tick
-    {
-      // reject old actions
-      continue;
-    }
+    stale_ticks_count := player.latest_client_tick - start_tick + 1;
 
-    // store action
-    QueuePush(*player.action_queue, net_msg.actions[action_index]);
+    new_actions = ArraySkip(new_actions, xx stale_ticks_count);
+    start_tick += stale_ticks_count;
   }
 
-  player.latest_client_tick = net_msg_tick;
+  if !new_actions.count then return; // no new actions
 
-  if TickDeltas_AddTick(*player.receive_deltas, net_msg_tick)
+  pre_insert_action_queue_count := player.action_queue.count;
+  for new_actions
+  {
+    QueuePush(*player.action_queue, it);
+  }
+
+  player.latest_client_tick = client_tick;
+
+
+  // @todo THIS code might require refactor; This system could be a separate thing living on top of action queue.
+  if TickDeltas_AddTick(*player.receive_deltas, client_tick)
   {
     TickDeltas_UpdateCatchup(*player.receive_deltas, xx pre_insert_action_queue_count);
     if player.receive_deltas.tick_catchup
@@ -93,12 +105,7 @@ SERVER_GetPlayerAction :: (player_index: u32) -> Action
 SERVER_IterateSend :: ()
 {
   if G.net.err return;
-
-  {
-    // hacky temporary network activity rate-limitting
-    if ElapsedSeconds(G.net.hacky_last_send_timestamp) < 0.016 then return;
-    G.net.hacky_last_send_timestamp = GetTimestamp(.FRAME);
-  }
+  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
   client_count := 0;
   for G.server.users
@@ -252,5 +259,43 @@ SERVER_IterateTimeoutUsers :: ()
 
       NET_RemoveUser(it);
     }
+  }
+}
+
+SERVER_IterateReceive :: ()
+{
+  if G.net.err return;
+  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+
+  while true
+  {
+    dgram: *SDLNet_Datagram;
+    receive := SDLNet_ReceiveDatagram(G.net.socket, *dgram);
+    if !receive || !dgram break;
+
+    Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
+      dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
+
+    player_id: u16 = NET_MAX_PLAYERS;
+    {
+      user := NET_FindUser(dgram.addr, dgram.port);
+      if !user
+      {
+        Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
+        user = NET_AddUser(dgram.addr, dgram.port);
+      }
+
+      if user
+      {
+        user.last_msg_timestamp = GetTimestamp(.FRAME);
+        user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
+        player_id = user_id.(u16);
+      }
+    }
+
+    packet := string.{dgram.buflen, dgram.buf};
+    NET_ReceivePacket(player_id, packet);
+
+    SDLNet_DestroyDatagram(dgram);
   }
 }

@@ -128,7 +128,14 @@ GAME_Iterate :: ()
     FONT_MaybeResizeAtlasTexture();
   }
 
-  NET_IterateReceive();
+  if NET_IsServer()
+  {
+    SERVER_IterateReceive();
+  }
+  if NET_IsClient()
+  {
+    CLIENT_IterateReceive();
+  }
 
   {
     #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
@@ -136,29 +143,32 @@ GAME_Iterate :: ()
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
-    if NET_IsServer() && tick_count > 1
+    if NET_IsServer()
     {
-      log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
-      tick_count = 1;
-    }
-
-    for MakeRange(tick_count)
-    {
-      if NET_IsServer()
+      for MakeRange(tick_count)
       {
         G.server.tick += 1;
         SIM_AdvanceByTick();
-      }
 
-      if NET_IsClient()
+        if tick_count > 1
+        {
+          log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
+          break;
+        }
+      }
+    }
+
+    if NET_IsClient()
+    {
+      for MakeRange(tick_count)
       {
         G.client.tick += 1;
 
-        PLAYBACK_PlayTick();
+        CLIENT_PlayTick();
         if G.client.playable_tick_deltas.tick_catchup > 0
         {
           G.client.playable_tick_deltas.tick_catchup -= 1;
-          PLAYBACK_PlayTick();
+          CLIENT_PlayTick();
         }
       }
     }
@@ -367,6 +377,9 @@ GAME_Iterate :: ()
           }
         }
       }
+
+      G.action.type = .PATHING;
+      G.action.world_p = .{10,20,0};
     }
 
     // Append action to client action queue
@@ -528,7 +541,6 @@ String :: #import "String";
 #load "game_client.jai";
 #load "game_server.jai";
 #load "game_simulation.jai";
-#load "game_playback.jai";
 #load "game_audio.jai";
 #load "game_gpu.jai";
 #load "game_gpu_batch.jai";

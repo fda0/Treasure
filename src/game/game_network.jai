@@ -15,9 +15,6 @@ NET_State :: struct
   is_server: bool;
   socket: *SDLNet_DatagramSocket;
 
-  hacky_last_receive_timestamp: Timestamp;
-  hacky_last_send_timestamp: Timestamp;
-
   server_user: NET_User;
 
   // msg payload
@@ -159,67 +156,11 @@ NET_Init :: ()
   }
 }
 
-NET_IterateReceive :: ()
+NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: float) -> bool
 {
-  is_server := G.net.is_server;
-  is_client := !G.net.is_server;
-  if G.net.err return;
-
-  {
-    // hacky temporary network activity rate-limitting
-    if ElapsedTimestamp(G.net.hacky_last_receive_timestamp, .FRAME) < 8 then return;
-    G.net.hacky_last_receive_timestamp = GetTimestamp(.FRAME);
-  }
-
-  while true
-  {
-    dgram: *SDLNet_Datagram;
-    receive := SDLNet_ReceiveDatagram(G.net.socket, *dgram);
-    if !receive break;
-    if !dgram   break;
-
-    Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
-      dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
-
-    dgram_error := false;
-    if is_client
-    {
-      if !NET_UserMatchAddrPort(*G.net.server_user, dgram.addr, dgram.port)
-      {
-        dgram_error = true;
-        Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",
-          to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
-      }
-    }
-
-    if !dgram_error
-    {
-      player_id: u16 = NET_MAX_PLAYERS;
-
-      // save user
-      if is_server
-      {
-        user := NET_FindUser(dgram.addr, dgram.port);
-        if !user
-        {
-          Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
-          user = NET_AddUser(dgram.addr, dgram.port);
-        }
-
-        if user
-        {
-          user.last_msg_timestamp = GetTimestamp(.FRAME);
-          user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
-          player_id = user_id.(u16);
-        }
-      }
-
-      packet := string.{dgram.buflen, dgram.buf};
-      NET_ReceivePacket(player_id, packet);
-    }
-
-    SDLNet_DestroyDatagram(dgram);
-  }
+  if ElapsedSeconds(last_accepted.*) < 0.008 return true;
+  last_accepted.* = GetTimestamp(.FRAME);
+  return false;
 }
 
 NET_PayloadAlloc :: (size: u32) -> *u8
@@ -469,7 +410,7 @@ NET_ProcessReceivedPayload :: (player_id: u16, full_message: string)
     {
       in_net := NET_Consume(NET_SendActions, *msg);
       player := *G.server.player_actions[player_id];
-      SERVER_InsertPlayerAction(player, *in_net, head.tick);
+      SERVER_ReceivePlayerActions(player, *in_net, head.tick);
     }
     else if head.kind == .AssignPlayerKey
     {
