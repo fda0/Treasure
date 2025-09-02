@@ -374,7 +374,7 @@ GAME_Iterate :: ()
         }
       }
 
-      if true { // debug overwrite
+      if false { // debug overwrite
         G.client.action.type = .PATHING;
         G.client.action.world_p = .{10,20,0};
         G.client.action.target_object = .{};
@@ -400,7 +400,6 @@ GAME_Iterate :: ()
         G.obj.pathing_marker_set = false;
       }
     }
-
 
     if KEY_Pressed(.M)
     {
@@ -515,6 +514,7 @@ String :: #import "String";
 #load "../shared/base_hash.jai";
 #load "../shared/base_math.jai";
 #load "../shared/base_random.jai";
+#load "../shared/base_queue.jai";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
 #load "../shared/game_render_world_shared.jai";

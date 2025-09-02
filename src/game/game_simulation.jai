@@ -57,20 +57,19 @@ SIM_AdvanceByTick :: ()
   }
 
   // temporary - player health regen
-  for player_key: G.server.player_keys
+  for G.server.users
   {
-    player := OBJ_Get(.NETWORK, player_key);
+    player := OBJ_Get(.NETWORK, it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
     player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 60.0, player.s.max_hp);
   }
 
   // transfer action to player objects
-  for player_key, player_index: G.server.player_keys
+  for *G.server.users
   {
-    player := OBJ_Get(.NETWORK, player_key);
+    player := OBJ_Get(.NETWORK, it.key);
     if OBJ_IsNil(player) continue;
-    action := SERVER_GetPlayerAction(xx player_index);
-    player.s.action = action;
+    player.s.action = SERVER_GetNextUserAction(it);
   }
 
   // apply actions

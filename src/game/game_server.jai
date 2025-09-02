@@ -1,17 +1,24 @@
 SERVER_State :: struct
 {
   tick: Tick;
-  users: [NET_MAX_PLAYERS] NET_User;
-  player_keys: [NET_MAX_PLAYERS] OBJ_Key;
-  player_actions: [NET_MAX_PLAYERS] SERVER_PlayerActions;
+  users: [NET_MAX_PLAYERS] SERVER_UserState;
 };
 
-SERVER_PlayerActions :: struct
+SERVER_UserState :: struct
 {
-  action_queue: Queue(NET_MAX_ACTION_COUNT, Action);
-  latest_client_tick: Tick;
+  net: NET_User;
+  key: OBJ_Key;
+
+  received_actions: Queue(NET_MAX_ACTION_COUNT, ReceivedAction);
   last_action: Action;
-  receive_deltas: TickDeltas;
+  latest_received_timestamp: Timestamp;
+  latest_client_tick: Tick;
+
+  ReceivedAction :: struct
+  {
+    action: Action;
+    delay_since_last_received_action: float;
+  }
 };
 
 SERVER_ReceiveDatagram :: ()
@@ -21,11 +28,11 @@ SERVER_ReceiveDatagram :: ()
 
 }
 
-SERVER_ReceivePlayerActions :: (player: *SERVER_PlayerActions, net_msg: *NET_SendActions, client_tick: Tick)
+SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *NET_SendActions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
 
-  log("Client tick %; actions: %", client_tick, net_msg.actions);
+  // log("Client tick %; actions: %", client_tick, net_msg.actions);
 
   new_actions := ArrayPrefix(net_msg.actions, xx client_tick); // For initial client ticks only the first elements of action buffer will be filled. Truncate the array to skip these unitialized elements.
 
@@ -42,63 +49,46 @@ SERVER_ReceivePlayerActions :: (player: *SERVER_PlayerActions, net_msg: *NET_Sen
 
   if !new_actions.count then return; // no new actions
 
-  pre_insert_action_queue_count := player.action_queue.count;
   for new_actions
   {
-    QueuePush(*player.action_queue, it);
+    now := GetTimestamp();
+    received := SERVER_UserState.ReceivedAction.{
+      it, ElapsedSeconds(player.latest_received_timestamp, now, false)
+    };
+    player.latest_received_timestamp = now;
+
+    QueuePush(*player.received_actions, received);
   }
 
   player.latest_client_tick = client_tick;
+}
 
-
-  // @todo THIS code might require refactor; This system could be a separate thing living on top of action queue.
-  if TickDeltas_AddTick(*player.receive_deltas, client_tick)
+SERVER_GetNextUserAction :: (user: *SERVER_UserState) -> Action
+{
+  top_delay: float;
+  for user.received_actions
   {
-    TickDeltas_UpdateCatchup(*player.receive_deltas, xx pre_insert_action_queue_count);
-    if player.receive_deltas.tick_catchup
-    {
-      Nlog(LOG_NetCatchup,
-          "Client (?) current action delay: % Setting action playback catchup to %",
-          pre_insert_action_queue_count, player.receive_deltas.tick_catchup);
-    }
+    top_delay = max(it.delay_since_last_received_action, top_delay);
   }
-}
 
-SERVER_PopPlayerAction :: (player: *SERVER_PlayerActions) -> Action
-{
-  popped := QueuePop(*player.action_queue);
-  player.last_action = popped;
-  return popped;
-}
+  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), user.received_actions.count);
+  remove_old_items_count := targeted_delay_in_count - user.received_actions.count - 1;
+  for MakeRange(remove_old_items_count)
+  {
+    log("remove_old_items_count = %; user.received_actions.count: %, top_delay %; TICK_FLOAT_STEP %", remove_old_items_count, user.received_actions.count, top_delay, TICK_FLOAT_STEP);
+    // @todo merging
+    QueuePop(*user.received_actions);
+  }
 
-SERVER_GetPlayerAction :: (player_index: u32) -> Action
-{
-  result: Action;
-  if player_index >= G.server.player_actions.count
-    return result;
+  received_action, did_pop := QueuePop(*user.received_actions);
 
-  player := *G.server.player_actions[player_index];
-  starting_action_count := player.action_queue.count;
-
-  if starting_action_count > 0
-    result = SERVER_PopPlayerAction(player);
+  result := received_action.action;
+  if did_pop then user.last_action = received_action.action;
   else
   {
-    Nlog(LOG_NetTick,
-        "Ran out of action playback (player %) -> extrapolating; playback catchup %",
-        player_index, player.receive_deltas.tick_catchup);
-
-    // extrapolation using last action!
-    result = player.last_action;
+    // @todo more advanced extrapolation?
+    result = user.last_action;
   }
-
-  if starting_action_count > 1 && player.receive_deltas.tick_catchup > 0
-  {
-    player.receive_deltas.tick_catchup -= 1;
-    next := SERVER_PopPlayerAction(player); // @todo previously 2 actions were merged; do that in the future?
-    result = next;
-  }
-
   return result;
 }
 
@@ -108,21 +98,18 @@ SERVER_IterateSend :: ()
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
   client_count := 0;
-  for G.server.users
-    if it.address client_count += 1;
+  for G.server.users if it.net.address client_count += 1;
 
   // iterate over connected users
   player_number := 0;
-  for user, user_index: G.server.users
+  for *user, user_index: G.server.users
   {
-    if !user.address continue;
+    if !user.net.address continue;
     player_number += 1;
 
     // create player characters and send them to users
     {
-      player_key := *G.server.player_keys[user_index];
-
-      if OBJ_KeyIsZero(player_key)
+      if OBJ_KeyIsZero(user.key)
       {
         model_keys := MODEL_Key.[
           ModelKey("Dude"),
@@ -143,7 +130,7 @@ SERVER_IterateSend :: ()
           b := ifx user_index & 1 then 0.3 else 0.8;
           player.s.color = Color32_RGBf(r, g, b);
         }
-        player_key.* = player.s.key;
+        user.key = player.s.key;
       }
 
       head: NET_SendHeader;
@@ -152,10 +139,10 @@ SERVER_IterateSend :: ()
       NET_PayloadAppendType(head);
 
       assign: NET_SendAssignPlayerKey;
-      assign.player_key = player_key.*;
+      assign.player_key = user.key;
       NET_PayloadAppendType(assign);
 
-      NET_PacketSendAndResetPayload(user);
+      NET_PacketSendAndResetPayload(user.net);
     }
 
     // calculate autolayout for clients
@@ -246,8 +233,8 @@ SERVER_IterateTimeoutUsers :: ()
 {
   for *G.server.users
   {
-    if !it.address continue;
-    if ElapsedSeconds(it.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
+    if !it.net.address continue;
+    if ElapsedSeconds(it.net.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
     {
       Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
 
@@ -257,7 +244,7 @@ SERVER_IterateTimeoutUsers :: ()
         G.in_shutdown = true;
       }
 
-      NET_RemoveUser(it);
+      NET_RemoveUser(*it.net);
     }
   }
 }
@@ -312,8 +299,8 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string)
     else if head.kind == .Actions
     {
       in_net := NET_Consume(NET_SendActions, *msg);
-      player := *G.server.player_actions[player_id];
-      SERVER_ReceivePlayerActions(player, *in_net, head.tick);
+      user := *G.server.users[player_id];
+      SERVER_ReceiveUserActions(user, *in_net, head.tick);
     }
     else
     {

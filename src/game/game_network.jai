@@ -258,8 +258,8 @@ NET_PacketSendAndResetPayloadBroadcast :: ()
 
     for G.server.users
     {
-      if !it.address continue;
-      NET_SendString(it, packet);
+      if !it.net.address continue;
+      NET_SendString(it.net, packet);
     }
     G.net.payload_used = 0;
   }
@@ -276,7 +276,7 @@ NET_UserMatch :: (a: *NET_User, b: *NET_User) -> bool
   return (a.port == b.port && SDLNet_CompareAddresses(a.address, b.address) == 0);
 }
 
-NET_UserMatchAddrPort :: (user: *NET_User, address: *SDLNet_Address, port: u16) -> bool
+NET_UserMatchAddrPort :: (user: NET_User, address: *SDLNet_Address, port: u16) -> bool
 {
   if (!user.address)
     return false;
@@ -287,10 +287,10 @@ NET_UserMatchAddrPort :: (user: *NET_User, address: *SDLNet_Address, port: u16) 
 NET_FindUser :: (address: *SDLNet_Address, port: u16) -> *NET_User
 {
   // @todo move to SV_ prefix?
-  for * G.server.users
+  for *G.server.users
   {
-    if (NET_UserMatchAddrPort(it, address, port))
-      return it;
+    if (NET_UserMatchAddrPort(it.net, address, port))
+      return *it.net;
   }
   return null;
 }
@@ -299,11 +299,11 @@ NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *NET_User
 {
   // @todo move to SV_ prefix?
   new_user_slot: *NET_User;
-  for * G.server.users
+  for *G.server.users
   {
-    if (!it.address)
+    if !it.net.address
     {
-      new_user_slot = it;
+      new_user_slot = *it.net;
       break;
     }
   }
