@@ -39,7 +39,7 @@ UI_WINDOW_STYLE :: BoxSpec.{bg_color = UI_BG,
 
 DEV_State :: struct // @todo serialize this struct to disk
 {
-  show := false;
+  show := true;
 
   active_categories: CategoryFlags = .stats;
   CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; }
@@ -62,7 +62,7 @@ DEV_State :: struct // @todo serialize this struct to disk
   }
   INITIAL_WINDOW_SIZES :: #run -> [CATEGORY_COUNT] V2 {
     result: [CATEGORY_COUNT] V2;
-    for *result it.* = .{200, 300};
+    for *result it.* = .{600, 600};
     return result;
   }
 
@@ -140,35 +140,35 @@ UI_BuildDeveloperWindow :: ()
 
       CreateText("more random data 1");
       CreateText("more random data 2");
-      CreateText("more random data 3");
-      CreateText("more random data 4");
-      CreateText("more random data 5 that's very long; seriously long string");
-      CreateText("more random data 6 and that's even longer, like this won't happen in nature!");
 
-
+      for STATS_CounterValues
       {
-        DisplayCounter :: (label: string, c: *STATS_Counter)
+        c := *G.stats.counters[it];
+        label := STATS_CounterNames[it];
+
+        CreateText("");
+        CreateText(label);
+        stats := tprint("total: %; frame: %; peak: % (on %)",
+          c.total_sum, QueuePeek(c.history), c.on_peak_frame, c.peak_frame_number);
+        CreateText(stats);
+
+
+        Layer(.{layout.padding = PaddingAll(Px(0))});
+        graph_box := Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(0.5)},
+                                        bg_color = C32_0xRGB(0)}));
+
+        parent_height_px := graph_box.old.inner.y;
+        for c.history
         {
-          CreateText("");
-          CreateText(label);
-          stats := tprint("total: %; frame: %; peak: % (on %)",
-            c.total, c.prev_frame, c.on_peak_frame, c.peak_frame_number);
-          CreateText(stats);
-        }
-
-        using G.stats;
-
-        #insert -> string {
-          tis := type_info(STATS_State);
-          sb: String_Builder;
-          for tis.members
+          height_px := 0.0;
+          if c.on_peak_frame
           {
-            if it.type == type_info(STATS_Counter)
-              print_to_builder(*sb, "DisplayCounter(\"%\", *%);\n", it.name, it.name);
+            height_pct := it.(float) / c.on_peak_frame.(float);
+            height_px = parent_height_px * height_pct;
           }
-          result := builder_to_string(*sb);
-          // log("Inserted code: ```%```", result);
-          return result;
+
+          CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
+                      bg_color = C32_RGBi(255, 128, 0)});
         }
       }
 

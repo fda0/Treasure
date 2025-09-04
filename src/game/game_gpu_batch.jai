@@ -133,10 +133,8 @@ GPU_BATCH_TransferCreate :: (batch: *GPU_Batch, size: u32) -> *GPU_BATCH_Transfe
   }
 
   // stats
-  {
-    Increment(*G.stats.gpu_batch_transfer_buffers_created, 1);
-    Increment(*G.stats.gpu_batch_transfer_buffers_size, alloc_size);
-  }
+  Increment(.GPU_BATCH_TRANSFER_BUFFERS_CREATED, 1);
+  Increment(.GPU_BATCH_TRANSFER_BUFFERS_SIZE, alloc_size);
 
   // GPU alloc new transfer buffer and map it
   transfer_info := SDL_GPUTransferBufferCreateInfo.{

@@ -2,61 +2,64 @@ LOG_STAT_COUNTERS :: false;
 
 STATS_State :: struct
 {
-  gpu_batch_transfer_buffers_created: STATS_Counter;
-  gpu_batch_transfer_buffers_size: STATS_Counter;
+  counters: [STATS_CounterCount] STATS_Counter;
 }
+
+STATS_CounterType :: enum
+{
+  GPU_BATCH_TRANSFER_BUFFERS_CREATED;
+  GPU_BATCH_TRANSFER_BUFFERS_SIZE;
+  SERVER_GET_USER_ACTION_QUEUE_SIZE;
+}
+STATS_CounterCount :: #run EnumMaxPlus1(STATS_CounterType);
+STATS_CounterNames :: #run enum_names(STATS_CounterType);
+STATS_CounterValues :: #run enum_values_as_enum(STATS_CounterType);
 
 STATS_Counter :: struct
 {
-  total: s64;
-  this_frame: s64;
-  prev_frame: s64;
+  accumulator: s64;
+  history: Queue(64, s64);
+  total_sum: s64;
   on_peak_frame: s64;
   peak_frame_number: s64;
 }
 
-Increment :: (c: *STATS_Counter, to_add: s64)
+Increment :: (type: STATS_CounterType, to_increment: s64)
 {
-  c.total += to_add;
-  c.this_frame += to_add;
+  c := *G.stats.counters[type];
+  c.total_sum += to_increment;
+  c.accumulator += to_increment;
+}
+
+Post :: (type: STATS_CounterType, to_increment_and_set: s64 = 0)
+{
+  c := *G.stats.counters[type];
+  label := STATS_CounterNames[type];
+
+  c.total_sum += to_increment_and_set;
+  c.accumulator += to_increment_and_set;
+
+  if c.on_peak_frame < c.accumulator
+  {
+    c.on_peak_frame = c.accumulator;
+    c.peak_frame_number = G.frame_number;
+  }
+
+  if LOG_STAT_COUNTERS
+  {
+    log("[FRAME %; STATS %] total: %; this_frame: %; on_peak_frame: % (on %)",
+      G.frame_number, label,
+      c.total_sum, c.accumulator, c.on_peak_frame, c.peak_frame_number,, logger = LOG_FileLogger);
+  }
+
+  QueuePush(*c.history, c.accumulator);
+  c.accumulator = 0;
 }
 
 STATS_PostFrame :: ()
 {
-  ResetCounter :: (label: string, c: *STATS_Counter)
+  for STATS_CounterValues
   {
-    if c.on_peak_frame < c.this_frame
-    {
-      c.on_peak_frame = c.this_frame;
-      c.peak_frame_number = G.frame_number;
-    }
-
-    if LOG_STAT_COUNTERS
-    {
-      log("[FRAME %; STATS %] total: %; this_frame: %; on_peak_frame: % (on %)",
-        G.frame_number, label,
-        c.total, c.this_frame, c.on_peak_frame, c.peak_frame_number,, logger = LOG_FileLogger);
-    }
-
-    c.prev_frame = c.this_frame;
-    c.this_frame = 0;
-  }
-
-  // Generate code that iterates through all members
-  // of type STATS_Counter in G.stats and
-  // call ResetCounter on them.
-  using G.stats;
-
-  #insert -> string {
-    tis := type_info(STATS_State);
-    sb: String_Builder;
-    for tis.members
-    {
-      if it.type == type_info(STATS_Counter)
-      print_to_builder(*sb, "ResetCounter(\"%\", *%);\n", it.name, it.name);
-    }
-    result := builder_to_string(*sb);
-    // log("Inserted code: ```%```", result);
-    return result;
+    Post(it);
   }
 }

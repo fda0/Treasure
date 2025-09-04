@@ -71,6 +71,8 @@ SERVER_GetNextUserAction :: (user: *SERVER_UserState) -> Action
     top_delay = max(it.delay_since_last_received_action, top_delay);
   }
 
+  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, user.received_actions.count);
+
   targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), user.received_actions.count);
   remove_old_items_count := targeted_delay_in_count - user.received_actions.count - 1;
   for MakeRange(remove_old_items_count)
