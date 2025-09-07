@@ -237,22 +237,22 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     float u = frac(frag.uv.x);
     float v = frac(frag.uv.y);
 
+    float margin = pixel_distance * 0.001f;
+    float edge0 = margin;
+    float edge1 = 1.f - margin;
+
     float border = 1.0f;
-    border = min(border, smoothstep(0.f, 0.01f, u)); // u min
-    border = min(border, smoothstep(0.f, 0.01f, v)); // v min
-    border = min(border, smoothstep(1.f, 0.99f, u)); // u max
-    border = min(border, smoothstep(1.f, 0.99f, v)); // v max
+    border *= smoothstep(0.f, edge0, u); // u min
+    border *= smoothstep(0.f, edge0, v); // v min
+    border *= smoothstep(1.f, edge1, u); // u max
+    border *= smoothstep(1.f, edge1, v); // v max
 
-    float mask = 1.f;
-    mask *= smoothstep(0.0f, 0.02f, border);
-    mask *= (border*0.5 + 0.5);
-
-    float visibility_falloff_start = 10.f;
+    float visibility_falloff_start = 25.f;
     float visibility_falloff_end   = 30.f;
-    float visibility_t = 1.f - smoothstep(visibility_falloff_start, visibility_falloff_end, pixel_distance);
-    // visibility_t = 0.f;
-    mask = lerp(1.f, mask, visibility_t);
+    float visibility_t = smoothstep(visibility_falloff_start, visibility_falloff_end, pixel_distance);
 
+    float mask = lerp(border, 1.f, visibility_t);
+    mask = mask*0.5 + 0.5;
     color *= mask;
   }
 

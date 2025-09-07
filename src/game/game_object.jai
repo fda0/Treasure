@@ -597,7 +597,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
 
     obj.s.max_hp = 100;
     obj.s.hp = 80;
-    obj.s.move_speed = 3.7;
+    obj.s.move_speed = 6.7;
 
     obj.s.team = team;
   }
