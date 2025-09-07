@@ -105,6 +105,7 @@ OBJ_Sync :: struct
   max_hp: float;
   hp: float;
   attack_speed: float = 1.75;
+  move_speed: float = 1.0;
 
   attack_landed_t := 0.25;
   attack_cooldown_t := 1.0;
@@ -420,7 +421,7 @@ OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
 
   if common & .IS_ALIVE
   {
-    if obj.s.hp <= 0.0 return false;
+    if (obj.s.flags & .HAS_HP) && (obj.s.hp <= 0.0) return false;
   }
 
   if !filter(obj) return false;
@@ -596,6 +597,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
 
     obj.s.max_hp = 100;
     obj.s.hp = 80;
+    obj.s.move_speed = 3.7;
 
     obj.s.team = team;
   }

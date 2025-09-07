@@ -151,7 +151,7 @@ SIM_AdvanceByTick :: ()
       reset_attack_timers(obj);
 
     // Move obj
-    obj_speed := 1.4 * TICK_FLOAT_STEP;
+    obj_speed := obj.s.move_speed * TICK_FLOAT_STEP;
     obj.s.desired_dp = V3.{xy = obj_move_dir * obj_speed, z = 0};
   }
 
@@ -330,7 +330,7 @@ SIM_MoveAndCollideObjects :: ()
 {
   for * obj: G.obj.network_objects
   {
-    if !OBJ_HasAnyFlag(obj, .MOVE) continue;
+    if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE}) continue;
 
     // movement simulation
     obj_dp := obj.s.desired_dp.xy;
@@ -348,7 +348,7 @@ SIM_MoveAndCollideObjects :: ()
       for * obstacle: G.obj.network_objects
       {
         if obj == obstacle continue;
-        if !OBJ_HasAnyFlag(obstacle, .COLLIDE) continue;
+        if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE}) continue;
 
         obstacle_pos := obstacle.s.p.xy;
 
