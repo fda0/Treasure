@@ -110,6 +110,8 @@ GAME_Iterate :: ()
     G.at = WrapFloat(0, 1000, G.at + G.dt);
   }
 
+  Post(.TEST_FRAME_NUMBER, G.frame_number);
+
   if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
   if !G.headless

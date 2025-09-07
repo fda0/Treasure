@@ -157,7 +157,7 @@ UI_BuildDeveloperWindow :: ()
         CreateText(label);
         UI_ToggleButton("Pause", *c.paused);
 
-        stats := tprint("total: %; frame: %; peak: % (on %)",
+        stats := tprint("total: %; recent: %; peak: % (on frame %)",
           c.total_sum, QueuePeek(c.history), c.on_peak_frame, c.peak_frame_number);
         CreateText(stats);
 
