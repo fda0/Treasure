@@ -102,12 +102,12 @@ WORLD_DrawObjects :: ()
       transform := TranslationMatrix(obj.l.animated_p);
       transform = transform * RotationMatrix(obj.l.animated_rot); // rotate first, translate second
 
-      hover_color := ColorV4.{1,1,1,1};
+      hover_color := C4.{1,1,1,1};
       if obj.s.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
       if obj.s.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
       WORLD_DrawModel(obj.s.model, transform, obj.l.animation_tracks,
-                      Color32_RGBAf(hover_color), OBJ_KeyToColor(obj.s.key));
+                      C32_from_C4(hover_color), OBJ_KeyToColor(obj.s.key));
     }
 
     if draw_hp

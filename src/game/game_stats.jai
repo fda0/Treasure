@@ -17,8 +17,10 @@ STATS_CounterValues :: #run enum_values_as_enum(STATS_CounterType);
 
 STATS_Counter :: struct
 {
+  paused: bool;
+
   accumulator: s64;
-  history: Queue(64, s64);
+  history: Queue(64 * 4, s64);
   total_sum: s64;
   on_peak_frame: s64;
   peak_frame_number: s64;
@@ -27,6 +29,8 @@ STATS_Counter :: struct
 Increment :: (type: STATS_CounterType, to_increment: s64)
 {
   c := *G.stats.counters[type];
+  if c.paused return;
+
   c.total_sum += to_increment;
   c.accumulator += to_increment;
 }
@@ -35,6 +39,7 @@ Post :: (type: STATS_CounterType, to_increment_and_set: s64 = 0)
 {
   c := *G.stats.counters[type];
   label := STATS_CounterNames[type];
+  if c.paused return;
 
   c.total_sum += to_increment_and_set;
   c.accumulator += to_increment_and_set;

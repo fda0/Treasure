@@ -15,8 +15,8 @@ UI_BuildHUD :: ()
                      layout.child_order = .TOP_TO_BOTTOM,
                      bg_color = HUD_BG,
                      floating.attach_to = .ROOT,
-                     floating.attach_points = .{itself = .{horizontal = .CENTER, vertical = .BOTTOM},
-                                                parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
+                     floating.anchors = .{itself = .{horizontal = .CENTER, vertical = .BOTTOM},
+                                          parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Signal(Parent(hud));
 
   player := OBJ_Get(.NETWORK, G.client.player_key);

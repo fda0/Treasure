@@ -1,22 +1,29 @@
 #scope_file;
 using BOX;
-UI_RED1      :: #run Color32_RGBi(0xcc, 0x24, 0x1d);
-UI_RED2      :: #run Color32_RGBi(0xfb, 0x49, 0x34);
-UI_GREEN1    :: #run Color32_RGBi(0x98, 0x97, 0x1a);
-UI_GREEN2    :: #run Color32_RGBi(0xb8, 0xbb, 0x26);
-UI_YELLOW1   :: #run Color32_RGBi(0xd7, 0x99, 0x21);
-UI_YELLOW2   :: #run Color32_RGBi(0xfa, 0xbd, 0x2f);
-UI_BLUE1     :: #run Color32_RGBi(0x45, 0x85, 0x88);
-UI_BLUE2     :: #run Color32_RGBi(0x83, 0xa5, 0x98);
-UI_ORANGE1   :: #run Color32_RGBi(0xd6, 0x5d, 0x0e);
-UI_ORANGE2   :: #run Color32_RGBi(0xfe, 0x80, 0x19);
-UI_BG        :: #run Color32_RGBi(40, 40, 40);
-UI_FG        :: #run Color32_RGBi(235, 219, 178);
-UI_BORDER_BG :: #run Color32_RGBi(29, 32, 33);
-UI_BUTTON_BG :: #run Color32_RGBi(80, 73, 69);
-UI_BUTTON_HOVER_BG :: #run Color32_RGBi(102, 92, 84);
-UI_SHADOW    :: #run Color32_RGBAi(29, 32, 33, 96);
-UI_DARKER    :: #run Color32_RGBAi(0, 0, 0, 64);
+UI_RED1      :: #run C32_RGBi(0xcc, 0x24, 0x1d);
+UI_RED2      :: #run C32_RGBi(0xfb, 0x49, 0x34);
+UI_GREEN1    :: #run C32_RGBi(0x98, 0x97, 0x1a);
+UI_GREEN2    :: #run C32_RGBi(0xb8, 0xbb, 0x26);
+UI_YELLOW1   :: #run C32_RGBi(0xd7, 0x99, 0x21);
+UI_YELLOW2   :: #run C32_RGBi(0xfa, 0xbd, 0x2f);
+UI_BLUE1     :: #run C32_RGBi(0x45, 0x85, 0x88);
+UI_BLUE2     :: #run C32_RGBi(0x83, 0xa5, 0x98);
+UI_ORANGE1   :: #run C32_RGBi(0xd6, 0x5d, 0x0e);
+UI_ORANGE2   :: #run C32_RGBi(0xfe, 0x80, 0x19);
+UI_BG        :: UI_BG0;
+UI_BG0       :: #run C32_RGBi(40, 40, 40);
+UI_BG1       :: #run C32_0xRGB(0x3c3836);
+UI_BG2       :: #run C32_0xRGB(0x504945);
+UI_FG        :: UI_FG1;
+UI_FG0       :: #run C32_0xRGB(0xfbf1c7);
+UI_FG1       :: #run C32_RGBi(235, 219, 178);
+UI_FG2       :: #run C32_0xRGB(0xd5c4a1);
+UI_FG3       :: #run C32_0xRGB(0xbdae93);
+UI_BORDER_BG :: #run C32_RGBi(29, 32, 33);
+UI_BUTTON_BG :: #run C32_RGBi(80, 73, 69);
+UI_BUTTON_HOVER_BG :: #run C32_RGBi(102, 92, 84);
+UI_SHADOW    :: #run C32_RGBAi(29, 32, 33, 96);
+UI_DARKER    :: #run C32_RGBAi(0, 0, 0, 64);
 
 UI_RADIUS :: #run RadiusAll(Px(2));
 UI_BORDER_WIDTH :: #run BorderOutside(Px(1));
@@ -32,9 +39,11 @@ UI_REGULAR_TEXT :: #run BoxSpec.{text = .{font = xx FONT_Family.PlayfairDisplay,
 UI_MONO_TEXT    :: #run BoxSpec.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(0.85)},
                                  layout.padding = PaddingV(Em(0.4))};
 
-UI_WINDOW_STYLE :: BoxSpec.{bg_color = UI_BG,
-                            border = .{color = UI_BORDER_BG, widths = UI_BORDER_WIDTH},
-                            corner_radius = UI_RADIUS};
+UI_WINDOW_LOOK :: BoxSpec.{bg_color = UI_BG,
+                           border = .{color = UI_BORDER_BG, widths = UI_BORDER_WIDTH},
+                           corner_radius = UI_RADIUS};
+UI_WINDOW_LAYOUT :: BoxSpec.{layout = .{child_gap = UI_WINDOW_GAP, padding = UI_BUTTON_PAD}};
+
 #scope_export;
 
 DEV_State :: struct // @todo serialize this struct to disk
@@ -103,11 +112,9 @@ UI_BuildDeveloperWindow :: ()
   {
     Parent(CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
                                   size.min = Fit2(), size.pref.y = Grow(),
-                                  padding = UI_WINDOW_PAD,
-                                  child_gap = UI_WINDOW_GAP,
                                   child_align.x = .CENTER},
                        floating = .{attach_to = .ROOT}},
-                     UI_WINDOW_STYLE));
+                     UI_WINDOW_LOOK, UI_WINDOW_LAYOUT));
 
     for CATEGORY_NAMES
     {
@@ -148,13 +155,14 @@ UI_BuildDeveloperWindow :: ()
 
         CreateText("");
         CreateText(label);
+        UI_ToggleButton("Pause", *c.paused);
+
         stats := tprint("total: %; frame: %; peak: % (on %)",
           c.total_sum, QueuePeek(c.history), c.on_peak_frame, c.peak_frame_number);
         CreateText(stats);
 
-
         Layer(.{layout.padding = PaddingAll(Px(0))});
-        graph_box := Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(0.5)},
+        graph_box := Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1)},
                                         bg_color = C32_0xRGB(0)}));
 
         parent_height_px := graph_box.old.inner.y;
@@ -167,8 +175,36 @@ UI_BuildDeveloperWindow :: ()
             height_px = parent_height_px * height_pct;
           }
 
-          CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
-                      bg_color = C32_RGBi(255, 128, 0)});
+          total := Signal(Parent(CreateBox(.{layout.size.pref = Grow2()})));
+          filled := CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
+                                bg_color = C32_RGBi(255, 128, 0)});
+
+          if total.flags & .HOVER
+          {
+            total.bg_color = C32_RGBi(128, 128, 0);
+            filled.bg_color = C32_RGBi(255, 255, 0);
+
+            Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
+                               layout.size.min = Fit2(),
+                               floating = .{attach_to = .PARENT,
+                                            z_index = 1,
+                                            anchors.itself = .{horizontal = .CENTER, vertical = .BOTTOM},
+                                            anchors.parent = .{horizontal = .CENTER, vertical = .TOP}}},
+                             UI_WINDOW_LOOK, UI_WINDOW_LAYOUT));
+            CreateText(tprint("Index: %", it_index));
+            CreateText(tprint("Value: %", it));
+          }
+
+          if it_index % 2 == 0
+          {
+            t := C32_to_C4(total.bg_color);
+            f := C32_to_C4(filled.bg_color);
+            t.xyz = t.xyz*0.5 + .{0.5, 0.5, 0.5};
+            f.xyz = f.xyz*0.5 + .{0.5, 0.5, 0.5};
+            total.bg_color = C4_to_C32(t);
+            filled.bg_color = C4_to_C32(f);
+          }
+
         }
       }
 
@@ -294,7 +330,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 
   window := Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                floating.attach_to = .ROOT},
-                             UI_WINDOW_STYLE));
+                             UI_WINDOW_LOOK));
 
   // Window bar
   {
@@ -433,7 +469,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 
   // Resize button signal
   if (resize_button.flags & .DRAG) then window_size.* += G.mouse_delta;
-  clamped_window_size := clamp(window_size.*, .{200, 100}, .{1200, 800});
+  clamped_window_size := clamp(window_size.*, .{200, 100}, .{2000, 2000});
   if !(resize_button.flags & .DRAG) then window_size.* = clamped_window_size;
   window.layout.size.min = Px2(clamped_window_size);
 
@@ -442,6 +478,26 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 
 
 // UI element library
+UI_ToggleButton :: (label: string, value: *bool)
+{
+  Layer(.{seed = Hash64Any(label, value.(u64))});
+
+  button := Signal(CreateText(label, .{layout.padding = UI_BUTTON_PAD,
+                                       border = .{color = UI_BUTTON_HOVER_BG, widths = BorderOutside(Px(1))}
+                                       }));
+  if button.flags & .HOVER
+  {
+    button.border.color = UI_FG3;
+  }
+  if value
+  {
+    if button.flags & .CLICK then value.* = !value.*;
+
+    button.bg_color = ifx value.* then UI_BG2 else UI_BG;
+    button.text.color = ifx value.* then UI_FG0 else UI_FG3;
+  }
+}
+
 UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 #modify { return IsEnumFlags(T); }
 {

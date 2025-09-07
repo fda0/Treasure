@@ -7,7 +7,7 @@ UI_BeginBoxLayout :: ()
 {
   spec := LayoutSpec.{
     root_dim_px = G.window_dim,
-    rem_to_px = 12.0 + 2.0 * floor(G.window_dim.y / 256.0),
+    rem_to_px = 2.0 + 2.0 * floor(G.window_dim.y / 128.0),
     measure_text_callback = TEXT_Measure,
     mouse = G.mouse,
   };
@@ -58,8 +58,8 @@ UI_ProcessBoxRenderCommands :: ()
       print("type = %; p = %; dim = %; clip_min = %; clip_max = %; color = %; border_widths = %; corner_radius = %; text = %; font = %; font_size_px = %; LOC = %\n", cmd.type, cmd.p, cmd.dim, cmd.clip_min, cmd.clip_max, cmd.color, cmd.border_widths, cmd.corner_radius, cmd.text, cmd.font, cmd.font_size_px, cmd.box.loc);
     }
 
-    c4 := ColorV4_32(cmd.color);
-    c32 := Color32_RGBAf(c4);
+    c4 := C4_from_C32(cmd.color);
+    c32 := C32_from_C4(c4);
 
     shape := UI_Shape.{
       rect = MakeRangeMinDim(cmd.p, cmd.dim),

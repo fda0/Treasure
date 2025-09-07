@@ -65,7 +65,7 @@ CornerRadius :: struct
 };
 RadiusAll :: (r: Length) -> CornerRadius { return .{r, r, r, r}; }
 
-AttachPoint :: struct
+Anchor :: struct
 {
   horizontal: enum u8 { LEFT; CENTER; RIGHT; }
   vertical: enum u8 { TOP; CENTER; BOTTOM; }
@@ -226,10 +226,8 @@ BoxSpec :: struct
     reference: BoxKey;
 
     offset: Length2;
-    // expand: [Axis2.COUNT] Size; do we need this?
+    anchors: struct { itself: Anchor; parent: Anchor; }
     z_index: s16;
-    attach_points: struct { itself: AttachPoint; parent: AttachPoint; }
-    cursor_passthrough: bool;
   }
 
   border: struct
@@ -728,6 +726,8 @@ RenderCommand :: struct
   font: s32;
   font_size_px: float;
 
+  creation_index: s32; // this was added because our sort isn't stable, could be fixed with a stable sort.
+  z_index: s16;
   box: *Box;
 };
 
@@ -1204,7 +1204,7 @@ LayoutEnd :: ()
         case .ROOT; attach_box = root_box;
       }
 
-      calculate_attach_offset :: (box: *Box, ap: AttachPoint) -> V2
+      calculate_attach_offset :: (box: *Box, ap: Anchor) -> V2
       {
         full_h := ifx ap.add_padding & .PAD_HORIZONTAL then Inner(box, .X) else Outer(box, .X);
         full_v := ifx ap.add_padding & .PAD_VERTICAL   then Inner(box, .Y) else Outer(box, .Y);
@@ -1216,8 +1216,8 @@ LayoutEnd :: ()
         return result;
       }
 
-      it_offset := calculate_attach_offset(it, it.floating.attach_points.itself);
-      attach_box_offset := calculate_attach_offset(attach_box, it.floating.attach_points.parent);
+      it_offset := calculate_attach_offset(it, it.floating.anchors.itself);
+      attach_box_offset := calculate_attach_offset(attach_box, it.floating.anchors.parent);
       user_offset := LengthToPx2(it.floating.offset, it, true);
 
       it.abs_p = attach_box.abs_p - it_offset + attach_box_offset + user_offset;
@@ -1298,9 +1298,11 @@ LayoutEnd :: ()
       base_cmd.corner_radius.bottom_left  = LengthToPx(it.corner_radius.bottom_left,  it, .Y, true);
       base_cmd.corner_radius.bottom_right = LengthToPx(it.corner_radius.bottom_right, it, .Y, true);
       base_cmd.edge_softness = LengthToPx(it.edge_softness, it, .Y, true);
+      base_cmd.z_index = it.floating.z_index;
       base_cmd.box = it;
 
       // apply clipping for scrolling
+      if !it.floating.attach_to
       {
         parent := it.parent;
         while true
@@ -1316,6 +1318,7 @@ LayoutEnd :: ()
             base_cmd.clip_min.y = parent.clipped_min.y;
             base_cmd.clip_max.y = parent.clipped_max.y;
           }
+          base_cmd.z_index += parent.floating.z_index;
 
           if parent.floating.attach_to break;
           parent = parent.parent;
@@ -1327,6 +1330,7 @@ LayoutEnd :: ()
         cmd := base_cmd;
         cmd.type = .RECTANGLE;
         cmd.color = it.bg_color;
+        cmd.creation_index = xx render_commands.count;
         array_add(*render_commands, cmd);
       }
 
@@ -1339,6 +1343,7 @@ LayoutEnd :: ()
         cmd.border_widths.right  = LengthToPx(it.border.widths.right,  it, .X, true);
         cmd.border_widths.top    = LengthToPx(it.border.widths.top,    it, .Y, true);
         cmd.border_widths.bottom = LengthToPx(it.border.widths.bottom, it, .Y, true);
+        cmd.creation_index = xx render_commands.count;
         array_add(*render_commands, cmd);
       }
 
@@ -1353,10 +1358,20 @@ LayoutEnd :: ()
         cmd.text = it.text.str;
         cmd.font = it.text.font;
         cmd.font_size_px = LengthToPx(it.text.font_size, it.parent, .Y, true);
+        cmd.creation_index = xx render_commands.count;
         array_add(*render_commands, cmd);
       }
     }
+
+    // do sorting
+    quick_sort(render_commands, (x: RenderCommand, y: RenderCommand) -> s32 {
+      cmp: s32 = xx (x.z_index - y.z_index);
+      if cmp == 0 then cmp = x.creation_index - y.creation_index;
+      return cmp;
+    });
   }
+
+
 }
 
 //
@@ -1643,6 +1658,7 @@ BoxesArray :: (which: BoxStorageArray) -> *[..] Box
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
 Hash_Table :: #import "treasure_hash_table";
+#import "Sort"; // quick_sort
 
 //
 // Internal hash helpers
