@@ -11,6 +11,7 @@ STATS_CounterType :: enum
   GPU_BATCH_TRANSFER_BUFFERS_SIZE;
   SERVER_GET_USER_ACTION_QUEUE_SIZE;
   TEST_FRAME_NUMBER;
+  NEXT_PLAYBACK_SERVER_TICK;
 }
 STATS_CounterCount :: #run EnumMaxPlus1(STATS_CounterType);
 STATS_CounterNames :: #run enum_names(STATS_CounterType);
@@ -19,7 +20,7 @@ STATS_CounterValues :: #run enum_values_as_enum(STATS_CounterType);
 STATS_Counter :: struct
 {
   paused: bool;
-  post_called: bool;
+  increment_called: bool;
 
   accumulator: s64;
   history: Queue(64 * 4, s64);
@@ -32,6 +33,7 @@ Increment :: (type: STATS_CounterType, to_increment: s64)
 {
   c := *G.stats.counters[type];
   if c.paused return;
+  c.increment_called = true;
 
   c.total_sum += to_increment;
   c.accumulator += to_increment;
@@ -61,7 +63,6 @@ Post :: (type: STATS_CounterType, to_increment_and_set: s64 = 0)
 
   QueuePush(*c.history, c.accumulator);
   c.accumulator = 0;
-  c.post_called = true;
 }
 
 STATS_PostFrame :: ()
@@ -69,7 +70,10 @@ STATS_PostFrame :: ()
   for STATS_CounterValues
   {
     c := *G.stats.counters[it];
-    if !c.post_called Post(it);
-    c.post_called = false;
+    if c.increment_called
+    {
+      Post(it);
+      c.increment_called = false;
+    }
   }
 }

@@ -10,13 +10,11 @@ CLIENT_State :: struct
   snaps_of_objs: [OBJ_MAX_NETWORK_OBJECTS] CLIENT_ObjSnapshots;
   next_playback_server_tick: Tick;
 
-  current_playback_delay: u16;
-  playable_tick_deltas: TickDeltas; // used to control playback catch-up
-
   //
   player_key: OBJ_Key;
   player_key_latest_tick: Tick;
 
+  // Lookup table for: Server tick -> Client receive timestamp
   server_tick_to_client_timestamps: [..] Timestamp;
 };
 
@@ -44,7 +42,7 @@ CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *OBJ_Sync
   return *snaps.tick_states[state_index];
 }
 
-CLIENT_LerpObjSync :: (net_index: u32, tick: Tick) -> OBJ_Sync
+CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
 {
   snaps := *G.client.snaps_of_objs[net_index];
 
@@ -328,68 +326,21 @@ CLIENT_PlayTick :: ()
 
   smallest_latest_server_tick: Tick = Tick_MAX;
   biggest_oldest_server_tick: Tick;
+
   for snap: G.client.snaps_of_objs
   {
-    if snap.latest_server_tick < smallest_latest_server_tick
-      smallest_latest_server_tick = snap.latest_server_tick;
-
-    if snap.oldest_server_tick > biggest_oldest_server_tick
-      biggest_oldest_server_tick = snap.oldest_server_tick;
+    smallest_latest_server_tick = min(snap.latest_server_tick, smallest_latest_server_tick);
+    biggest_oldest_server_tick = max(snap.oldest_server_tick, biggest_oldest_server_tick);
   }
 
-  if biggest_oldest_server_tick > G.client.next_playback_server_tick
-  {
-    Nlog(LOG_NetTick, #run String.join(
-      "Server is too ahead from the client;",
-      "biggest_oldest_server_tick: %,",
-      "smallest_latest_server_tick: %,",
-      "client's next_playback_server_tick: %,",
-      "playback delay: %,",
-      "playback catchup %,",
-      "[bumping client's next_playback_tick]"),
-      biggest_oldest_server_tick,
-      smallest_latest_server_tick,
-      G.client.next_playback_server_tick,
-      G.client.current_playback_delay,
-      G.client.playable_tick_deltas.tick_catchup);
-
-    G.client.next_playback_server_tick = biggest_oldest_server_tick;
-  }
-
-  if smallest_latest_server_tick < G.client.next_playback_server_tick
-  {
-    Nlog(LOG_NetTick, #run String.join(
-      "Ran out of tick playback state; ",
-      "next_playback_tick: %, ",
-      "smallest_latest_server_tick: %, ",
-      "playback delay: %, ",
-      "playback catchup %"),
-      G.client.next_playback_server_tick,
-      smallest_latest_server_tick,
-      G.client.current_playback_delay,
-      G.client.playable_tick_deltas.tick_catchup);
-    return;
-  }
-
-  // calc current delay
-  {
-    current_playback_delay_u64 := smallest_latest_server_tick - G.client.next_playback_server_tick;
-    G.client.current_playback_delay = CastSaturate(u16, current_playback_delay_u64);
-  }
-
-  if TickDeltas_AddTick(*G.client.playable_tick_deltas, smallest_latest_server_tick)
-  {
-    TickDeltas_UpdateCatchup(*G.client.playable_tick_deltas, G.client.current_playback_delay);
-    if G.client.playable_tick_deltas.tick_catchup
-    {
-      Nlog(LOG_NetCatchup, "Current playback delay: %d,  Setting playback catchup to %d",
-        G.client.current_playback_delay, G.client.playable_tick_deltas.tick_catchup);
-    }
-  }
+  // @todo a system for smooth playback that tries to minimize latency
+  // Currently we are picking the latest possible server tick.
+  // This gives us minimal latency; but the playback won't be smooth on bad connection.
+  G.client.next_playback_server_tick = smallest_latest_server_tick;
 
   for net_index: MakeRange(OBJ_MAX_NETWORK_OBJECTS.(u32))
   {
-    interpolated_sync := CLIENT_LerpObjSync(net_index, G.client.next_playback_server_tick);
+    interpolated_sync := CLIENT_ReconstructObjectSyncAtTick(net_index, G.client.next_playback_server_tick);
     net_obj := OBJ_FromNetIndex(net_index);
     net_obj.s = interpolated_sync;
   }

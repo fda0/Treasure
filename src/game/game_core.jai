@@ -162,14 +162,9 @@ GAME_Iterate :: ()
       for MakeRange(tick_count)
       {
         G.client.playback_tick += 1;
-
         CLIENT_PlayTick();
-        if G.client.playable_tick_deltas.tick_catchup > 0
-        {
-          G.client.playable_tick_deltas.tick_catchup -= 1;
-          CLIENT_PlayTick();
-        }
       }
+      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
     }
   }
 
