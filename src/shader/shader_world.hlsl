@@ -247,12 +247,12 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     border *= smoothstep(1.f, edge1, u); // u max
     border *= smoothstep(1.f, edge1, v); // v max
 
-    float visibility_falloff_start = 25.f;
-    float visibility_falloff_end   = 30.f;
+    float visibility_falloff_start = 19.f;
+    float visibility_falloff_end   = 28.f;
     float visibility_t = smoothstep(visibility_falloff_start, visibility_falloff_end, pixel_distance);
 
     float mask = lerp(border, 1.f, visibility_t);
-    mask = mask*0.5 + 0.5;
+    mask = mask*0.25 + 0.75;
     color *= mask;
   }
 

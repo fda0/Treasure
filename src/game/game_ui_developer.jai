@@ -239,7 +239,7 @@ UI_BuildDeveloperWindow :: ()
       case .objects;
       Layers(UI_MONO_TEXT);
       if KEY_Pressed(.T) selected_object = G.hover_object; // @todo improve
-      CreateText(tprint("Seletected: %", selected_object));
+      CreateText(tprint("Seletected: % {index: %, serial: %}", selected_object, OBJ_IndexOfKey(selected_object), OBJ_SerialOfKey(selected_object)));
       if UI_Button("reset selection") selected_object = .{};
 
       obj := OBJ_GetAny(selected_object);

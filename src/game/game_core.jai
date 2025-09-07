@@ -108,9 +108,10 @@ GAME_Iterate :: ()
     G.tick_timestamp_accumulator += delta_timestamp;
     G.dt = delta_timestamp * 0.001;
     G.at = WrapFloat(0, 1000, G.at + G.dt);
-  }
 
-  Post(.TEST_FRAME_NUMBER, G.frame_number);
+    Post(.DELTA_TIMESTMAP_MS, xx delta_timestamp);
+    Post(.TEST_FRAME_NUMBER, G.frame_number);
+  }
 
   if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
@@ -348,7 +349,10 @@ GAME_Iterate :: ()
       {
         self := OBJ_Get(.NETWORK, G.client.player_key);
         hovered_obj := OBJ_Get(.ALL, G.hover_object);
-        hovers_enemy := OBJ_Test2(hovered_obj, self, .{require_flags = .TARGETABLE, common2 = .ARE_ENEMIES});
+        hovers_enemy := OBJ_Test2(hovered_obj, self,
+                                  .{require_flags = .TARGETABLE,
+                                    common = .IS_ALIVE,
+                                    common2 = .ARE_ENEMIES});
 
         if move_pressed && hovers_enemy
         {

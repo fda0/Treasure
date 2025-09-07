@@ -12,6 +12,8 @@ OBJ_State :: struct
   #place offline_objects;
   all_objects: [OBJ_MAX_ALL_OBJECTS] Object = ---;
 
+  creation_serials: [OBJ_MAX_ALL_OBJECTS] u8;
+
   // @todo table of *Object (used for OBJ_Key lookups) -> pointing into table below
   // @todo table of Object; sorted by chunk; last chunk is "new objects chunk"
   // @todo 2D array of chunks with slices into above table; [] Object
@@ -406,7 +408,8 @@ OBJ_TestParams :: struct
   reject_flags: OBJ_Flags;
 
   common: enum_flags u8 {
-    IS_ALIVE;
+    IS_ALIVE; // (has HAS_HP flag) AND (hp > 0.0)
+    IS_ALIVE_OR_NO_HP; // (doesn't have HAS_HP flag) OR (hp > 0.0)
   }
   common2: enum_flags u8 { // for 2 object tests
     ARE_ENEMIES;
@@ -421,7 +424,11 @@ OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
 
   if common & .IS_ALIVE
   {
-    if (obj.s.flags & .HAS_HP) && (obj.s.hp <= 0.0) return false;
+    if !((obj.s.flags & .HAS_HP) && (obj.s.hp > 0.0)) return false;
+  }
+  if common & .IS_ALIVE_OR_NO_HP
+  {
+    if !(!(obj.s.flags & .HAS_HP) || (obj.s.hp > 0.0)) return false;
   }
 
   if !filter(obj) return false;
@@ -552,11 +559,11 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
   if !obj then return OBJ_GetNil();
 
   // init object
-  prev_serial_number := OBJ_SerialOfKey(obj.s.key);
   Initialize(obj);
 
-  obj.s.key = OBJ_CreateKey(serial = max(prev_serial_number + 1, 1),
-                            index = xx ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)));
+  index := ((obj.(u64) - G.obj.all_objects.data.(u64)) / size_of(Object)).(u32);
+  G.obj.creation_serials[index] = max(G.obj.creation_serials[index] + 1, 1);
+  obj.s.key = OBJ_CreateKey(index, G.obj.creation_serials[index]);
 
   obj.s.init = true;
   obj.s.creation_time = GetTimestamp();
