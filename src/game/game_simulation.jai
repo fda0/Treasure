@@ -61,7 +61,7 @@ SIM_AdvanceByTick :: ()
   {
     player := OBJ_Get(.NETWORK, it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
-    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 60.0, player.s.max_hp);
+    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 20.0, player.s.max_hp);
   }
 
   // transfer action to player objects
@@ -79,30 +79,30 @@ SIM_AdvanceByTick :: ()
     if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
 
     obj.s.desired_dp = .{};
-    if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP }) continue;
-
-    action := obj.s.action;
-
-    if action.type == .ATTACK
+    if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
     {
-      targets_valid_enemy := OBJ_Test2(OBJ_Get(.NETWORK, action.target_object), obj,
-                                       .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
+      obj.s.action = .{};
+    }
+
+    if obj.s.action.type == .ATTACK
+    {
+      target := OBJ_Get(.NETWORK, obj.s.action.target_object);
+      targets_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
       if !targets_valid_enemy
       {
         obj.s.action = .{};
-        continue;
       }
     }
 
-    if action.type != .ATTACK
+    if obj.s.action.type != .ATTACK
     {
       obj.s.is_attacking = false;
     }
 
     obj_move_dir: V2;
-    if action.type == .PATHING
+    if obj.s.action.type == .PATHING
     {
-      obj_to_destination := action.world_p.xy - obj.s.p.xy;
+      obj_to_destination := obj.s.action.world_p.xy - obj.s.p.xy;
       distance := length(obj_to_destination);
       if distance >= MINIMUM_MOVE_START_DISTANCE then obj_move_dir = obj_to_destination;
     }
@@ -115,17 +115,16 @@ SIM_AdvanceByTick :: ()
     }
 
     // Handle action type .ATTACK
-    if action.type == .ATTACK
+    if obj.s.action.type == .ATTACK
     {
-      if obj.s.target != action.target_object
+      if obj.s.target != obj.s.action.target_object
       {
         reset_attack_timers(obj);
         obj.s.is_attacking = false;
       }
+      obj.s.target = obj.s.action.target_object;
 
-      obj.s.target = action.target_object;
-
-      attacked := OBJ_Get(.NETWORK, action.target_object);
+      attacked := OBJ_Get(.NETWORK, obj.s.action.target_object);
       if !OBJ_IsNil(attacked)
       {
         obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
