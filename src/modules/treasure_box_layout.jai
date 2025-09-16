@@ -381,9 +381,10 @@ Box :: struct
   using spec: BoxSpec;
   next, prev, first, last, parent: *Box;
   loc: Source_Code_Location; // creation loc
-  old: *Box; // Pointer to this Box from previous frame. Otherwise should point to nil_box.
 
+  free_next: *Box;
   key_would_collide: bool;
+  key_was_specified_manually: bool;
 
   // in pixels
   inner: V2;
@@ -481,85 +482,12 @@ LinkToNil :: (box: *Box)
 IsNil :: (box: *Box) -> bool { return !box || box == *layout_state.nil_box; }
 GetNilBox :: () -> *Box { return *layout_state.nil_box; }
 
-FindBox :: (key: BoxKey, target := BoxStorageArray.CURRENT) -> *Box
+FindBox :: (key: BoxKey) -> *Box
 {
-  // @speed accelerate using hash table or something
   result := *layout_state.nil_box;
-  array := BoxesArray(target);
-  for * array.*
-  {
-    if it.key == key
-    {
-      result = it;
-      break;
-    }
-  }
+  found := Hash_Table.table_find_pointer(key.hash);
+  if found then result = found;
   return result;
-}
-
-CreateBoxDirect :: (source_spec: BoxSpec, loc := #caller_location) -> *Box
-{
-  spec := source_spec;
-  key_would_collide := false;
-  if !spec.key
-  {
-    spec.key = CreateKey(loc, spec.seed);
-    // stack_trace_string := get_stack_trace_string(context.stack_trace,, temp);
-    // spec.key = CreateKey(stack_trace_string, spec.seed);
-
-    entry, newly_added := Hash_Table.find_or_add(*layout_state.added_seeds, spec.key.hash);
-    if newly_added
-    {
-      entry.* = 0;
-    }
-    else
-    {
-      entry.* += 1;
-      spec.key.hash += entry.*;
-      layout_state.hash_collisions += 1;
-      key_would_collide = true;
-    }
-  }
-  if spec.text.str then spec.text.str = copy_temporary_string(spec.text.str); // @todo This should live in some double-buffered array in layout_state
-
-  // check for collision
-  {
-    check := FindBox(spec.key);
-    if !IsNil(check)
-    {
-      log_error("[KINTSUGI] - Found BoxKey collision when creating a new box. Collided on key: %. Tried to create a box from: %. Collided with box from: %.", spec.key, loc, check.loc);
-    }
-  }
-
-  layout_state.boxes_count += 1;
-
-  box := array_add(BoxesArray(.CURRENT));
-  box.spec = spec;
-  box.loc = loc;
-  box.key_would_collide = key_would_collide;
-
-  // links
-  LinkToNil(box);
-  box.parent = ActiveParent();
-  if !IsNil(box.parent)
-  {
-    if IsNil(box.parent.first)
-    {
-      box.parent.first = box;
-      box.parent.last = box;
-    }
-    else
-    {
-      box.prev = box.parent.last;
-      box.prev.next = box;
-      box.parent.last = box;
-    }
-  }
-
-  // Find old (from previous frame) box
-  box.old = FindBox(box.key, .OLD); // will be equal to nil_box if not found
-
-  return box;
 }
 
 CreateBox :: (specs: ..BoxSpec, loc := #caller_location) -> *Box
@@ -583,6 +511,84 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   merged.layout.size.min.y = .{.TEXT, 1.0};
 
   return CreateBoxDirect(merged, loc);
+}
+
+CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
+{
+  layout_state.boxes_count += 1;
+
+  init_key := init_spec.key;
+  if !init_key
+  {
+    init_key = CreateKey(loc, init_spec.seed);
+  }
+
+  final_key := init_key;
+  {
+    increment, new_entry := find_or_add(*layout_state.seed_increments, init_key.hash);
+    if new_entry then increment.* = 0;
+    else
+    {
+      increment.* += 1;
+      final_key.hash += (increment.* << 48);
+    }
+  }
+
+  box_slot := find_or_add(*layout_state.box_table, final_key.hash);
+  if !box_slot.*
+  {
+    box_slot.* = AllocBoxFromStorage();
+  }
+  box := box_slot.*;
+
+  box.spec = init_spec;
+  box.loc = loc;
+  box.key = final_key;
+  box.key_would_collide = final_key != init_key;
+  box.key_was_specified_manually = !!init_spec.key;
+
+  if box.text.str
+  {
+    // @todo We can't use temporary allocator! Lifetimes could be different.
+    // We need a special double-buffered temp allocator that belongs to layout_state!
+    box.text.str = copy_temporary_string(box.text.str);
+  }
+
+  // links
+  LinkToNil(box);
+  box.parent = ActiveParent();
+  if !IsNil(box.parent)
+  {
+    if IsNil(box.parent.first)
+    {
+      box.parent.first = box;
+      box.parent.last = box;
+    }
+    else
+    {
+      box.prev = box.parent.last;
+      box.prev.next = box;
+      box.parent.last = box;
+    }
+  }
+
+  return box;
+}
+
+AllocBoxFromStorage :: () -> *Box
+{
+  result: *Box;
+  if layout_state.storage_free_list
+  {
+    result = layout_state.storage_free_list;
+    layout_state.storage_free_list = layout_state.storage_free_list.free_next;
+  }
+  else
+  {
+    result = xar_add(*layout_state.storage, .{});
+  }
+  result.free_next = null;
+  return result;
 }
 
 //
@@ -659,8 +665,8 @@ Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
   signal := BoxSignal.{box = box};
   box.capture_hover = true;
 
-  mouse_overlaps_box := (mouse.x >= box.old.clipped_min.x && mouse.x < box.old.clipped_max.x &&
-                         mouse.y >= box.old.clipped_min.y && mouse.y < box.old.clipped_max.y);
+  mouse_overlaps_box := (mouse.x >= box.clipped_min.x && mouse.x < box.clipped_max.x &&
+                         mouse.y >= box.clipped_min.y && mouse.y < box.clipped_max.y);
 
   assign_active := false;
 
@@ -679,7 +685,7 @@ Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
       {
         if !(mask & .CANT_ACTIVATE) then active_key = box.key;
         drag_start_p = mouse;
-        drag_box_abs_p_offset = mouse - box.old.abs_p;
+        drag_box_abs_p_offset = mouse - box.abs_p;
         signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
       }
     }
@@ -794,8 +800,11 @@ LayoutBegin :: (new_spec: LayoutSpec)
     if not_held then active_key = .{};
   }
 
-  Hash_Table.init(*added_seeds, boxes_count*2 + 1024); // @todo this just leaks memory atm? api of the table could be better here?
-  hash_collisions = 0;
+  init(*seed_increments, boxes_count*2 + 1024); // @todo this just leaks memory atm? api of the table could be better here?
+  for box_table
+  {
+    LinkToNil(it);
+  }
 
   // Assing new spec
   layout_spec = new_spec;
@@ -805,22 +814,6 @@ LayoutBegin :: (new_spec: LayoutSpec)
 
   nil_box = .{};
   LinkToNil(*nil_box);
-
-  current_boxes_index = xx !current_boxes_index;
-  array_reset_keeping_memory(BoxesArray(.CURRENT));
-
-  for *boxes
-  {
-    // This allocates a lot of memory because we don't handle realloc right now.
-    // @todo replace these [..] arrays with stable pointer allocations.
-    array_reserve(it, 1024 * 1024 * 1);
-  }
-
-  old_boxes := BoxesArray(.OLD);
-  for * old_boxes.*
-  {
-    it.old = *nil_box;
-  }
 
   array_reset_keeping_memory(*render_commands);
 
@@ -851,7 +844,7 @@ LayoutEnd :: ()
     err |= nil_box.parent != *nil_box;
     if err
     {
-      log_error("[KINTSUGI] error detected - nil_box was modified. Make sure you check with IsNil before modifying a box.");
+      log_error("[box_layout] error detected - nil_box was modified. Make sure you check with IsNil before modifying a box.");
       nil_box = .{};
       LinkToNil(*nil_box);
     }
@@ -1613,24 +1606,20 @@ LayoutState :: struct
   buttons: [ButtonTypeCount] ButtonFlags;
 
   boxes_count: s32;
+  layout_build_index: s32;
 
   active_key: BoxKey;
   hover_key: BoxKey;
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
-  added_seeds: Hash_Table.Table(Value_Type = u64);
-  hash_collisions := 0;
-
-  // Double-buffer system.
-  // Each LayoutBegin call flips boxes_index between 0-1.
-  // current_boxes_index points to boxes array used by current layout run.
-  // Other boxes array points to boxes from the previous frame.
-  current_boxes_index: u8;
-  boxes: [2][..] Box; // @todo replace with HashTable // @todo The rest of the code assumes STABLE pointers here!
-
   nil_box: Box;
   root_box: *Box;
+
+  seed_increments: Table(Value_Type = u64);
+  box_table: Table(Value_Type = *Box);
+  storage: Xar(Box, 10, 16); // storage size 1024 .. 33554432 of Box
+  storage_free_list: *Box;
 
   render_commands: [..] RenderCommand;
 
@@ -1642,23 +1631,12 @@ LayoutState :: struct
 };
 layout_state: LayoutState; // @todo allow user to create a layout_state and to attach it to context instead of using a global variable
 
-//
-// Internal storage for Box. Uses double-buffer approach for keeping 1 "frame" old data around.
-//
-BoxStorageArray :: enum u8 {CURRENT; OLD;};
-BoxesArray :: (which: BoxStorageArray) -> *[..] Box
-{
-  using layout_state;
-  index := ifx which == .CURRENT then current_boxes_index else xx !current_boxes_index;
-  res := *boxes[index];
-  return res;
-}
-
 #scope_file;
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
-Hash_Table :: #import "treasure_hash_table";
+#import "treasure_hash_table";
 #import "Sort"; // quick_sort
+#import "Xar";
 
 //
 // Internal hash helpers

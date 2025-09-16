@@ -76,5 +76,13 @@ array_add_copy :: (array: *[..] $T, copy_from: [] T) -> allocated_slice: [] T
   return dst;
 }
 
+PointerToIndex :: (array: [] $T, pointer: *T) -> s64
+{
+  assert(pointer >= array.data && pointer < array.data + array.count);
+  offset := (pointer.(u64) - array.data.(u64)).(s64);
+  index := offset / size_of(T);
+  return index;
+}
+
 #scope_file
 #import "Basic"; // for clamp

@@ -165,7 +165,7 @@ UI_BuildDeveloperWindow :: ()
         graph_box := Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1)},
                                         bg_color = C32_0xRGB(0)}));
 
-        parent_height_px := graph_box.old.inner.y;
+        parent_height_px := graph_box.inner.y;
         for c.history
         {
           height_px := 0.0;
@@ -414,10 +414,10 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       Parent(scroll_area);
 
       bar_size_pct := 0.0;
-      children_outer_sum := SumOutersOfChildren(scroll_body.old, axis);
+      children_outer_sum := SumOutersOfChildren(scroll_body, axis);
       if children_outer_sum > 0.0
       {
-        bar_size_pct = Inner(scroll_body.old, axis) / children_outer_sum;
+        bar_size_pct = Inner(scroll_body, axis) / children_outer_sum;
         if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
       }
 
@@ -443,10 +443,10 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
         }
         if box_bar.flags & .DRAG
         {
-          scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
+          scrollable_size_px := Inner(scroll_area, axis) - Inner(box_bar, axis);
           if scrollable_size_px > 0.0
           {
-            scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
+            scrollable_position_px := (G.mouse - scroll_area.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
             scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
             scroll.* = scrollable_position_01;
           }
@@ -660,10 +660,10 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     Parent(scroll_area);
 
     bar_size_pct := 0.0;
-    children_outer_sum := SumOutersOfChildren(body.old, axis);
+    children_outer_sum := SumOutersOfChildren(body, axis);
     if children_outer_sum > 0.0
     {
-      bar_size_pct = Inner(body.old, axis) / children_outer_sum;
+      bar_size_pct = Inner(body, axis) / children_outer_sum;
       if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
     }
 
@@ -689,10 +689,10 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
       }
       if box_bar.flags & .DRAG
       {
-        scrollable_size_px := Inner(scroll_area.old, axis) - Inner(box_bar.old, axis);
+        scrollable_size_px := Inner(scroll_area, axis) - Inner(box_bar, axis);
         if scrollable_size_px > 0.0
         {
-          scrollable_position_px := (G.mouse - scroll_area.old.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
+          scrollable_position_px := (G.mouse - scroll_area.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
           scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
           scroll.* = scrollable_position_01;
         }

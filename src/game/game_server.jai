@@ -274,8 +274,8 @@ SERVER_IterateReceive :: ()
 
     if user
     {
-      user.last_msg_timestamp = GetTimestamp(.FRAME);
-      user_id: u64 = (user.(u64) - G.server.users.data.(u64)) / size_of(NET_User);
+      user.net.last_msg_timestamp = GetTimestamp(.FRAME);
+      user_id := PointerToIndex(G.server.users, user);
       player_id := user_id.(u16);
 
       packet := string.{dgram.buflen, dgram.buf};

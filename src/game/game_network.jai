@@ -284,34 +284,34 @@ NET_UserMatchAddrPort :: (user: NET_User, address: *SDLNet_Address, port: u16) -
   return (user.port == port && SDLNet_CompareAddresses(user.address, address) == 0);
 }
 
-NET_FindUser :: (address: *SDLNet_Address, port: u16) -> *NET_User
+NET_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_UserState
 {
   // @todo move to SV_ prefix?
   for *G.server.users
   {
     if (NET_UserMatchAddrPort(it.net, address, port))
-      return *it.net;
+      return it;
   }
   return null;
 }
 
-NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *NET_User
+NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_UserState
 {
   // @todo move to SV_ prefix?
-  new_user_slot: *NET_User;
+  new_user_slot: *SERVER_UserState;
   for *G.server.users
   {
     if !it.net.address
     {
-      new_user_slot = *it.net;
+      new_user_slot = it;
       break;
     }
   }
 
   if (new_user_slot)
   {
-    new_user_slot.address = SDLNet_RefAddress(address);
-    new_user_slot.port = port;
+    new_user_slot.net.address = SDLNet_RefAddress(address);
+    new_user_slot.net.port = port;
   }
   return new_user_slot;
 }
