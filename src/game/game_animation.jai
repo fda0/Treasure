@@ -87,6 +87,8 @@ ANIMATION_FromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
 
 ANIMATION_InitSkeletons :: ()
 {
+  PerfFunc();
+
   MaskJoints :: (joint_name: string, value: float) #expand
   {
     ANIMATION_WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
@@ -186,6 +188,8 @@ ANIMATION_InitSkeletons :: ()
 
 ANIMATION_AnimateObjects :: ()
 {
+  PerfFunc();
+
   for *obj: G.obj.all_objects
   {
     animate_rotation := OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION);
@@ -418,6 +422,8 @@ ANIMATION_AnimateObjects :: ()
 
 ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) -> [] Mat4
 {
+  PerfFunc();
+
   accumulated_scales       := array_copy(skeleton.bind_scales,,       temp);
   accumulated_rotations    := array_copy(skeleton.bind_rotations,,    temp);
   accumulated_translations := array_copy(skeleton.bind_translations,, temp);

@@ -104,6 +104,7 @@ UI_BuildDeveloperWindow :: ()
 {
   using G.dev;
   if !show return;
+  PerfFunc();
 
   Layer(.{text.color = UI_FG});
   Layer(UI_REGULAR_TEXT);
@@ -711,4 +712,3 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
   return body;
 }
-

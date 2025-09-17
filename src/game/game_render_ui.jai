@@ -66,6 +66,8 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
 
 UI_Translate3DShapes :: ()
 {
+  PerfFunc();
+
   using G.gpu.ui;
   for MakeRange(shapes3d_count)
   {

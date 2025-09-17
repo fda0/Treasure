@@ -43,6 +43,8 @@ build :: ()
     }
   }
 
+  if release_build log("Release mode");
+
   if build_targets == 0
   {
     build_targets = .TREASURE | .BAKER;

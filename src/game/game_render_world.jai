@@ -90,6 +90,8 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
 
 WORLD_DrawObjects :: ()
 {
+  PerfFunc();
+
   for *obj: G.obj.all_objects
   {
     draw_model := OBJ_HasAnyFlag(obj, .DRAW_MODEL);

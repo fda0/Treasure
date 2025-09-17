@@ -78,6 +78,7 @@ GAME_State :: struct
 
 GAME_Init :: ()
 {
+  PerfFunc();
   G.frame_timestamp = GetTimestamp(.NOW);
 
   if !G.headless
@@ -98,7 +99,7 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
-  PerfScope("MY_GAME_Iterate");
+  PerfFunc();
 
   // pre frame logic
   {
@@ -202,11 +203,14 @@ GAME_Iterate :: ()
     else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse)
       G.grab_mouse = true;
 
-    UI_DeveloperKeyShortcuts();
-    UI_BeginBoxLayout();
-    UI_BuildHUD();
-    UI_BuildDeveloperWindow();
-    UI_FinishBoxLayout();
+    {
+      PerfScope("UI workload");
+      UI_DeveloperKeyShortcuts();
+      UI_BeginBoxLayout();
+      UI_BuildHUD();
+      UI_BuildDeveloperWindow();
+      UI_FinishBoxLayout();
+    }
 
     if G.dev.noclip
     {
@@ -418,7 +422,6 @@ GAME_Iterate :: ()
     // Post frame calls
     GPU_BATCH_PostFrame();
     UI_ClearRenderCounters();
-    // UI_PostFrame();
     ASSET_PostFrame();
 
     HOT_RELOAD_Iterate();
@@ -498,12 +501,6 @@ GAME_ParseCommandLineArguments :: (args: [] string)
   }
 }
 
-GAME_AutoLayoutApply :: (code: ..Code) #expand
-{
-  // @impl
-  log_error("GAME_AutoLayoutApply called but not implemented");
-}
-
 // Includes and stuff
 #import "Basic";
 #import "File";
@@ -553,7 +550,5 @@ String :: #import "String";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
 
-ENABLE_PROFILING :: true;
-#if ENABLE_PROFILING {
-  #import "superluminal";
-}
+#import "superluminal"()(ENABLE_PROFILER = true);
+BOX :: #import "tr_box_layout"(Color=Color32);

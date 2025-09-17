@@ -31,6 +31,7 @@ SERVER_ReceiveDatagram :: ()
 SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *NET_SendActions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
+  PerfFunc();
 
   // log("Client tick %; actions: %", client_tick, net_msg.actions);
 
@@ -65,6 +66,7 @@ SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *NET_SendActio
 
 SERVER_GetNextUserAction :: (user: *SERVER_UserState) -> Action
 {
+  PerfFunc();
   top_delay: float;
   for user.received_actions
   {
@@ -98,6 +100,7 @@ SERVER_IterateSend :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+  PerfFunc();
 
   client_count := 0;
   for G.server.users if it.net.address client_count += 1;
@@ -255,6 +258,7 @@ SERVER_IterateReceive :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+  PerfFunc();
 
   while true
   {
@@ -289,6 +293,7 @@ SERVER_IterateReceive :: ()
 
 SERVER_ReceivePayload :: (player_id: u16, full_payload: string)
 {
+  PerfFunc();
   msg := full_payload;
   while msg.count
   {

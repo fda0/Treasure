@@ -8,6 +8,7 @@ PROJECTILE_HIT_DISTANCE :: 0.1;
 
 SIM_AdvanceByTick :: ()
 {
+  PerfFunc();
   assert(NET_IsServer());
 
   reset_attack_timers :: (obj: *Object)
@@ -340,6 +341,7 @@ SIM_AdvanceByTick :: ()
 
 SIM_MoveAndCollideObjects :: ()
 {
+  PerfFunc();
   for * obj: G.obj.network_objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;

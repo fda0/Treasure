@@ -358,6 +358,8 @@ GPU_InitPipelines :: ()
 
 GPU_Iterate :: ()
 {
+  PerfFunc();
+
   GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: enum { RENDER; DEPTH; MOUSE_PICKING; })
   {
     simplified_pipeline := ifx mode == .RENDER then false else true;

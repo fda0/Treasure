@@ -44,6 +44,8 @@ CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *OBJ_Sync
 
 CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
 {
+  PerfFunc();
+
   snaps := *G.client.snaps_of_objs[net_index];
 
   assert(tick <= snaps.latest_server_tick &&
@@ -96,6 +98,8 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
 
 CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new_value: OBJ_Sync) -> bool
 {
+  PerfFunc();
+
   // function returns true on error
   #assert(snaps.tick_states.count == NET_CLIENT_MAX_SNAPSHOTS);
   last_to_first_tick_offset := NET_CLIENT_MAX_SNAPSHOTS.(Tick) - 1;
@@ -193,6 +197,7 @@ CLIENT_IterateSend :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
+  PerfFunc();
 
   {
     head: NET_SendHeader;
@@ -226,6 +231,7 @@ CLIENT_IterateReceive :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+  PerfFunc();
 
   while true
   {
@@ -257,6 +263,7 @@ CLIENT_IterateReceive :: ()
 
 CLIENT_ReceivePayload :: (full_payload: string)
 {
+  PerfFunc();
   msg := full_payload;
   while msg.count
   {
@@ -310,7 +317,9 @@ CLIENT_ReceivePayload :: (full_payload: string)
     {
       layout := NET_Consume(NET_SendWindowLayout, *msg);
       if G.window_autolayout
-      GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
+      {
+        // GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
+      }
     }
     else
     {
@@ -322,6 +331,7 @@ CLIENT_ReceivePayload :: (full_payload: string)
 
 CLIENT_PlayTick :: ()
 {
+  PerfFunc();
   assert(NET_IsClient());
 
   smallest_latest_server_tick: Tick = Tick_MAX;

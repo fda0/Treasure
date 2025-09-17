@@ -31,6 +31,8 @@ ASSET_InitPostGPU :: ()
 
 ASSET_PostFrame :: ()
 {
+  PerfFunc();
+
   // Wake up texture asset loading thread
   if G.ast.tex_load_needed
   {

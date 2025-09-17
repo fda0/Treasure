@@ -1,10 +1,11 @@
-BOX :: #import "tr_box_layout"(Color=Color32);
 #scope_file
 using BOX;
 #scope_export;
 
 UI_BeginBoxLayout :: ()
 {
+  PerfFunc();
+
   spec := LayoutSpec.{
     root_dim_px = G.window_dim,
     rem_to_px = 2.0 + 2.0 * floor(G.window_dim.y / 128.0),
@@ -29,6 +30,8 @@ UI_BeginBoxLayout :: ()
 
 UI_FinishBoxLayout :: ()
 {
+  PerfFunc();
+
   LayoutEnd();
 
   if !!layout_state.active_key
@@ -39,6 +42,8 @@ UI_FinishBoxLayout :: ()
 
 UI_ProcessBoxRenderCommands :: ()
 {
+  PerfFunc();
+
   debug_dump := false;
   if KEY_Pressed(.F3) then debug_dump = true;
 

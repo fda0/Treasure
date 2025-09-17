@@ -30,8 +30,8 @@ HOT_RELOAD_ProcessNewPIEFile :: (file_path: string)
 
 HOT_RELOAD_Iterate :: ()
 {
-  using G.hr;
-  process_changes(*watcher);
+  PerfFunc();
+  process_changes(*G.hr.watcher);
 }
 
 HOT_RELOAD_FileWatcherCallback :: (watcher: *File_Watcher(void), change: *File_Change, user_data: *void)

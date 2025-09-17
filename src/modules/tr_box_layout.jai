@@ -1,8 +1,7 @@
 /* @todo
-- replace box storage with something that has stable pointers
+- remove unused boxes from table
 - cache text measurement
-- implementing floating,
-- implement mouse-box interactions like dragging, detect direct hover,
+- mouse query for 'is hovering this or children'
 */
 
 #module_parameters(
@@ -779,6 +778,7 @@ LayoutSpec :: struct
 
 LayoutBegin :: (new_spec: LayoutSpec)
 {
+  PerfFunc();
   using layout_state;
 
   // Update button states
@@ -831,6 +831,7 @@ LayoutBegin :: (new_spec: LayoutSpec)
 //
 LayoutEnd :: ()
 {
+  PerfFunc();
   using layout_state;
 
   // Validate that nil_box wasn't modified.
@@ -1631,12 +1632,13 @@ LayoutState :: struct
 };
 layout_state: LayoutState; // @todo allow user to create a layout_state and to attach it to context instead of using a global variable
 
-#scope_file;
+#scope_module;
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
 #import "tr_hash_table";
 #import "Sort"; // quick_sort
 #import "Xar";
+#import "superluminal";
 
 //
 // Internal hash helpers
