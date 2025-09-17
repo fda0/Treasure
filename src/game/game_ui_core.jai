@@ -1,4 +1,4 @@
-BOX :: #import "treasure_box_layout"(Color=Color32);
+BOX :: #import "tr_box_layout"(Color=Color32);
 #scope_file
 using BOX;
 #scope_export;

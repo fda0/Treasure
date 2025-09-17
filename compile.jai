@@ -116,6 +116,7 @@ build :: ()
       .{"build/SDL3.dll", "libs/SDL/build/win/Debug/SDL3.dll"},
       .{"build/SDL3_net.dll", "libs/SDL_net/build/win/Debug/SDL3_net.dll"},
       .{"build/SDL3_image.dll", "libs/SDL_image/build/win/Debug/SDL3_image.dll"},
+      .{"build/PerformanceAPI.dll", "libs/superluminal/PerformanceAPI.dll"},
     ];
     for copies if !file_exists(it.dst) then copy_file(it.src, it.dst);
   }

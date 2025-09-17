@@ -10,6 +10,8 @@ PLATFORM_Init :: ()
   G.time_launch = current_time_monotonic();
   G.dpi_scaling = 1;
 
+  PerfInit();
+
   ok := SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
   if ok

@@ -1634,7 +1634,7 @@ layout_state: LayoutState; // @todo allow user to create a layout_state and to a
 #scope_file;
 #import "Basic"; // for array_add, clamp, log_error
 #import "Math"; // Vector2, operator +
-#import "treasure_hash_table";
+#import "tr_hash_table";
 #import "Sort"; // quick_sort
 #import "Xar";
 

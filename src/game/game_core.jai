@@ -98,6 +98,8 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
+  PerfScope("MY_GAME_Iterate");
+
   // pre frame logic
   {
     new_timestamp := GetTimestamp(.NOW);
@@ -519,7 +521,7 @@ String :: #import "String";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
 #load "../shared/game_render_world_shared.jai";
-#import "treasure_hash_table";
+#import "tr_hash_table";
 
 #load "game_text.jai";
 #load "game_ui_core.jai";
@@ -550,3 +552,8 @@ String :: #import "String";
 #load "game_stats.jai";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
+
+ENABLE_PROFILING :: true;
+#if ENABLE_PROFILING {
+  #import "superluminal";
+}
