@@ -253,7 +253,13 @@ PushLayer :: (spec: BoxSpec)
 {
   using layout_state;
   if layers_count < layers.count
+  {
     layers[layers_count] = spec;
+    if layers_count > 0
+    {
+      Merge(*layers[layers_count], layers[layers_count - 1]);
+    }
+  }
   layers_count += 1;
 }
 PopLayer :: ()
@@ -276,7 +282,7 @@ ActiveLayers :: () -> [] BoxSpec
   using layout_state;
   result: [] BoxSpec;
   result.data = layers.data;
-  result.count = layers_count;
+  result.count = min(layers_count, layers.count);
   return result;
 }
 
@@ -336,7 +342,7 @@ Merge :: (c: *BoxSpec, p: BoxSpec) {
   Merge(*c.layout.child_gap,     p.layout.child_gap);
   Merge(*c.layout.child_align.x, p.layout.child_align.x);
   Merge(*c.layout.child_align.y, p.layout.child_align.y);
-  Merge(*c.layout.child_order,     p.layout.child_order);
+  Merge(*c.layout.child_order,   p.layout.child_order);
 
   Merge(*c.bg_color,      p.bg_color);
   Merge(*c.corner_radius, p.corner_radius);
@@ -351,27 +357,28 @@ Merge :: (c: *BoxSpec, p: BoxSpec) {
   Merge(*c.text.font,      p.text.font);
   Merge(*c.text.font_size, p.text.font_size);
 }
-Merge :: (child_spec: BoxSpec, parent_specs: ..BoxSpec, reverse_order := false) -> BoxSpec
+
+MergeSpecsAndTakeFirstAsBase :: (specs: ..BoxSpec) -> BoxSpec
 {
-  merged := child_spec;
-  if reverse_order then for < parent_specs Merge(*merged, it);
-  else                  for   parent_specs Merge(*merged, it);
-  return merged;
-}
-MergeButTakeFirstAsBase :: (specs: ..BoxSpec) -> BoxSpec
-{
-  // First spec in specs array is "primary".
+  // First spec in specs array is a base.
   // It will be taken by value and won't be subjected
   // to the rules of merge.
   spec: BoxSpec;
   for specs
   {
-    if it_index == 0
-      spec = it;
-    else
-      spec = Merge(spec, it);
+    if it_index == 0 then spec = it;
+    else                  Merge(*spec, it);
   }
   return spec;
+}
+
+MergeWithActiveLayers :: (spec: *BoxSpec)
+{
+  layers := ActiveLayers();
+  if layers.count > 0
+  {
+    Merge(spec, layers[layers.count - 1]);
+  }
 }
 
 //
@@ -493,15 +500,15 @@ FindBox :: (key: BoxKey) -> *Box
 
 CreateBox :: (specs: ..BoxSpec, loc := #caller_location) -> *Box
 {
-  merged := MergeButTakeFirstAsBase(..specs);
-  merged = Merge(merged, ..ActiveLayers(), reverse_order=true);
+  merged := MergeSpecsAndTakeFirstAsBase(..specs);
+  MergeWithActiveLayers(*merged);
   return CreateBoxDirect(merged, loc);
 }
 
 CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
 {
-  merged := MergeButTakeFirstAsBase(..specs);
-  merged = Merge(merged, ..ActiveLayers(), reverse_order=true);
+  merged := MergeSpecsAndTakeFirstAsBase(..specs);
+  MergeWithActiveLayers(*merged);
 
   merged.text.str = text;
   // merged.seed = HashStringFunc(text, merged.seed);
