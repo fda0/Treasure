@@ -173,21 +173,8 @@ UI_BuildDeveloperWindow :: ()
                                         bg_color = C32_0xRGB(0)}));
 
         // Calculate graph width
-        bar_width_px := 1.0;
-        bar_gap_px := 0.0;
-        {
-          per_bar := window_outer.inner.x / c.history.CAPACITY;
-          if per_bar > 4.0
-          {
-            bar_width_px = floor(per_bar / 2.0);
-            bar_gap_px = bar_width_px;
-          }
-          else if per_bar > 1.0
-          {
-            bar_width_px = floor(per_bar);
-          }
-        }
-        graph_box.layout.size.min.x = Px(bar_width_px * c.history.CAPACITY + bar_gap_px * (c.history.CAPACITY - 1));
+        bar_width_px := max(1.0, floor(window_outer.inner.x / c.history.CAPACITY));
+        graph_box.layout.size.min.x = Px(bar_width_px * c.history.CAPACITY);
 
         // Update graph bar height scale
         {
@@ -207,13 +194,6 @@ UI_BuildDeveloperWindow :: ()
         parent_height_px := graph_box.inner.y;
         for c.history
         {
-          is_hovered := false;
-          if it_index > 0 && bar_gap_px > 0.0
-          {
-            gap := Signal(CreateBox(.{layout.size = .{min.x = Px(bar_gap_px), pref.y = Grow()}}));
-            is_hovered |= !!(gap.flags & .HOVER);
-          }
-
           height_px := 0.0;
           if c.on_peak_frame
           {
@@ -224,11 +204,10 @@ UI_BuildDeveloperWindow :: ()
           total := Signal(Parent(CreateBox(.{layout.size = .{min.x = Px(bar_width_px), pref.y = Grow()}})));
           filled := CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
                                 bg_color = UI_YELLOW1});
-          is_hovered |= !!(total.flags & .HOVER);
 
           if it_index % 2 == 0 then filled.bg_color = UI_YELLOW2;
 
-          if is_hovered
+          if total.flags & .HOVER
           {
             Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                layout.size.min = Fit2(),
