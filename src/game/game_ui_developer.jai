@@ -341,7 +341,7 @@ UI_BuildDeveloperWindow :: ()
   }
 }
 
-UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> body: *Box, window: *Box
+UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> content: *Box, window: *Box
 {
   Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64), window_scroll.(u64))});
 
@@ -368,7 +368,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
   Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
 
   // Scrolling
-  scroll_body: *Box;
+  scrollable: *Box;
   resize_button: BoxSignal;
   {
     BAR_THICKNESS :: #run Rem(0.75);
@@ -410,19 +410,18 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
     }
 
     Parent(container_y);
-    scroll_body = CreateBox(.{layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM},
-                              scroll.enable = .SCROLL_X | .SCROLL_Y});
+    scrollable = CreateBox(.{layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM},
+                             scroll.enable = .SCROLL_X | .SCROLL_Y});
     scroll_area_y := CreateBox();
 
     for axis: Axis2.X .. Axis2.Y
     {
       other_axis := (!axis).(Axis2);
       scroll      := *window_scroll.component[axis];
-      container   := ifx axis == .X then container_x else container_y;
       scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
 
       scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
-      container_sig := Signal(container, .CANT_ACTIVATE);
+      scrollable_body_sig := Signal(scrollable, .CANT_ACTIVATE);
 
       scroll_area.bg_color = color_bar_bg;
       scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -431,10 +430,10 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       Parent(scroll_area);
 
       bar_size_pct := 0.0;
-      children_outer_sum := SumOutersOfChildren(scroll_body, axis);
+      children_outer_sum := SumOutersOfChildren(scrollable, axis);
       if children_outer_sum > 0.0
       {
-        bar_size_pct = Inner(scroll_body, axis) / children_outer_sum;
+        bar_size_pct = Inner(scrollable, axis) / children_outer_sum;
         if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
       }
 
@@ -446,9 +445,10 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
 
       // @feature(box_layout) a way to check "is this or its children hovered"
       is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
-      if is_scroll_area_hovered || (container_sig.flags & .HOVER && axis == .Y)
+      if is_scroll_area_hovered || (scrollable_body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
       {
-        scroll_by := -G.mouse_scroll.y * 0.05;
+        pct_speed := SafeDiv(120.0, scrollable.inner.y);
+        scroll_by := -G.mouse_scroll.y * pct_speed;
         scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
       }
 
@@ -473,10 +473,10 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       }
       else box_bar.bg_color = 0;
 
-      scroll_body.scroll.set_01.component[axis] = scroll.*;
+      scrollable.scroll.set_01.component[axis] = scroll.*;
     }
   }
-  Parent(scroll_body);
+  Parent(scrollable);
 
   // Content box
   content := CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
@@ -663,12 +663,11 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
   {
     other_axis := (!axis).(Axis2);
     scroll      := ifx axis == .X then scroll_x else scroll_y;
-    container   := ifx axis == .X then container_x else container_y;
     scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
     if !scroll continue;
 
     scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
-    container_sig := Signal(container, .CANT_ACTIVATE);
+    body_sig := Signal(body, .CANT_ACTIVATE);
 
     scroll_area.bg_color = color_bar_bg;
     scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -692,7 +691,7 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
     // @feature(box_layout) a way to check "is this or its children hovered"
     is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
-    if is_scroll_area_hovered || (container_sig.flags & .HOVER && axis == .Y)
+    if is_scroll_area_hovered || (body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
     {
       scroll_by := -G.mouse_scroll.y * 0.05;
       scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);

@@ -415,6 +415,12 @@ Box :: struct
   clipped_min: V2;
   clipped_max: V2;
 
+  signal_info: enum_flags u32 {
+    HAS_HOVER;
+    HAS_CHILD_WITH_HOVER;
+    HAS_SCROLL_CHILD_WITH_HOVER;
+  }
+
   #place inner; inners: [3] V2;
 };
 
@@ -650,6 +656,8 @@ BoxSignal :: struct
   Flags :: enum_flags u32
   {
     OVERLAPS; HOVER;
+    HOVER_ON_CHILD; HOVER_ON_SCROLL_CHILD;
+
     CLICK; DOUBLE_CLICK; TRIPLE_CLICK;
     RIGHT_CLICK; RIGHT_DOUBLE_CLICK; RIGHT_TRIPLE_CLICK;
     DRAG;
@@ -675,28 +683,31 @@ Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
 
   mouse_overlaps_box := (mouse.x >= box.clipped_min.x && mouse.x < box.clipped_max.x &&
                          mouse.y >= box.clipped_min.y && mouse.y < box.clipped_max.y);
-
-  assign_active := false;
-
   if mouse_overlaps_box
   {
     signal.flags |= .OVERLAPS;
   }
 
-  if !active_key && hover_key == box.key
+  if !active_key
   {
-    signal.flags |= .HOVER;
-
-    for buttons
+    if box.signal_info & .HAS_HOVER
     {
-      if it & .PRESSED
+      signal.flags |= .HOVER | .HOVER_ON_CHILD | .HOVER_ON_SCROLL_CHILD;
+
+      for buttons
       {
-        if !(mask & .CANT_ACTIVATE) then active_key = box.key;
-        drag_start_p = mouse;
-        drag_box_abs_p_offset = mouse - box.abs_p;
-        signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
+        if it & .PRESSED
+        {
+          if !(mask & .CANT_ACTIVATE) then active_key = box.key;
+          drag_start_p = mouse;
+          drag_box_abs_p_offset = mouse - box.abs_p;
+          signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
+        }
       }
     }
+
+    if box.signal_info & .HAS_CHILD_WITH_HOVER        then signal.flags |= .HOVER_ON_CHILD;
+    if box.signal_info & .HAS_SCROLL_CHILD_WITH_HOVER then signal.flags |= .HOVER_ON_SCROLL_CHILD;
   }
 
   if active_key == box.key
@@ -1094,7 +1105,7 @@ LayoutEnd :: ()
   for axis: Axis2.X .. Axis2.Y
   {
     for :TreeBreadthFirst        root_box SolveNodeSizePass1(it, axis);
-    for :TreeDepthFirst root_box SolveNodeSizePass2(it, axis);
+    for :TreePostOrder root_box SolveNodeSizePass2(it, axis);
 
     ClampInnerDim(root_box, axis);
     for :TreeBreadthFirst        root_box FixChildrenSizes(it, axis);
@@ -1238,6 +1249,7 @@ LayoutEnd :: ()
   }
 
   // Solve clip rectangles (userful for rendering and mouse intersection testing)
+  // + Reset signal_info
   for :TreeBreadthFirst root_box
   {
     it.clipped_min = it.abs_p;
@@ -1247,20 +1259,40 @@ LayoutEnd :: ()
       it.clipped_min = max(it.clipped_min, it.parent.clipped_min);
       it.clipped_max = min(it.clipped_max, it.parent.clipped_max);
     }
-    // it.clipped_max = max(it.clipped_min, it.clipped_max);
+
+    it.signal_info = 0;
   }
 
-  // Reserve hover key on first hit
-  hover_key = .{};
-  for :TreeDepthFirst root_box
+  // Fill signal_info
   {
-    if it.capture_hover
+    hover_box: *Box;
+    for :TreePostOrder root_box
     {
-      if mouse.x >= it.clipped_min.x && mouse.x < it.clipped_max.x &&
-         mouse.y >= it.clipped_min.y && mouse.y < it.clipped_max.y
+      if it.capture_hover
       {
-        hover_key = it.key;
-        break;
+        if mouse.x >= it.clipped_min.x && mouse.x < it.clipped_max.x &&
+           mouse.y >= it.clipped_min.y && mouse.y < it.clipped_max.y
+        {
+          it.signal_info |= .HAS_HOVER;
+          hover_box = it;
+          break;
+        }
+      }
+    }
+
+    if hover_box
+    {
+      scroll := !hover_box.scroll.enable;
+      b := hover_box.parent;
+      while !IsNil(b)
+      {
+        b.signal_info |= .HAS_CHILD_WITH_HOVER;
+        if scroll
+        {
+          b.signal_info |= .HAS_SCROLL_CHILD_WITH_HOVER;
+          if b.scroll.enable then scroll = false;
+        }
+        b = b.parent;
       }
     }
   }
@@ -1422,7 +1454,7 @@ SiblingsNonFloating :: (first_box: *Box, body: Code, flags: For_Flags) #expand
   }
 }
 
-TreeDepthFirst :: (root: *Box, body: Code, flags: For_Flags) #expand
+TreePostOrder :: (root: *Box, body: Code, flags: For_Flags) #expand
 {
   // This is post order (in reverse breadth order? idk what is the computer sciency name for this)
   #assert(flags == 0); // Support for .REVERSE could be added but it shouldn't be needed.
@@ -1625,7 +1657,6 @@ LayoutState :: struct
   layout_build_index: s32;
 
   active_key: BoxKey;
-  hover_key: BoxKey;
   drag_start_p: V2;
   drag_box_abs_p_offset: V2;
 
