@@ -58,7 +58,6 @@ DEV_State :: struct // @todo serialize this struct to disk
 
   category_window_positions := INITIAL_WINDOW_POSITIONS;
   category_window_sizes := INITIAL_WINDOW_SIZES;
-  category_window_scrolls: [CATEGORY_COUNT] V2;
 
   INITIAL_WINDOW_POSITIONS :: #run -> [CATEGORY_COUNT] V2 {
     result: [CATEGORY_COUNT] V2;
@@ -132,9 +131,8 @@ UI_BuildDeveloperWindow :: ()
     category_name := CATEGORY_NAMES[category_index];
     window_position := *category_window_positions[category_index];
     window_size := *category_window_sizes[category_index];
-    window_scroll := *category_window_scrolls[category_index];
 
-    window_body, window_outer := UI_FloatingWindow(category_name, window_position, window_size, window_scroll);
+    window_body, window_outer := UI_FloatingWindow(category_name, window_position, window_size);
     Parent(window_body);
 
     // Per category imlementation
@@ -341,9 +339,9 @@ UI_BuildDeveloperWindow :: ()
   }
 }
 
-UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> content: *Box, window: *Box
+UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> content: *Box, window: *Box
 {
-  Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64), window_scroll.(u64))});
+  Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64))});
 
   window := Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                floating.attach_to = .ROOT},
@@ -417,7 +415,6 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
     for axis: Axis2.X .. Axis2.Y
     {
       other_axis := (!axis).(Axis2);
-      scroll      := *window_scroll.component[axis];
       scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
 
       scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
@@ -447,9 +444,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
       is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
       if is_scroll_area_hovered || (scrollable_body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
       {
-        pct_speed := SafeDiv(120.0, scrollable.inner.y);
-        scroll_by := -G.mouse_scroll.y * pct_speed;
-        scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
+        scrollable.scroll.delta_px.component[axis] -= G.mouse_scroll.y * 128.0;
       }
 
       if bar_size_pct < 1.0
@@ -465,15 +460,13 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
           {
             scrollable_position_px := (G.mouse - scroll_area.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
             scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-            scroll.* = scrollable_position_01;
+            scrollable.scroll.set_pct.component[axis] = scrollable_position_01;
           }
         }
 
-        box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
+        box_margin0.layout.size.pref.axes[axis] = Pct(scrollable.scroll_pct.component[axis] * (1.0 - bar_size_pct));
       }
       else box_bar.bg_color = 0;
-
-      scrollable.scroll.set_01.component[axis] = scroll.*;
     }
   }
   Parent(scrollable);
@@ -693,7 +686,7 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
     if is_scroll_area_hovered || (body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
     {
-      scroll_by := -G.mouse_scroll.y * 0.05;
+      scroll_by := G.mouse_scroll.y * 0.05;
       scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
     }
 
@@ -710,19 +703,17 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
         {
           scrollable_position_px := (G.mouse - scroll_area.abs_p - layout_state.drag_box_abs_p_offset).component[axis];
           scrollable_position_01 := clamp(scrollable_position_px / scrollable_size_px, 0.0, 1.0);
-          scroll.* = scrollable_position_01;
+          body.scroll.set_pct.component[axis] = scrollable_position_01;
         }
       }
 
-      box_margin0.layout.size.pref.axes[axis] = Pct((scroll.*) * (1.0 - bar_size_pct));
+      box_margin0.layout.size.pref.axes[axis] = Pct(body.scroll_pct.component[axis] * (1.0 - bar_size_pct));
     }
     else
     {
       scroll_area.bg_color = 0;
       box_bar.bg_color = 0;
     }
-
-    body.scroll.set_01.component[axis] = scroll.*;
   }
 
   return body;

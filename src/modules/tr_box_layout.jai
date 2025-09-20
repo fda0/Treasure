@@ -212,7 +212,8 @@ BoxSpec :: struct
   scroll: struct
   {
     enable: enum_flags u8 { SCROLL_X; SCROLL_Y; }
-    set_01: V2 = .{-1, -1};
+    delta_px: V2;
+    set_pct: V2 = .{-1, -1};
   }
 
   floating: struct
@@ -409,7 +410,8 @@ Box :: struct
   child_gap: float;
 
   rel_p: V2; // offset from outer dimensions of parent
-  scroll_offset: V2;
+  scroll_px: V2;
+  scroll_pct: V2;
   abs_p: V2; // offset from 0,0 of root box
 
   clipped_min: V2;
@@ -1180,27 +1182,41 @@ LayoutEnd :: ()
         }
       }
 
-      // Compute scroll set_01
-      if parent.scroll.set_01.component[axis] >= 0.0
+      // Compute scroll
       {
+        parent.scroll_px.component[axis] += parent.scroll.delta_px.component[axis];
+
         children_outer_sum := SumOutersOfChildren(parent, axis);
         parent_inner := Inner(parent, axis, .FINAL);
-        px_offset := 0.0;
-
         if children_outer_sum > parent_inner
         {
           // Don't allow to scroll past the end of child; This could be modifed via spec in the future.
           children_outer_scrollable := children_outer_sum - parent_inner;
-          px_offset = -children_outer_scrollable * parent.scroll.set_01.component[axis];
-        }
 
-        parent.scroll_offset.component[axis] = px_offset;
+          // clamp px
+          parent.scroll_px.component[axis] = clamp(parent.scroll_px.component[axis], 0.0, children_outer_scrollable);
+
+          // handle set_pct
+          if parent.scroll.set_pct.component[axis] >= 0.0
+          {
+            pct := clamp(parent.scroll.set_pct.component[axis], 0.0, 1.0);
+            parent.scroll_px.component[axis] = children_outer_scrollable * pct;
+          }
+
+          // px -> pct
+          parent.scroll_pct.component[axis] = parent.scroll_px.component[axis] / children_outer_scrollable;
+        }
+        else
+        {
+          parent.scroll_px.component[axis] = 0.0;
+          parent.scroll_pct.component[axis] = 0.0;
+        }
       }
 
       // Apply scroll offset to children
       for :SiblingsNonFloating child: parent.first
       {
-        child.rel_p.component[axis] += parent.scroll_offset.component[axis];
+        child.rel_p.component[axis] -= parent.scroll_px.component[axis];
       }
     }
   }
