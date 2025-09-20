@@ -412,6 +412,7 @@ Box :: struct
   rel_p: V2; // offset from outer dimensions of parent
   scroll_px: V2;
   scroll_pct: V2;
+  scroll_children_ratio: V2; // (this box's inner) / (sum of children' outers)
   abs_p: V2; // offset from 0,0 of root box
 
   clipped_min: V2;
@@ -1204,12 +1205,14 @@ LayoutEnd :: ()
           }
 
           // px -> pct
+          parent.scroll_children_ratio.component[axis] = parent_inner / children_outer_scrollable;
           parent.scroll_pct.component[axis] = parent.scroll_px.component[axis] / children_outer_scrollable;
         }
         else
         {
           parent.scroll_px.component[axis] = 0.0;
           parent.scroll_pct.component[axis] = 0.0;
+          parent.scroll_children_ratio.component[axis] = 0.0;
         }
       }
 

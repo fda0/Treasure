@@ -426,13 +426,8 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       scroll_area.layout.size.min.axes[other_axis] = BAR_THICKNESS;
       Parent(scroll_area);
 
-      bar_size_pct := 0.0;
-      children_outer_sum := SumOutersOfChildren(scrollable, axis);
-      if children_outer_sum > 0.0
-      {
-        bar_size_pct = Inner(scrollable, axis) / children_outer_sum;
-        if bar_size_pct < 1.0 then bar_size_pct = clamp(bar_size_pct, 0.2, 0.8);
-      }
+      bar_size_pct := scrollable.scroll_children_ratio.component[axis];
+      if bar_size_pct > 1.0 then bar_size_pct = clamp(bar_size_pct*0.1, 0.2, 0.8);
 
       box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
       box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
