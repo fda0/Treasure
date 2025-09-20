@@ -1,8 +1,8 @@
-Queue :: struct($MAX_CAPACITY: s64, $T: Type)
+Queue :: struct($CAPACITY: s64, $T: Type)
 {
   count: s64;
   start_offset: s64;
-  buffer: [MAX_CAPACITY] T;
+  buffer: [CAPACITY] T;
 }
 
 for_expansion :: (using queue: Queue, body: Code, flags: For_Flags) #expand
@@ -12,7 +12,7 @@ for_expansion :: (using queue: Queue, body: Code, flags: For_Flags) #expand
   while true
   {
     if it_index >= count break;
-    `it := buffer[(start_offset + it_index) % MAX_CAPACITY];
+    `it := buffer[(start_offset + it_index) % CAPACITY];
     defer it_index += 1;
     #insert body;
   }
@@ -20,7 +20,7 @@ for_expansion :: (using queue: Queue, body: Code, flags: For_Flags) #expand
 
 QueueIsFull :: (using queue: Queue) -> bool
 {
-  return count == MAX_CAPACITY;
+  return count == CAPACITY;
 }
 
 QueueIsEmpty :: (using queue: Queue) -> bool
@@ -30,13 +30,13 @@ QueueIsEmpty :: (using queue: Queue) -> bool
 
 QueuePush :: (using queue: *Queue, $initialize := true) -> *queue.T
 {
-  push_at_index := (start_offset + count) % MAX_CAPACITY;
+  push_at_index := (start_offset + count) % CAPACITY;
   count += 1;
-  if count > MAX_CAPACITY
+  if count > CAPACITY
   {
-    push_at_index = start_offset % MAX_CAPACITY;
-    start_offset = (start_offset + 1) % MAX_CAPACITY;
-    count = MAX_CAPACITY;
+    push_at_index = start_offset % CAPACITY;
+    start_offset = (start_offset + 1) % CAPACITY;
+    count = CAPACITY;
   }
 
   result := *buffer[push_at_index];
@@ -52,7 +52,7 @@ QueuePush :: (queue: *Queue, value: queue.T)
 QueuePeekPointer :: (using queue: *Queue, depth := 0) -> *queue.T
 {
   if count <= depth return null;
-  peek_index := (start_offset + depth) % MAX_CAPACITY;
+  peek_index := (start_offset + depth) % CAPACITY;
   return *buffer[peek_index];
 }
 
@@ -60,7 +60,7 @@ QueuePeek :: (using queue: Queue, depth := 0) -> queue.T
 {
   default: T;
   if count <= depth return default;
-  peek_index := (start_offset + depth) % MAX_CAPACITY;
+  peek_index := (start_offset + depth) % CAPACITY;
   return buffer[peek_index];
 }
 
@@ -68,7 +68,7 @@ QueuePeekLast :: (using queue: Queue, depth := 0) -> queue.T
 {
   default: T;
   if count <= depth return default;
-  peek_index := (start_offset + MAX_CAPACITY - 1 - depth) % MAX_CAPACITY;
+  peek_index := (start_offset + CAPACITY - 1 - depth) % CAPACITY;
   return buffer[peek_index];
 }
 
@@ -78,7 +78,7 @@ QueuePop :: (using queue: *Queue) -> queue.T, bool
   success := false;
   if count > 0
   {
-    start_offset = (start_offset + 1) % MAX_CAPACITY;
+    start_offset = (start_offset + 1) % CAPACITY;
     count -= 1;
     success = true;
   }

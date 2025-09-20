@@ -35,7 +35,7 @@ Color32_RGBf  :: (color: [3] float) -> Color32 { return Color32_RGBf(color[0], c
 Color32_RGBAf :: (color: [4] float) -> Color32 { return Color32_RGBAf(color[0], color[1], color[2], color[3]); }
 
 C32_RGBAi :: Color32_RGBAi;
-C32_SetAlphai :: Color32_SetAlphai;
+C32_SetAlpha :: Color32_SetAlphai;
 C32_RGBAf :: Color32_RGBAf;
 C32_RGBf :: Color32_RGBf;
 C32_RGBi :: Color32_RGBi;
@@ -66,6 +66,7 @@ lerp :: (c0: Color32, c1: Color32, t: float) -> Color32
 }
 
 C32_to_C4 :: C4_from_C32;
+Unpack :: C4_from_C32;
 C4_from_C32 :: (packed: Color32) -> C4
 {
   inv: float = 1.0 / 255.0;
@@ -78,6 +79,7 @@ C4_from_C32 :: (packed: Color32) -> C4
 }
 
 C4_to_C32 :: C32_from_C4;
+Pack :: C32_from_C4;
 C32_from_C4 :: (color: V4) -> Color32
 {
   return Color32_RGBAf(color.x, color.y, color.z, color.w);
@@ -86,4 +88,12 @@ C32_from_C4 :: (color: V4) -> Color32
 C4_RGB :: (r: float, g: float, b: float) -> C4
 {
   return .{r, g, b, 1.0};
+}
+
+InvertRGB :: (c: C32) -> C32
+{
+  rgb := ~c & 0xff_ff_ff;
+  c &= 0xff_00_00_00;
+  c |= rgb;
+  return c;
 }

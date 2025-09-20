@@ -28,6 +28,8 @@ STATS_Counter :: struct
   total_sum: s64;
   on_peak_frame: s64;
   peak_frame_number: s64;
+
+  graph_scale: float;
 }
 
 Increment :: (type: STATS_CounterType, to_increment: s64)

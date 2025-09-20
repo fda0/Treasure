@@ -133,8 +133,9 @@ UI_BuildDeveloperWindow :: ()
     window_position := *category_window_positions[category_index];
     window_size := *category_window_sizes[category_index];
     window_scroll := *category_window_scrolls[category_index];
-    Parent(UI_FloatingWindow(category_name, window_position, window_size, window_scroll));
 
+    window_body, window_outer := UI_FloatingWindow(category_name, window_position, window_size, window_scroll);
+    Parent(window_body);
 
     // Per category imlementation
     if #complete category_mask == {
@@ -158,33 +159,77 @@ UI_BuildDeveloperWindow :: ()
         CreateText(label);
         UI_ToggleButton("Pause", *c.paused);
 
-        stats := tprint("total: %; recent: %; peak: % (on frame %)",
-          c.total_sum, QueuePeek(c.history), c.on_peak_frame, c.peak_frame_number);
+        recent_peak := S64_MIN;
+        for c.history recent_peak = max(recent_peak, it);
+
+        stats := tprint("total: %; recent: %; recent peak: %, all time peak: % (on frame %)",
+          c.total_sum, QueuePeek(c.history), recent_peak, c.on_peak_frame, c.peak_frame_number);
         CreateText(stats);
 
+        // Create graph background
         Layer(.{layout.padding = PaddingAll(Px(0))});
-        graph_box := Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1)},
+        graph_box := Parent(CreateBox(.{layout.size.min.y = Rem(1),
+                                        snap_to_full_pixel = true,
                                         bg_color = C32_0xRGB(0)}));
 
+        // Calculate graph width
+        bar_width_px := 1.0;
+        bar_gap_px := 0.0;
+        {
+          per_bar := window_outer.inner.x / c.history.CAPACITY;
+          if per_bar > 4.0
+          {
+            bar_width_px = floor(per_bar / 2.0);
+            bar_gap_px = bar_width_px;
+          }
+          else if per_bar > 1.0
+          {
+            bar_width_px = floor(per_bar);
+          }
+        }
+        graph_box.layout.size.min.x = Px(bar_width_px * c.history.CAPACITY + bar_gap_px * (c.history.CAPACITY - 1));
+
+        // Update graph bar height scale
+        {
+          target_graph_scale := 1.0 / recent_peak.(float);
+          if c.graph_scale <= 0.0
+          {
+            c.graph_scale = target_graph_scale;
+          }
+          else
+          {
+            c.graph_scale = lerp(c.graph_scale, target_graph_scale, min(1.0, G.dt * 2.0));
+            c.graph_scale = min(c.graph_scale, target_graph_scale);
+          }
+        }
+
+        // Create bars
         parent_height_px := graph_box.inner.y;
         for c.history
         {
+          is_hovered := false;
+          if it_index > 0 && bar_gap_px > 0.0
+          {
+            gap := Signal(CreateBox(.{layout.size = .{min.x = Px(bar_gap_px), pref.y = Grow()}}));
+            is_hovered |= !!(gap.flags & .HOVER);
+          }
+
           height_px := 0.0;
           if c.on_peak_frame
           {
-            height_pct := it.(float) / c.on_peak_frame.(float);
+            height_pct := it.(float) * c.graph_scale;
             height_px = parent_height_px * height_pct;
           }
 
-          total := Signal(Parent(CreateBox(.{layout.size.pref = Grow2()})));
+          total := Signal(Parent(CreateBox(.{layout.size = .{min.x = Px(bar_width_px), pref.y = Grow()}})));
           filled := CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
-                                bg_color = C32_RGBi(255, 128, 0)});
+                                bg_color = UI_YELLOW1});
+          is_hovered |= !!(total.flags & .HOVER);
 
-          if total.flags & .HOVER
+          if it_index % 2 == 0 then filled.bg_color = UI_YELLOW2;
+
+          if is_hovered
           {
-            total.bg_color = C32_RGBi(128, 128, 0);
-            filled.bg_color = C32_RGBi(255, 255, 0);
-
             Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                layout.size.min = Fit2(),
                                floating = .{attach_to = .PARENT,
@@ -194,18 +239,10 @@ UI_BuildDeveloperWindow :: ()
                              UI_WINDOW_LOOK, UI_WINDOW_LAYOUT));
             CreateText(tprint("Index: %", it_index));
             CreateText(tprint("Value: %", it));
-          }
 
-          if it_index % 2 == 0
-          {
-            t := C32_to_C4(total.bg_color);
-            f := C32_to_C4(filled.bg_color);
-            t.xyz = t.xyz*0.5 + .{0.5, 0.5, 0.5};
-            f.xyz = f.xyz*0.5 + .{0.5, 0.5, 0.5};
-            total.bg_color = C4_to_C32(t);
-            filled.bg_color = C4_to_C32(f);
+            total.bg_color = C32_Grayf(1.0);
+            filled.bg_color = InvertRGB(filled.bg_color);
           }
-
         }
       }
 
@@ -325,7 +362,7 @@ UI_BuildDeveloperWindow :: ()
   }
 }
 
-UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> *Box
+UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, window_scroll: *V2) -> body: *Box, window: *Box
 {
   Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64), window_scroll.(u64))});
 
@@ -474,7 +511,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2, win
   if !(resize_button.flags & .DRAG) then window_size.* = clamped_window_size;
   window.layout.size.min = Px2(clamped_window_size);
 
-  return content;
+  return content, window;
 }
 
 

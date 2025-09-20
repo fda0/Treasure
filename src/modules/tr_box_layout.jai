@@ -1,6 +1,7 @@
 /* @todo
 - remove unused boxes from table
 - cache text measurement
+- cache layer merging
 - mouse query for 'is hovering this or children'
 */
 
@@ -206,6 +207,7 @@ BoxSpec :: struct
   corner_radius: CornerRadius;
   edge_softness: Length;
   capture_hover: bool;
+  snap_to_full_pixel: bool;
 
   scroll: struct
   {
@@ -1220,6 +1222,12 @@ LayoutEnd :: ()
     {
       it.abs_p = it.parent.abs_p + it.rel_p;
     }
+
+    if it.snap_to_full_pixel
+    {
+      it.abs_p.x = Round(it.abs_p.x);
+      it.abs_p.y = Round(it.abs_p.y);
+    }
   }
 
   // Solve clip rectangles (userful for rendering and mouse intersection testing)
@@ -1674,6 +1682,10 @@ HashTwoU64 :: (a: u64, b: u64) -> u64
 //
 min :: (a: V2, b: V2) -> V2 { return V2.{min(a.x,b.x), min(a.y,b.y)}; }
 max :: (a: V2, b: V2) -> V2 { return V2.{max(a.x,b.x), max(a.y,b.y)}; }
+
+Round :: (x: float) -> float {
+    return cast(float)cast(int)(x + 0.5 * ifx x < 0 then -1 else 1);
+}
 
 PositiveMin :: (a: float, b: float) -> float
 {

@@ -475,10 +475,14 @@ GPU_Iterate :: ()
     }
   }
 
-  cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+  cmd: *SDL_GPUCommandBuffer;
   swapchain_tex: *SDL_GPUTexture;
   draw_width, draw_height: u32;
-  SDL_WaitAndAcquireGPUSwapchainTexture(cmd, G.window, *swapchain_tex, *draw_width, *draw_height);
+  {
+    PerfScope("GPU acquire frame");
+    cmd = SDL_AcquireGPUCommandBuffer(G.gpu.device);
+    SDL_WaitAndAcquireGPUSwapchainTexture(cmd, G.window, *swapchain_tex, *draw_width, *draw_height);
+  }
 
   if !swapchain_tex
   {
@@ -651,6 +655,8 @@ GPU_Iterate :: ()
   }
 
   // Submit command buffer
+  PerfScope("GPU command buffer submit");
+
   if G.dev.mouse_picking & .ENABLED
   {
     if !QueueIsFull(G.gpu.readback_queue)
