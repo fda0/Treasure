@@ -163,7 +163,7 @@ UI_BuildDeveloperWindow :: ()
         for c.history recent_peak = max(recent_peak, it);
 
         stats := tprint("total: %; recent: %; recent peak: %, all time peak: % (on frame %)",
-          c.total_sum, QueuePeek(c.history), recent_peak, c.on_peak_frame, c.peak_frame_number);
+          c.total_sum, QueuePeekLast(c.history), recent_peak, c.on_peak_frame, c.peak_frame_number);
         CreateText(stats);
 
         // Create graph background

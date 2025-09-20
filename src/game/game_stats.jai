@@ -24,7 +24,7 @@ STATS_Counter :: struct
   increment_called: bool;
 
   accumulator: s64;
-  history: Queue(64 * 4, s64);
+  history: Queue(64 * 2, s64);
   total_sum: s64;
   on_peak_frame: s64;
   peak_frame_number: s64;

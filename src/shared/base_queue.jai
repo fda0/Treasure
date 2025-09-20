@@ -68,7 +68,7 @@ QueuePeekLast :: (using queue: Queue, depth := 0) -> queue.T
 {
   default: T;
   if count <= depth return default;
-  peek_index := (start_offset + CAPACITY - 1 - depth) % CAPACITY;
+  peek_index := (start_offset + count - 1 - depth) % CAPACITY;
   return buffer[peek_index];
 }
 
