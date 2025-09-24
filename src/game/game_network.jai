@@ -7,7 +7,7 @@ NET_CLIENT_MAX_SNAPSHOTS :: TICK_RATE;
 NET_MAX_ACTION_COUNT :: TICK_RATE/8;
 NET_MAX_PLAYERS :: 10;
 NET_MAX_PACKET_SIZE :: 1200;
-NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(NET_PacketHeader);
+NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(PACKET_PacketHeader);
 NET_SIMULATE_PACKETLOSS :: 0; // doesn't seem to work on localhost
 NET_INACTIVE :: 0.1;
 NET_TIMEOUT_DISCONNECT :: 0.5;
@@ -18,7 +18,7 @@ NET_State :: struct
   socket: *SDLNet_DatagramSocket;
 
   // msg payload
-  packet_header: NET_PacketHeader;
+  packet_header: PACKET_PacketHeader;
   packet_payload_buf: [1024 * 1024 * 1] u8; // 1 MB scratch buffer for network payload construction
   payload_used: u32;
 };
@@ -174,13 +174,13 @@ NET_Consume:: ($T: Type, packet: *string) -> T
 NET_RawPacketToPayload :: (raw_packet: string) -> payload: string
 {
   packet := raw_packet;
-  if packet.count < size_of(NET_PacketHeader)
+  if packet.count < size_of(PACKET_PacketHeader)
   {
     Nlog(LOG_NetPacket, "packet rejected - it's too small, size: %llu", packet.count);
     return "";
   }
 
-  header := NET_Consume(NET_PacketHeader, *packet);
+  header := NET_Consume(PACKET_PacketHeader, *packet);
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);

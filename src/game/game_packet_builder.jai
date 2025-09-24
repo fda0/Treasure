@@ -1,5 +1,6 @@
+PacketBuffer :: FixedArray(1024, u8);
 
-NET_SendKind :: enum u32
+PACKET_Type :: enum u32
 {
   None;
   Ping :: 10000;
@@ -11,91 +12,78 @@ NET_SendKind :: enum u32
   WindowLayout;
 };
 
-NET_SendHeader :: struct
+PACKET_SendHeader :: struct
 {
   tick: Tick; // this is already send via packet header
-  kind: NET_SendKind;
+  kind: PACKET_Type;
 };
 
-NET_SendActions :: struct
+PACKET_SendActions :: struct
 {
-  actions: [NET_MAX_ACTION_COUNT] Action;
+  actions: [PACKET_MAX_ACTION_COUNT] Action;
 };
 
-NET_SendPing :: struct
+PACKET_SendPing :: struct
 {
   number: u64;
 };
 
-NET_SendObjSync :: struct
+PACKET_SendObjSync :: struct
 {
   net_index: u32;
   sync: OBJ_Sync;
 };
 
-NET_SendObjEmpty :: struct
+PACKET_SendObjEmpty :: struct
 {
   net_index: u32;
 };
 
-NET_SendAssignPlayerKey :: struct
+PACKET_SendAssignPlayerKey :: struct
 {
   player_key: OBJ_Key;
 };
 
-NET_SendWindowLayout :: struct
+PACKET_SendWindowLayout :: struct
 {
   user_count: u32;
   px, py, w, h: s32;
 };
 
-NET_PacketHeader :: struct
+PACKET_PacketHeader :: struct
 {
   magic_value: u16; // use this as seed for hash calculation instead
   payload_hash: u16;
 };
 
-NET_PayloadAlloc :: (size: u32) -> *u8
+PACKET_PushData :: (pbuf: *PacketBuffer, data: *void, size: s64)
 {
-  buf_start := G.net.packet_payload_buf.data;
-
-  if G.net.payload_used + size > G.net.packet_payload_buf.count
+  mem, success := array_add_many(pbuf, size, initialize=false);
+  if !success
   {
     assert(false);
-    return buf_start;
+    ArrayClear(mem);
+    return;
   }
-
-  result := buf_start + G.net.payload_used;
-  G.net.payload_used += size;
-  return result;
+  memcpy(mem.data, data, size);
 }
 
-NET_PayloadMemcpy :: (data: *void, size: u32) -> *u8
+PACKET_PushType :: (value: $T)
 {
-  result := NET_PayloadAlloc(size);
-  memcpy(result, data, size);
-  return result;
+  PACKET_PushData(*value, size_of(T));
 }
 
-NET_PayloadAppendType :: (value: $T)
+PACKET_AsString :: (pbuf: *PacketBuffer) -> string
 {
-  NET_PayloadMemcpy(*value, size_of(T));
+  return string.{data = pbuf.data.data, count = pbuf.count};
 }
 
-NET_RecalculatePacketHeader :: ()
+PACKET_CalculateHeader :: (pbuf: *PacketBuffer) -> PACKET_PacketHeader
 {
-  using G.net;
-  payload := string.{payload_used, packet_payload_buf.data};
-  packet_header.magic_value = NET_MAGIC_VALUE;
-  packet_header.payload_hash = Hash64Any(payload).(u16, trunc);
-}
+  str := PACKET_AsString(pbuf);
 
-NET_GetPacketString :: () -> string
-{
-  // there should be no padding between these
-  #assert(offset_of(NET_State, "packet_header") + size_of(type_of(G.net.packet_header)) == offset_of(NET_State, "packet_payload_buf"));
-
-  total_size := size_of(type_of(G.net.packet_header)) + G.net.payload_used;
-  result := string.{total_size, (*G.net.packet_header).(*u8)};
-  return result;
+  res: PACKET_PacketHeader;
+  res.magic_value = PACKET_MAGIC_VALUE;
+  res.payload_hash = Hash64Any(str).(u16, trunc);
+  return res;
 }

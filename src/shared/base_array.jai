@@ -84,5 +84,19 @@ PointerToIndex :: (array: [] $T, pointer: *T) -> s64
   return index;
 }
 
+ArrayMemcpy :: (dst: [] $D, src: [] $S)
+{
+  dst_size := size_of(D)*dst.count;
+  src_size := size_of(S)*src.count;
+  smaller_size := ifx dst_size > src_size then src_size else dst_size;
+  memcpy(dst.data, src.data, smaller_size);
+}
+
+ArrayClear :: (dst: [] $T)
+{
+  size := size_of(T) * dst.count;
+  memset(dst.data, 0, size);
+}
+
 #scope_file
 #import "Basic"; // for clamp
