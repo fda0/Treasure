@@ -1,5 +1,11 @@
 CLIENT_State :: struct
 {
+  enabled: bool;
+
+  has_local_server: bool;
+  network_server_user: NET_User;
+
+
   // client actions sent to the server
   action_tick: Tick;
   action: Action; // Accumulates actions. Flushed to client.action_queue once in a while.
@@ -26,6 +32,30 @@ CLIENT_ObjSnapshots :: struct
   recent_lerp_start_tick: Tick;
   recent_lerp_end_tick: Tick;
 };
+
+CLIENT_Init :: ()
+{
+  Nlog(LOG_NetInfo, "Launching as client");
+
+  hostname := "localhost";
+  Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
+  G.client.network_server_user.address = SDLNet_ResolveHostname(temp_c_string(hostname));
+  G.client.network_server_user.port = NET_DEFAULT_SEVER_PORT;
+  if G.client.network_server_user.address
+  {
+    if SDLNet_WaitUntilResolved(G.client.network_server_user.address, -1) < 0
+    {
+      SDLNet_UnrefAddress(G.client.network_server_user.address);
+      G.client.network_server_user.address = null;
+    }
+  }
+
+  if !G.client.network_server_user.address
+  {
+    G.net.err = true;
+    Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
+  }
+}
 
 CLIENT_FlushActionTick :: ()
 {
@@ -193,6 +223,14 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
   return false; // no error
 }
 
+CLIENT_FlushSendToServer :: ()
+{
+  NET_RecalculatePacketHeader();
+  packet := NET_GetPacketString();
+  NET_SendString(G.client.network_server_user, packet);
+  G.net.payload_used = 0;
+}
+
 CLIENT_IterateSend :: ()
 {
   if G.net.err return;
@@ -207,7 +245,7 @@ CLIENT_IterateSend :: ()
 
     ping: NET_SendPing;
     NET_PayloadAppendType(ping);
-    NET_PacketSendAndResetPayloadToServer();
+    CLIENT_FlushSendToServer();
   }
 
   {
@@ -223,7 +261,7 @@ CLIENT_IterateSend :: ()
     }
 
     NET_PayloadAppendType(payload);
-    NET_PacketSendAndResetPayloadToServer();
+    CLIENT_FlushSendToServer();
   }
 }
 
@@ -243,7 +281,7 @@ CLIENT_IterateReceive :: ()
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
     invalid_dgram := false;
-    if !NET_UserMatchAddrPort(*G.net.server_user, dgram.addr, dgram.port)
+    if !NET_UserMatchAddrPort(*G.client.network_server_user, dgram.addr, dgram.port)
     {
       invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",

@@ -1,5 +1,7 @@
 SERVER_State :: struct
 {
+  enabled: bool;
+
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_UserState;
 };
@@ -230,7 +232,15 @@ SERVER_IterateSend :: ()
       NET_PayloadAppendType(update);
     }
 
-    NET_PacketSendAndResetPayloadBroadcast();
+    NET_RecalculatePacketHeader();
+    packet := NET_GetPacketString();
+
+    for G.server.users
+    {
+      if !it.net.address continue;
+      NET_SendString(it.net, packet);
+    }
+    G.net.payload_used = 0;
   }
 }
 

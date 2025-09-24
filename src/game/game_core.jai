@@ -81,6 +81,8 @@ GAME_Init :: ()
   PerfFunc();
   G.frame_timestamp = GetTimestamp(.NOW);
 
+  G.client.enabled |= !G.server.enabled;
+
   if !G.headless
   {
     ASSET_InitPreGPU();
@@ -488,7 +490,7 @@ GAME_ParseCommandLineArguments :: (args: [] string)
         case "-borderless"; G.window_borderless = true;
         case "-top";        G.window_on_top = true;
         case "-autolayout"; G.window_autolayout = true;
-        case "-server";     G.net.is_server = true;
+        case "-server";     G.server.enabled = true;
         case "-exit-on-dc"; G.server_exit_on_disconnect = true;
 
         case;
@@ -510,6 +512,7 @@ String :: #import "String";
 #load "../shared/base_utils.jai";
 #load "../shared/base_string.jai";
 #load "../shared/base_array.jai";
+#load "../shared/base_fixed_array.jai";
 #load "../shared/base_memory.jai";
 #load "../shared/base_hash.jai";
 #load "../shared/base_math.jai";
@@ -533,6 +536,7 @@ String :: #import "String";
 #load "game_asset_hot_reload.jai";
 #load "game_object.jai";
 #load "game_object_collider.jai";
+#load "game_packet_builder.jai";
 #load "game_network.jai";
 #load "game_client.jai";
 #load "game_server.jai";
@@ -550,5 +554,5 @@ String :: #import "String";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
 
-#import "superluminal"()(ENABLE_PROFILER = true);
+#import "superluminal"()(ENABLE_PROFILER = false);
 BOX :: #import "tr_box_layout"(Color=Color32);
