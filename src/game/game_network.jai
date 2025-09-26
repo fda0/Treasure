@@ -152,35 +152,43 @@ NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_UserState
   return new_user_slot;
 }
 
-NET_Consume:: ($T: Type, packet: *string) -> T
+NET_Peek :: ($T: Type, packet: string) -> T
 {
   value: T;
-  to_copy := Prefix(packet.*, size_of(T));
-  memcpy(*value, to_copy.data, to_copy.count);
-  packet.* = Skip(packet.*, to_copy.count);
+  if packet.count >= size_of(T)
+  {
+    memcpy(*value, packet.data, size_of(T));
+  }
   return value;
 }
 
-NET_RawPacketToPayload :: (raw_packet: string) -> payload: string
+NET_Consume :: ($T: Type, packet: *string) -> T
+{
+  value := NET_Peek(T, packet.*);
+  packet.* = Skip(packet.*, size_of(T));
+  return value;
+}
+
+NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick
 {
   packet := raw_packet;
   if packet.count < size_of(PACKET_Header)
   {
     Nlog(LOG_NetPacket, "packet rejected - it's too small, size: %llu", packet.count);
-    return "";
+    return "", 0;
   }
 
   header := NET_Consume(PACKET_Header, *packet);
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);
-    return  "";
+    return "", 0;
   }
 
   if (header.magic_value != PACKET_MAGIC_VALUE)
   {
     Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, PACKET_MAGIC_VALUE);
-    return "";
+    return "", 0;
   }
 
   // validate hash
@@ -189,10 +197,10 @@ NET_RawPacketToPayload :: (raw_packet: string) -> payload: string
   if (hash16 != header.payload_hash)
   {
     Nlog(LOG_NetPacket, "packet rejected - invalid hash: %; calculated: %", header.payload_hash, hash16);
-    return "";
+    return "", 0;
   }
 
-  return packet;
+  return packet, header.from_tick;
 }
 
 NET_IsServer :: () -> bool

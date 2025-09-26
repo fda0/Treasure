@@ -230,28 +230,19 @@ CLIENT_IterateSend :: ()
   PerfFunc();
 
   {
-    head: PACKET_SendHeader;
-    head.tick = GetClientActionTick();
-    head.kind = .Ping;
-
-    ping: PACKET_SendPing;
-
-    packet := PACKET_Create(head, ping);
+    ping: PACKET_Ping;
+    packet := PACKET_Create(GetClientActionTick(), ping);
     NET_SendPacket(packet, G.client.network_server_user, false);
   }
 
   {
-    head: PACKET_SendHeader;
-    head.tick = GetClientActionTick();
-    head.kind = .Actions;
-
-    payload: PACKET_SendActions;
+    payload: PACKET_Actions;
     for * payload.actions
     {
       it.* = QueuePeek(G.client.action_queue, it_index);
     }
 
-    packet := PACKET_Create(head, payload);
+    packet := PACKET_Create(GetClientActionTick(), payload);
     NET_SendPacket(packet, G.client.network_server_user, false);
   }
 }
@@ -282,69 +273,69 @@ CLIENT_IterateReceive :: ()
     if !invalid_dgram
     {
       packet := string.{dgram.buflen, dgram.buf};
-      payload := NET_RawPacketToPayload(packet);
-      CLIENT_ReceivePayload(payload);
+      payload, from_tick := NET_PreprocessRawPacket(packet);
+      CLIENT_ReceivePayload(payload, from_tick);
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-CLIENT_ReceivePayload :: (full_payload: string)
+CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
 {
   PerfFunc();
   msg := full_payload;
   while msg.count
   {
-    head := NET_Consume(PACKET_SendHeader, *msg);
+    msg_type := NET_Peek(PACKET_Type, msg);
 
-    if head.kind == .Ping
+    if msg_type == .Ping
     {
-      ping := NET_Consume(PACKET_SendPing, *msg);
+      ping := NET_Consume(PACKET_Ping, *msg);
     }
-    else if (head.kind == .ObjUpdate || head.kind == .ObjEmpty)
+    else if (msg_type == .ObjUpdate || msg_type == .ObjEmpty)
     {
-      update: PACKET_SendObjSync;
-      if (head.kind == .ObjUpdate)
+      update: PACKET_ObjUpdate;
+      if (msg_type == .ObjUpdate)
       {
-        update = NET_Consume(PACKET_SendObjSync, *msg);
+        update = NET_Consume(PACKET_ObjUpdate, *msg);
       }
       else
       {
-        empty := NET_Consume(PACKET_SendObjEmpty, *msg);
+        empty := NET_Consume(PACKET_ObjEmpty, *msg);
         update.net_index = empty.net_index;
         update.sync.init = true;
       }
 
       if update.net_index >= OBJ_MAX_NETWORK_OBJECTS
       {
-        Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", head.kind, update.net_index);
+        Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", msg_type, update.net_index);
         continue;
       }
 
-      if G.client.next_playback_server_tick > head.tick
+      if G.client.next_playback_server_tick > from_tick
       {
         Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
-          head.kind, head.tick, G.client.next_playback_server_tick);
+             msg_type, from_tick, G.client.next_playback_server_tick);
         continue;
       }
 
       snap := *G.client.snaps_of_objs[update.net_index];
-      CLIENT_InsertSnapshot(snap, head.tick, update.sync);
+      CLIENT_InsertSnapshot(snap, from_tick, update.sync);
     }
-    else if head.kind == .AssignPlayerKey
+    else if msg_type == .AssignPlayerKey
     {
-      assign := NET_Consume(PACKET_SendAssignPlayerKey, *msg);
+      assign := NET_Consume(PACKET_AssignPlayerKey, *msg);
 
-      if G.client.player_key_latest_tick < head.tick
+      if G.client.player_key_latest_tick < from_tick
       {
         G.client.player_key = assign.player_key;
-        G.client.player_key_latest_tick = head.tick;
+        G.client.player_key_latest_tick = from_tick;
       }
     }
-    else if head.kind == .WindowLayout
+    else if msg_type == .WindowLayout
     {
-      layout := NET_Consume(PACKET_SendWindowLayout, *msg);
+      layout := NET_Consume(PACKET_WindowLayout, *msg);
       if G.window_autolayout
       {
         // GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
@@ -352,7 +343,7 @@ CLIENT_ReceivePayload :: (full_payload: string)
     }
     else
     {
-      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", head.kind);
+      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", msg_type);
       return;
     }
   }

@@ -30,7 +30,7 @@ SERVER_ReceiveDatagram :: ()
 
 }
 
-SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_SendActions, client_tick: Tick)
+SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_Actions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -141,14 +141,9 @@ SERVER_IterateSend :: ()
         user.key = player.s.key;
       }
 
-      head: PACKET_SendHeader;
-      head.tick = GetServerTick();
-      head.kind = .AssignPlayerKey;
-
-      assign: PACKET_SendAssignPlayerKey;
+      assign: PACKET_AssignPlayerKey;
       assign.player_key = user.key;
-
-      packet := PACKET_Create(head, assign);
+      packet := PACKET_Create(GetServerTick(), assign);
       NET_SendPacket(*packet, user.net, true);
     }
 
@@ -186,7 +181,7 @@ SERVER_IterateSend :: ()
           x := window_index / rows;
           y := window_index % rows;
 
-          head: PACKET_SendHeader;
+          head: PACKET_Header;
           head.tick_id = G.tick_id;
           head.kind = .WindowLayout;
           NET_PayloadMemcpy(*head, sizeof(head));
@@ -212,29 +207,19 @@ SERVER_IterateSend :: ()
 
     if OBJ_HasData(it)
     {
-      head: PACKET_SendHeader;
-      head.tick = GetServerTick();
-      head.kind = .ObjUpdate;
-      PACKET_CopyType(*packet, head);
-
-      update: PACKET_SendObjSync;
+      update: PACKET_ObjUpdate;
       update.net_index = xx it_index;
       update.sync = it.s;
       PACKET_CopyType(*packet, update);
     }
     else
     {
-      head: PACKET_SendHeader;
-      head.tick = GetServerTick();
-      head.kind = .ObjEmpty;
-      PACKET_CopyType(*packet, head);
-
-      update: PACKET_SendObjEmpty;
+      update: PACKET_ObjEmpty;
       update.net_index = xx it_index;
       PACKET_CopyType(*packet, update);
     }
 
-    PACKET_FinalizeHeader(*packet);
+    PACKET_FinalizeHeader(GetServerTick(), *packet);
 
     for G.server.users
     {
@@ -293,35 +278,35 @@ SERVER_IterateReceive :: ()
       player_id := user_id.(u16);
 
       packet := string.{dgram.buflen, dgram.buf};
-      payload := NET_RawPacketToPayload(packet);
-      SERVER_ReceivePayload(player_id, payload);
+      payload, from_tick := NET_PreprocessRawPacket(packet);
+      SERVER_ReceivePayload(player_id, payload, from_tick);
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-SERVER_ReceivePayload :: (player_id: u16, full_payload: string)
+SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
 {
   PerfFunc();
   msg := full_payload;
   while msg.count
   {
-    head := NET_Consume(PACKET_SendHeader, *msg);
+    msg_type := NET_Peek(PACKET_Type, msg);
 
-    if head.kind == .Ping
+    if msg_type == .Ping
     {
-      ping := NET_Consume(PACKET_SendPing, *msg);
+      ping := NET_Consume(PACKET_Ping, *msg);
     }
-    else if head.kind == .Actions
+    else if msg_type == .Actions
     {
-      in_net := NET_Consume(PACKET_SendActions, *msg);
+      in_net := NET_Consume(PACKET_Actions, *msg);
       user := *G.server.users[player_id];
-      SERVER_ReceiveUserActions(user, *in_net, head.tick);
+      SERVER_ReceiveUserActions(user, *in_net, from_tick);
     }
     else
     {
-      Nlog(LOG_NetPayload, "Unsupported payload header kind: %d", head.kind);
+      Nlog(LOG_NetPayload, "Unsupported payload header kind: %d", msg_type);
       return;
     }
   }

@@ -11,6 +11,7 @@ PACKET_Header :: struct
 {
   magic_value: u16; // use this as seed for hash calculation instead
   payload_hash: u16;
+  from_tick: Tick;
 };
 
 PACKET_Type :: enum u32
@@ -25,40 +26,40 @@ PACKET_Type :: enum u32
   WindowLayout;
 };
 
-PACKET_SendHeader :: struct
+PACKET_Ping :: struct
 {
-  tick: Tick; // this is already send via packet header
-  kind: PACKET_Type;
-};
-
-PACKET_SendActions :: struct
-{
-  actions: [NET_MAX_ACTION_COUNT] Action;
-};
-
-PACKET_SendPing :: struct
-{
+  PT := PACKET_Type.Ping;
   number: u64;
 };
 
-PACKET_SendObjSync :: struct
+PACKET_ObjUpdate :: struct
 {
+  PT := PACKET_Type.ObjUpdate;
   net_index: u32;
   sync: OBJ_Sync;
 };
 
-PACKET_SendObjEmpty :: struct
+PACKET_ObjEmpty :: struct
 {
+  PT := PACKET_Type.ObjEmpty;
   net_index: u32;
 };
 
-PACKET_SendAssignPlayerKey :: struct
+PACKET_Actions :: struct
 {
+  PT := PACKET_Type.Actions;
+  actions: [NET_MAX_ACTION_COUNT] Action;
+};
+
+PACKET_AssignPlayerKey :: struct
+{
+  PT := PACKET_Type.AssignPlayerKey;
   player_key: OBJ_Key;
 };
 
-PACKET_SendWindowLayout :: struct
+PACKET_WindowLayout :: struct
 {
+  PT := PACKET_Type.WindowLayout;
   user_count: u32;
   px, py, w, h: s32;
 };
@@ -73,7 +74,7 @@ PACKET_CopyData :: (full: *PACKET_Full, data: *void, size: s64)
     return;
   }
   memcpy(mem.data, data, size);
-  full.header = .{}; // invalidate header
+  full.header.magic_value = 0; // invalidate header
 }
 
 PACKET_CopyType :: (full: *PACKET_Full, value: $T)
@@ -81,11 +82,12 @@ PACKET_CopyType :: (full: *PACKET_Full, value: $T)
   PACKET_CopyData(full, *value, size_of(T));
 }
 
-PACKET_FinalizeHeader :: (full: *PACKET_Full)
+PACKET_FinalizeHeader :: (from_tick: Tick, full: *PACKET_Full)
 {
   str := PACKET_PayloadAsString(full.payload);
   full.header.magic_value = PACKET_MAGIC_VALUE;
   full.header.payload_hash = Hash64Any(str).(u16,trunc);
+  full.header.from_tick = from_tick;
 }
 
 PACKET_IsFinalized :: (full: PACKET_Full) -> bool
@@ -93,14 +95,14 @@ PACKET_IsFinalized :: (full: PACKET_Full) -> bool
   return !!full.header.magic_value;
 }
 
-PACKET_Create :: (things: ..Any) -> PACKET_Full
+PACKET_Create :: (from_tick: Tick, things: ..Any) -> PACKET_Full
 {
   full: PACKET_Full;
   for things
   {
     PACKET_CopyData(*full, it.value_pointer, it.type.runtime_size);
   }
-  PACKET_FinalizeHeader(*full);
+  PACKET_FinalizeHeader(from_tick, *full);
   return full;
 }
 
