@@ -223,14 +223,6 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
   return false; // no error
 }
 
-CLIENT_FlushSendToServer :: ()
-{
-  NET_RecalculatePacketHeader();
-  packet := NET_GetPacketString();
-  NET_SendString(G.client.network_server_user, packet);
-  G.net.payload_used = 0;
-}
-
 CLIENT_IterateSend :: ()
 {
   if G.net.err return;
@@ -238,30 +230,29 @@ CLIENT_IterateSend :: ()
   PerfFunc();
 
   {
-    head: NET_SendHeader;
+    head: PACKET_SendHeader;
     head.tick = GetClientActionTick();
     head.kind = .Ping;
-    NET_PayloadAppendType(head);
 
-    ping: NET_SendPing;
-    NET_PayloadAppendType(ping);
-    CLIENT_FlushSendToServer();
+    ping: PACKET_SendPing;
+
+    packet := PACKET_Create(head, ping);
+    NET_SendPacket(packet, G.client.network_server_user, false);
   }
 
   {
-    head: NET_SendHeader;
+    head: PACKET_SendHeader;
     head.tick = GetClientActionTick();
     head.kind = .Actions;
-    NET_PayloadAppendType(head);
 
-    payload: NET_SendActions;
+    payload: PACKET_SendActions;
     for * payload.actions
     {
       it.* = QueuePeek(G.client.action_queue, it_index);
     }
 
-    NET_PayloadAppendType(payload);
-    CLIENT_FlushSendToServer();
+    packet := PACKET_Create(head, payload);
+    NET_SendPacket(packet, G.client.network_server_user, false);
   }
 }
 
@@ -305,22 +296,22 @@ CLIENT_ReceivePayload :: (full_payload: string)
   msg := full_payload;
   while msg.count
   {
-    head := NET_Consume(NET_SendHeader, *msg);
+    head := NET_Consume(PACKET_SendHeader, *msg);
 
     if head.kind == .Ping
     {
-      ping := NET_Consume(NET_SendPing, *msg);
+      ping := NET_Consume(PACKET_SendPing, *msg);
     }
     else if (head.kind == .ObjUpdate || head.kind == .ObjEmpty)
     {
-      update: NET_SendObjSync;
+      update: PACKET_SendObjSync;
       if (head.kind == .ObjUpdate)
       {
-        update = NET_Consume(NET_SendObjSync, *msg);
+        update = NET_Consume(PACKET_SendObjSync, *msg);
       }
       else
       {
-        empty := NET_Consume(NET_SendObjEmpty, *msg);
+        empty := NET_Consume(PACKET_SendObjEmpty, *msg);
         update.net_index = empty.net_index;
         update.sync.init = true;
       }
@@ -343,7 +334,7 @@ CLIENT_ReceivePayload :: (full_payload: string)
     }
     else if head.kind == .AssignPlayerKey
     {
-      assign := NET_Consume(NET_SendAssignPlayerKey, *msg);
+      assign := NET_Consume(PACKET_SendAssignPlayerKey, *msg);
 
       if G.client.player_key_latest_tick < head.tick
       {
@@ -353,7 +344,7 @@ CLIENT_ReceivePayload :: (full_payload: string)
     }
     else if head.kind == .WindowLayout
     {
-      layout := NET_Consume(NET_SendWindowLayout, *msg);
+      layout := NET_Consume(PACKET_SendWindowLayout, *msg);
       if G.window_autolayout
       {
         // GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);

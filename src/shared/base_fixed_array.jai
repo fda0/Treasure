@@ -1,6 +1,7 @@
-FixedArray :: struct($CAPACITY: s64, $T: Type)
+FixedArray :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
 {
-  data: [CAPACITY] T;
+  #if zero_init  data: [CAPACITY] T;
+  else           data: [CAPACITY] T = ---;
   count: s64;
 }
 

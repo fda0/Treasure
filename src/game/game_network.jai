@@ -2,12 +2,11 @@
 // @todo this file should become more functional/pure network manager/layer
 
 NET_DEFAULT_SEVER_PORT :: 50523;
-NET_MAGIC_VALUE :: 0xfda0;
 NET_CLIENT_MAX_SNAPSHOTS :: TICK_RATE;
 NET_MAX_ACTION_COUNT :: TICK_RATE/8;
 NET_MAX_PLAYERS :: 10;
 NET_MAX_PACKET_SIZE :: 1200;
-NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(PACKET_PacketHeader);
+NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(PACKET_Header);
 NET_SIMULATE_PACKETLOSS :: 0; // doesn't seem to work on localhost
 NET_INACTIVE :: 0.1;
 NET_TIMEOUT_DISCONNECT :: 0.5;
@@ -16,11 +15,6 @@ NET_State :: struct
 {
   err: bool; // tracks if network is in error state
   socket: *SDLNet_DatagramSocket;
-
-  // msg payload
-  packet_header: PACKET_PacketHeader;
-  packet_payload_buf: [1024 * 1024 * 1] u8; // 1 MB scratch buffer for network payload construction
-  payload_used: u32;
 };
 
 
@@ -87,28 +81,24 @@ NET_UserIsInactive :: (user: NET_User) -> bool
   return ElapsedSeconds(user.last_msg_timestamp) > NET_INACTIVE;
 }
 
-NET_SendString :: (destination: NET_User, msg: string)
+NET_SendPacket :: (packet: PACKET_Full, dest: NET_User, skip_inactive: bool)
 {
-  assert(msg.count < 1280); // that seems to be a realistic reasonable max size? https://gafferongames.com/post/packet_fragmentation_and_reassembly/
+  assert(PACKET_IsFinalized(packet));
+  assert(packet.payload.count < 1280); // that seems to be a realistic reasonable max size? https://gafferongames.com/post/packet_fragmentation_and_reassembly/
 
-  if NET_IsServer()/* @todo this check is bad here */ && NET_UserIsInactive(destination)
+  if skip_inactive && NET_UserIsInactive(dest) {
     return;
+  }
 
-  send_res := SDLNet_SendDatagram(G.net.socket, destination.address, destination.port, msg.data, xx msg.count);
+  msg := PACKET_FullAsString(packet);
+
+  send_res := SDLNet_SendDatagram(G.net.socket, dest.address, dest.port, msg.data, xx msg.count);
   if !send_res
   {
     Nlog(LOG_NetSend, "Sending buffer of size %lluB to %s:%d; %s",
-        msg.count, to_string(SDLNet_GetAddressString(destination.address)),
-        destination.port, ifx send_res then "success" else "fail");
+        msg.count, to_string(SDLNet_GetAddressString(dest.address)),
+        dest.port, ifx send_res then "success" else "fail");
   }
-}
-
-NET_PacketSendAndResetPayload :: (destination: NET_User)
-{
-  NET_RecalculatePacketHeader();
-  packet := NET_GetPacketString();
-  NET_SendString(destination, packet);
-  G.net.payload_used = 0;
 }
 
 NET_RemoveUser :: (user: *NET_User)
@@ -174,28 +164,28 @@ NET_Consume:: ($T: Type, packet: *string) -> T
 NET_RawPacketToPayload :: (raw_packet: string) -> payload: string
 {
   packet := raw_packet;
-  if packet.count < size_of(PACKET_PacketHeader)
+  if packet.count < size_of(PACKET_Header)
   {
     Nlog(LOG_NetPacket, "packet rejected - it's too small, size: %llu", packet.count);
     return "";
   }
 
-  header := NET_Consume(PACKET_PacketHeader, *packet);
+  header := NET_Consume(PACKET_Header, *packet);
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);
     return  "";
   }
 
-  if (header.magic_value != NET_MAGIC_VALUE)
+  if (header.magic_value != PACKET_MAGIC_VALUE)
   {
-    Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, NET_MAGIC_VALUE);
+    Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, PACKET_MAGIC_VALUE);
     return "";
   }
 
   // validate hash
   hash64 := Hash64Any(packet);
-  hash16 := cast,no_check(u16) hash64;
+  hash16 := hash64.(u16,trunc);
   if (hash16 != header.payload_hash)
   {
     Nlog(LOG_NetPacket, "packet rejected - invalid hash: %; calculated: %", header.payload_hash, hash16);

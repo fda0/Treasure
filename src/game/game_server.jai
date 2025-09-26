@@ -30,7 +30,7 @@ SERVER_ReceiveDatagram :: ()
 
 }
 
-SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *NET_SendActions, client_tick: Tick)
+SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_SendActions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -104,6 +104,7 @@ SERVER_IterateSend :: ()
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
+
   client_count := 0;
   for G.server.users if it.net.address client_count += 1;
 
@@ -140,16 +141,15 @@ SERVER_IterateSend :: ()
         user.key = player.s.key;
       }
 
-      head: NET_SendHeader;
+      head: PACKET_SendHeader;
       head.tick = GetServerTick();
       head.kind = .AssignPlayerKey;
-      NET_PayloadAppendType(head);
 
-      assign: NET_SendAssignPlayerKey;
+      assign: PACKET_SendAssignPlayerKey;
       assign.player_key = user.key;
-      NET_PayloadAppendType(assign);
 
-      NET_PacketSendAndResetPayload(user.net);
+      packet := PACKET_Create(head, assign);
+      NET_SendPacket(*packet, user.net, true);
     }
 
     // calculate autolayout for clients
@@ -186,7 +186,7 @@ SERVER_IterateSend :: ()
           x := window_index / rows;
           y := window_index % rows;
 
-          head: NET_SendHeader;
+          head: PACKET_SendHeader;
           head.tick_id = G.tick_id;
           head.kind = .WindowLayout;
           NET_PayloadMemcpy(*head, sizeof(head));
@@ -208,39 +208,39 @@ SERVER_IterateSend :: ()
   // iterate over network objects
   for G.obj.network_objects
   {
+    packet: PACKET_Full;
+
     if OBJ_HasData(it)
     {
-      head: NET_SendHeader;
+      head: PACKET_SendHeader;
       head.tick = GetServerTick();
       head.kind = .ObjUpdate;
-      NET_PayloadAppendType(head);
+      PACKET_CopyType(*packet, head);
 
-      update: NET_SendObjSync;
+      update: PACKET_SendObjSync;
       update.net_index = xx it_index;
       update.sync = it.s;
-      NET_PayloadAppendType(update);
+      PACKET_CopyType(*packet, update);
     }
     else
     {
-      head: NET_SendHeader;
+      head: PACKET_SendHeader;
       head.tick = GetServerTick();
       head.kind = .ObjEmpty;
-      NET_PayloadAppendType(head);
+      PACKET_CopyType(*packet, head);
 
-      update: NET_SendObjEmpty;
+      update: PACKET_SendObjEmpty;
       update.net_index = xx it_index;
-      NET_PayloadAppendType(update);
+      PACKET_CopyType(*packet, update);
     }
 
-    NET_RecalculatePacketHeader();
-    packet := NET_GetPacketString();
+    PACKET_FinalizeHeader(*packet);
 
     for G.server.users
     {
       if !it.net.address continue;
-      NET_SendString(it.net, packet);
+      NET_SendPacket(packet, it.net, true);
     }
-    G.net.payload_used = 0;
   }
 }
 
@@ -307,15 +307,15 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string)
   msg := full_payload;
   while msg.count
   {
-    head := NET_Consume(NET_SendHeader, *msg);
+    head := NET_Consume(PACKET_SendHeader, *msg);
 
     if head.kind == .Ping
     {
-      ping := NET_Consume(NET_SendPing, *msg);
+      ping := NET_Consume(PACKET_SendPing, *msg);
     }
     else if head.kind == .Actions
     {
-      in_net := NET_Consume(NET_SendActions, *msg);
+      in_net := NET_Consume(PACKET_SendActions, *msg);
       user := *G.server.users[player_id];
       SERVER_ReceiveUserActions(user, *in_net, head.tick);
     }
