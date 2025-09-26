@@ -536,7 +536,7 @@ String :: #import "String";
 #load "game_asset_hot_reload.jai";
 #load "game_object.jai";
 #load "game_object_collider.jai";
-#load "game_packet_builder.jai";
+#load "game_network_packet.jai";
 #load "game_network.jai";
 #load "game_client.jai";
 #load "game_server.jai";
