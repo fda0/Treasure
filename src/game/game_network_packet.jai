@@ -64,6 +64,10 @@ PACKET_WindowLayout :: struct
   px, py, w, h: s32;
 };
 
+//
+// Create
+//
+
 PACKET_CopyData :: (full: *PACKET_Full, data: *void, size: s64)
 {
   mem, success := array_add_many(*full.payload, size, initialize=false);
@@ -115,4 +119,24 @@ PACKET_FullAsString :: (full: PACKET_Full) -> string
 {
   size := size_of(PACKET_Header) + full.payload.count;
   return string.{data = (*full).(*u8), count = size};
+}
+
+//
+// Consume
+//
+PACKET_Peek :: ($T: Type, packet: string) -> T
+{
+  value: T;
+  if packet.count >= size_of(T)
+  {
+    memcpy(*value, packet.data, size_of(T));
+  }
+  return value;
+}
+
+PACKET_Consume :: ($T: Type, packet: *string) -> T
+{
+  value := PACKET_Peek(T, packet.*);
+  packet.* = Skip(packet.*, size_of(T));
+  return value;
 }

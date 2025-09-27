@@ -95,7 +95,10 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
+  if NET_IsServer() Nlog(LOG_NetInfo, "Launching as server");
+  if NET_IsClient() CLIENT_Init();
   NET_Init();
+
   OBJ_Init();
 }
 

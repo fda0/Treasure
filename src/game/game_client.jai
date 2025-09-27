@@ -3,7 +3,7 @@ CLIENT_State :: struct
   enabled: bool;
 
   has_local_server: bool;
-  network_server_user: NET_User;
+  server_connection: NET_Connection;
 
 
   // client actions sent to the server
@@ -39,18 +39,18 @@ CLIENT_Init :: ()
 
   hostname := "localhost";
   Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
-  G.client.network_server_user.address = SDLNet_ResolveHostname(temp_c_string(hostname));
-  G.client.network_server_user.port = NET_DEFAULT_SEVER_PORT;
-  if G.client.network_server_user.address
+  G.client.server_connection.address = SDLNet_ResolveHostname(temp_c_string(hostname));
+  G.client.server_connection.port = NET_DEFAULT_SEVER_PORT;
+  if G.client.server_connection.address
   {
-    if SDLNet_WaitUntilResolved(G.client.network_server_user.address, -1) < 0
+    if SDLNet_WaitUntilResolved(G.client.server_connection.address, -1) < 0
     {
-      SDLNet_UnrefAddress(G.client.network_server_user.address);
-      G.client.network_server_user.address = null;
+      SDLNet_UnrefAddress(G.client.server_connection.address);
+      G.client.server_connection.address = null;
     }
   }
 
-  if !G.client.network_server_user.address
+  if !G.client.server_connection.address
   {
     G.net.err = true;
     Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
@@ -232,7 +232,7 @@ CLIENT_IterateSend :: ()
   {
     ping: PACKET_Ping;
     packet := PACKET_Create(GetClientActionTick(), ping);
-    NET_SendPacket(packet, G.client.network_server_user, false);
+    NET_SendPacket(packet, G.client.server_connection, false);
   }
 
   {
@@ -243,7 +243,7 @@ CLIENT_IterateSend :: ()
     }
 
     packet := PACKET_Create(GetClientActionTick(), payload);
-    NET_SendPacket(packet, G.client.network_server_user, false);
+    NET_SendPacket(packet, G.client.server_connection, false);
   }
 }
 
@@ -263,7 +263,7 @@ CLIENT_IterateReceive :: ()
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
     invalid_dgram := false;
-    if !NET_UserMatchAddrPort(*G.client.network_server_user, dgram.addr, dgram.port)
+    if !NET_MatchConnection(*G.client.server_connection, dgram.addr, dgram.port)
     {
       invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",
@@ -287,22 +287,22 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
   msg := full_payload;
   while msg.count
   {
-    msg_type := NET_Peek(PACKET_Type, msg);
+    msg_type := PACKET_Peek(PACKET_Type, msg);
 
     if msg_type == .Ping
     {
-      ping := NET_Consume(PACKET_Ping, *msg);
+      ping := PACKET_Consume(PACKET_Ping, *msg);
     }
     else if (msg_type == .ObjUpdate || msg_type == .ObjEmpty)
     {
       update: PACKET_ObjUpdate;
       if (msg_type == .ObjUpdate)
       {
-        update = NET_Consume(PACKET_ObjUpdate, *msg);
+        update = PACKET_Consume(PACKET_ObjUpdate, *msg);
       }
       else
       {
-        empty := NET_Consume(PACKET_ObjEmpty, *msg);
+        empty := PACKET_Consume(PACKET_ObjEmpty, *msg);
         update.net_index = empty.net_index;
         update.sync.init = true;
       }
@@ -325,7 +325,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
     }
     else if msg_type == .AssignPlayerKey
     {
-      assign := NET_Consume(PACKET_AssignPlayerKey, *msg);
+      assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
 
       if G.client.player_key_latest_tick < from_tick
       {
@@ -335,7 +335,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
     }
     else if msg_type == .WindowLayout
     {
-      layout := NET_Consume(PACKET_WindowLayout, *msg);
+      layout := PACKET_Consume(PACKET_WindowLayout, *msg);
       if G.window_autolayout
       {
         // GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);

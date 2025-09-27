@@ -3,12 +3,13 @@ SERVER_State :: struct
   enabled: bool;
 
   tick: Tick;
-  users: [NET_MAX_PLAYERS] SERVER_UserState;
+  users: [NET_MAX_PLAYERS] SERVER_User;
 };
 
-SERVER_UserState :: struct
+SERVER_User :: struct
 {
-  net: NET_User;
+  active: bool;
+  connection: NET_Connection;
   key: OBJ_Key;
 
   received_actions: Queue(NET_MAX_ACTION_COUNT, ReceivedAction);
@@ -23,14 +24,7 @@ SERVER_UserState :: struct
   }
 };
 
-SERVER_ReceiveDatagram :: ()
-{
-  if G.net.err return;
-  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
-
-}
-
-SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_Actions, client_tick: Tick)
+SERVER_ReceiveUserActions :: (player: *SERVER_User, net_msg: *PACKET_Actions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -55,7 +49,7 @@ SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_Action
   for new_actions
   {
     now := GetTimestamp();
-    received := SERVER_UserState.ReceivedAction.{
+    received := SERVER_User.ReceivedAction.{
       it, ElapsedSeconds(player.latest_received_timestamp, now, false)
     };
     player.latest_received_timestamp = now;
@@ -66,7 +60,7 @@ SERVER_ReceiveUserActions :: (player: *SERVER_UserState, net_msg: *PACKET_Action
   player.latest_client_tick = client_tick;
 }
 
-SERVER_GetNextUserAction :: (user: *SERVER_UserState) -> Action
+SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
 {
   PerfFunc();
   top_delay: float;
@@ -106,13 +100,13 @@ SERVER_IterateSend :: ()
 
 
   client_count := 0;
-  for G.server.users if it.net.address client_count += 1;
+  for G.server.users if it.active  client_count += 1;
 
   // iterate over connected users
   player_number := 0;
   for *user, user_index: G.server.users
   {
-    if !user.net.address continue;
+    if !user.active continue;
     player_number += 1;
 
     // create player characters and send them to users
@@ -144,7 +138,7 @@ SERVER_IterateSend :: ()
       assign: PACKET_AssignPlayerKey;
       assign.player_key = user.key;
       packet := PACKET_Create(GetServerTick(), assign);
-      NET_SendPacket(*packet, user.net, true);
+      NET_SendPacket(*packet, user.connection, true);
     }
 
     // calculate autolayout for clients
@@ -223,18 +217,25 @@ SERVER_IterateSend :: ()
 
     for G.server.users
     {
-      if !it.net.address continue;
-      NET_SendPacket(packet, it.net, true);
+      if !it.active continue;
+      NET_SendPacket(packet, it.connection, true);
     }
   }
+}
+
+SERVER_RemoveUser :: (user: *SERVER_User)
+{
+  assert(user.active);
+  SDLNet_UnrefAddress(user.connection.address);
+  user.* = .{};
 }
 
 SERVER_IterateTimeoutUsers :: ()
 {
   for *G.server.users
   {
-    if !it.net.address continue;
-    if ElapsedSeconds(it.net.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
+    if !it.connection.address continue;
+    if ElapsedSeconds(it.connection.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
     {
       Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
 
@@ -244,7 +245,7 @@ SERVER_IterateTimeoutUsers :: ()
         G.in_shutdown = true;
       }
 
-      NET_RemoveUser(*it.net);
+      SERVER_RemoveUser(it);
     }
   }
 }
@@ -264,16 +265,16 @@ SERVER_IterateReceive :: ()
     Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
-    user := NET_FindUser(dgram.addr, dgram.port);
+    user := SERVER_FindUser(dgram.addr, dgram.port);
     if !user
     {
       Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
-      user = NET_AddUser(dgram.addr, dgram.port);
+      user = SERVER_AddUser(dgram.addr, dgram.port);
     }
 
     if user
     {
-      user.net.last_msg_timestamp = GetTimestamp(.FRAME);
+      user.connection.last_msg_timestamp = GetTimestamp(.FRAME);
       user_id := PointerToIndex(G.server.users, user);
       player_id := user_id.(u16);
 
@@ -292,15 +293,15 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
   msg := full_payload;
   while msg.count
   {
-    msg_type := NET_Peek(PACKET_Type, msg);
+    msg_type := PACKET_Peek(PACKET_Type, msg);
 
     if msg_type == .Ping
     {
-      ping := NET_Consume(PACKET_Ping, *msg);
+      ping := PACKET_Consume(PACKET_Ping, *msg);
     }
     else if msg_type == .Actions
     {
-      in_net := NET_Consume(PACKET_Actions, *msg);
+      in_net := PACKET_Consume(PACKET_Actions, *msg);
       user := *G.server.users[player_id];
       SERVER_ReceiveUserActions(user, *in_net, from_tick);
     }

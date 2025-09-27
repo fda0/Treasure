@@ -17,7 +17,6 @@ NET_State :: struct
   socket: *SDLNet_DatagramSocket;
 };
 
-
 // @impl
 LOG_NetInfo :: 0;
 LOG_NetDatagram :: 1;
@@ -38,7 +37,7 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
-NET_User :: struct
+NET_Connection :: struct
 {
   address: *SDLNet_Address;
   port: u16;
@@ -47,9 +46,6 @@ NET_User :: struct
 
 NET_Init :: ()
 {
-  if NET_IsServer() Nlog(LOG_NetInfo, "Launching as server");
-  if NET_IsClient() CLIENT_Init();
-
   port: u16 = xx ifx NET_IsServer() /* @todo thats bad */ then NET_DEFAULT_SEVER_PORT else 0;
   G.net.socket = SDLNet_CreateDatagramSocket(null, port);
   if !G.net.socket
@@ -76,17 +72,17 @@ NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: flo
   return false;
 }
 
-NET_UserIsInactive :: (user: NET_User) -> bool
+NET_ConnectionIsInactive :: (con: NET_Connection) -> bool
 {
-  return ElapsedSeconds(user.last_msg_timestamp) > NET_INACTIVE;
+  return ElapsedSeconds(con.last_msg_timestamp) > NET_INACTIVE;
 }
 
-NET_SendPacket :: (packet: PACKET_Full, dest: NET_User, skip_inactive: bool)
+NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: bool)
 {
   assert(PACKET_IsFinalized(packet));
   assert(packet.payload.count < 1280); // that seems to be a realistic reasonable max size? https://gafferongames.com/post/packet_fragmentation_and_reassembly/
 
-  if skip_inactive && NET_UserIsInactive(dest) {
+  if skip_inactive && NET_ConnectionIsInactive(dest) {
     return;
   }
 
@@ -101,18 +97,12 @@ NET_SendPacket :: (packet: PACKET_Full, dest: NET_User, skip_inactive: bool)
   }
 }
 
-NET_RemoveUser :: (user: *NET_User)
-{
-  SDLNet_UnrefAddress(user.address);
-  user.* = .{};
-}
-
-NET_UserMatch :: (a: *NET_User, b: *NET_User) -> bool
+NET_MatchConnection :: (a: NET_Connection, b: NET_Connection) -> bool
 {
   return (a.port == b.port && SDLNet_CompareAddresses(a.address, b.address) == 0);
 }
 
-NET_UserMatchAddrPort :: (user: NET_User, address: *SDLNet_Address, port: u16) -> bool
+NET_MatchConnection :: (user: NET_Connection, address: *SDLNet_Address, port: u16) -> bool
 {
   if (!user.address)
     return false;
@@ -120,53 +110,40 @@ NET_UserMatchAddrPort :: (user: NET_User, address: *SDLNet_Address, port: u16) -
   return (user.port == port && SDLNet_CompareAddresses(user.address, address) == 0);
 }
 
-NET_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_UserState
+SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
 {
   // @todo move to SV_ prefix?
   for *G.server.users
   {
-    if (NET_UserMatchAddrPort(it.net, address, port))
+    if NET_MatchConnection(it.connection, address, port)
+    {
       return it;
+    }
   }
   return null;
 }
 
-NET_AddUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_UserState
+SERVER_AddUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
 {
   // @todo move to SV_ prefix?
-  new_user_slot: *SERVER_UserState;
+  new_user_slot: *SERVER_User;
   for *G.server.users
   {
-    if !it.net.address
+    if !it.active
     {
       new_user_slot = it;
       break;
     }
   }
 
-  if (new_user_slot)
+  if new_user_slot
   {
-    new_user_slot.net.address = SDLNet_RefAddress(address);
-    new_user_slot.net.port = port;
+    Initialize(new_user_slot);
+    new_user_slot.active = true;
+    new_user_slot.connection.address = SDLNet_RefAddress(address);
+    new_user_slot.connection.port = port;
   }
   return new_user_slot;
-}
-
-NET_Peek :: ($T: Type, packet: string) -> T
-{
-  value: T;
-  if packet.count >= size_of(T)
-  {
-    memcpy(*value, packet.data, size_of(T));
-  }
-  return value;
-}
-
-NET_Consume :: ($T: Type, packet: *string) -> T
-{
-  value := NET_Peek(T, packet.*);
-  packet.* = Skip(packet.*, size_of(T));
-  return value;
 }
 
 NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick
@@ -178,7 +155,7 @@ NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick
     return "", 0;
   }
 
-  header := NET_Consume(PACKET_Header, *packet);
+  header := PACKET_Consume(PACKET_Header, *packet);
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);
