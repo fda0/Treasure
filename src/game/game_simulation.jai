@@ -1,4 +1,4 @@
-TICK_RATE :: 100;
+TICK_RATE :: 50;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
@@ -74,7 +74,7 @@ SIM_AdvanceByTick :: ()
   }
 
   // apply actions
-  for *obj: G.obj.network_objects
+  for *obj: context.OBJ.network_objects
   {
     if OBJ_IsNil(obj) continue;
     if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
@@ -173,7 +173,7 @@ SIM_AdvanceByTick :: ()
     obj.s.desired_dp = V3.{xy = normalize(obj_move_dir) * obj_speed, z = 0};
   }
 
-  for *turret: G.obj.network_objects
+  for *turret: context.OBJ.network_objects
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -249,7 +249,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *projectile: G.obj.network_objects
+  for *projectile: context.OBJ.network_objects
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
 
@@ -294,7 +294,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *obj: G.obj.network_objects
+  for *obj: context.OBJ.network_objects
   {
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
@@ -329,7 +329,7 @@ SIM_AdvanceByTick :: ()
 
   SIM_MoveAndCollideObjects();
 
-  for * obj: G.obj.all_objects
+  for * obj: context.OBJ.all_objects
   {
     if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
     {
@@ -342,7 +342,7 @@ SIM_AdvanceByTick :: ()
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
-  for * obj: G.obj.network_objects
+  for * obj: context.OBJ.network_objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -359,7 +359,7 @@ SIM_MoveAndCollideObjects :: ()
       obj_collider := obj.s.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: G.obj.network_objects
+      for * obstacle: context.OBJ.network_objects
       {
         if obj == obstacle continue;
         if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;

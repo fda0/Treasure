@@ -36,7 +36,7 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
-  for *obj: G.obj.all_objects
+  for *obj: context.OBJ.all_objects
   {
     if OBJ_HasAnyFlag(obj, .PLAY_SOUNDS)
     {

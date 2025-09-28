@@ -92,7 +92,7 @@ WORLD_DrawObjects :: ()
 {
   PerfFunc();
 
-  for *obj: G.obj.all_objects
+  for *obj: context.OBJ.all_objects
   {
     draw_model := OBJ_HasAnyFlag(obj, .DRAW_MODEL);
     draw_colliders := OBJ_HasAnyFlag(obj, .DRAW_COLLIDERS);

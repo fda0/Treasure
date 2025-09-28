@@ -4,6 +4,8 @@ SERVER_State :: struct
 
   local_user_packets: NET_LocalPackets;
 
+  obj: OBJ_State;
+
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_User;
 };
@@ -196,7 +198,7 @@ SERVER_IterateSend :: ()
   }
 
   // iterate over network objects
-  for G.obj.network_objects
+  for context.OBJ.network_objects
   {
     packet: PACKET_Full;
 

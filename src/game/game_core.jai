@@ -23,7 +23,6 @@ GAME_State :: struct
   audio: AUDIO_State;
   hr: HOT_RELOAD_State;
   font: FONT_State;
-  obj: OBJ_State;
   net: NET_State;
   client: CLIENT_State;
   server: SERVER_State;
@@ -76,6 +75,26 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
+PatchContext :: (target: enum {CLIENT; SERVER; DEFAULT;}) -> (result: #Context)
+{
+  if target == .DEFAULT
+  {
+    if !NET_IsClient() && NET_IsServer() target = .SERVER;
+    else                                 target = .CLIENT;
+  }
+
+  c := context;
+  if target == .CLIENT
+  {
+    c.OBJ = *G.client.obj;
+  }
+  else
+  {
+    c.OBJ = *G.server.obj;
+  }
+  return c;
+}
+
 GAME_Init :: ()
 {
   PerfFunc();
@@ -95,11 +114,17 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
-  if NET_IsServer() SERVER_Init();
-  if NET_IsClient() CLIENT_Init();
+  if NET_IsServer() push_context PatchContext(.SERVER)
+  {
+    SERVER_Init();
+    OBJ_Init();
+  }
+  if NET_IsClient() push_context PatchContext(.CLIENT)
+  {
+    CLIENT_Init();
+    OBJ_Init();
+  }
   NET_Init();
-
-  OBJ_Init();
 }
 
 GAME_Iterate :: ()
@@ -136,11 +161,11 @@ GAME_Iterate :: ()
     FONT_MaybeResizeAtlasTexture();
   }
 
-  if NET_IsServer()
+  if NET_IsServer() push_context PatchContext(.SERVER)
   {
     SERVER_IterateReceive();
   }
-  if NET_IsClient()
+  if NET_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateReceive();
   }
@@ -151,7 +176,7 @@ GAME_Iterate :: ()
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
-    if NET_IsServer()
+    if NET_IsServer() push_context PatchContext(.SERVER)
     {
       for MakeRange(tick_count)
       {
@@ -166,7 +191,7 @@ GAME_Iterate :: ()
       }
     }
 
-    if NET_IsClient()
+    if NET_IsClient() push_context PatchContext(.CLIENT)
     {
       for MakeRange(tick_count)
       {
@@ -177,12 +202,12 @@ GAME_Iterate :: ()
     }
   }
 
-  if NET_IsServer()
+  if NET_IsServer() push_context PatchContext(.SERVER)
   {
     SERVER_IterateTimeoutUsers();
     SERVER_IterateSend();
   }
-  if NET_IsClient()
+  if NET_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateSend();
   }
@@ -290,7 +315,7 @@ GAME_Iterate :: ()
 
       sun_dist := towards_sun_dir * 40.0;
       G.sun_camera_p = G.camera_p + sun_dist;
-      OBJ_Get(.OFFLINE, G.obj.sun).s.p = G.sun_camera_p;
+      OBJ_Get(.OFFLINE, context.OBJ.sun).s.p = G.sun_camera_p;
 
       transl := TranslationMatrix(-G.sun_camera_p);
       rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -380,7 +405,7 @@ GAME_Iterate :: ()
           G.client.action.target_object = .{};
           if move_pressed
           {
-            marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
+            marker := OBJ_Get(.OFFLINE, context.OBJ.pathing_marker);
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
@@ -395,7 +420,7 @@ GAME_Iterate :: ()
 
     CLIENT_FlushActionTick();
 
-    marker := OBJ_Get(.OFFLINE, G.obj.pathing_marker);
+    marker := OBJ_Get(.OFFLINE, context.OBJ.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.client.action.type == .PATHING
@@ -404,12 +429,12 @@ GAME_Iterate :: ()
         marker.s.model = ModelKey("Flag");
         marker.s.p = G.client.action.world_p;
         marker.l.animated_p.xy = marker.s.p.xy;
-        G.obj.pathing_marker_set = true;
+        context.OBJ.pathing_marker_set = true;
       }
       else
       {
         marker.s.p.z = -2.0;
-        G.obj.pathing_marker_set = false;
+        context.OBJ.pathing_marker_set = false;
       }
     }
 

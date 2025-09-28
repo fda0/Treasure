@@ -86,7 +86,7 @@ NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: flo
 
 NET_ConnectionIsInactive :: (con: NET_Connection) -> bool
 {
-  return ElapsedSeconds(con.last_msg_timestamp) > NET_INACTIVE;
+  return con.type == .NETWORK && ElapsedSeconds(con.last_msg_timestamp) > NET_INACTIVE;
 }
 
 NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: bool)
