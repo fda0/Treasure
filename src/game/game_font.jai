@@ -223,9 +223,9 @@ FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig
 
     if can_use_line
     {
-      if best_line_index >= FONT_ATLAS_LAYER_MAX_LINES // first acceptable line found
+      if best_line_index >= FONT_ATLAS_LAYER_MAX_LINES
         best_line_index = line_index;
-      else if layer.line_heights[best_line_index] < line_height // check if this line is better than current best line
+      else if layer.line_heights[best_line_index] > line_height // check if this line is smaller than current best line
         best_line_index = line_index;
     }
   }

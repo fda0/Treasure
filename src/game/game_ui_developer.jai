@@ -365,7 +365,6 @@ UI_DrawDeveloperFontAtlas :: ()
 
   clip_min, clip_dim := FinalInnerMinDim(G.dev.atlas_clip_box);
   clip := MakeRectMinDim(clip_min, clip_dim);
-  log("CLIP: %", clip);
 
   for box: G.dev.atlas_boxes
   {
@@ -374,8 +373,6 @@ UI_DrawDeveloperFontAtlas :: ()
     p := box.abs_p + BOX.PaddingLower2(box);
     dim := box.inner;
     shade := ifx it_index == G.font.active_layer_index then 1.0 else 0.7;
-
-    log("box_dim: %", dim);
 
     shape := UI_Shape.{
       rect = MakeRectMinDim(p, dim),

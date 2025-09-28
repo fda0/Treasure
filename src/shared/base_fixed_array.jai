@@ -17,6 +17,25 @@ operator []= :: inline (array: *FixedArray, i: int, value: array.T)
   array.data[i] = value;
 }
 
+for_expansion :: (array: $A/FixedArray, body: Code, flags: For_Flags) #expand
+{
+  #assert(flags == 0); // @todo extend support
+  `it_index := 0;
+  while true
+  {
+    if it_index >= range.count break;
+    defer it_index += 1;
+
+    `it := array.data[it_index];
+    #insert body;
+  }
+}
+
+array_space_left :: (array: *FixedArray) -> s64
+{
+  return array.CAPACITY - array.count;
+}
+
 array_add :: (array: *FixedArray, item: array.T) -> bool
 {
   added := false;
