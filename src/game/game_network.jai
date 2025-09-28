@@ -37,7 +37,7 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
-NET_LocalPackets :: Queue(1024, PACKET_Full); // @todo replace with thread-safe Queue
+NET_LocalPackets :: Queue(512, PACKET_Full, false);
 
 NET_ConnectionType :: enum u8
 {

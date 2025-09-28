@@ -20,6 +20,21 @@ TEST_util :: ()
   sum = 0; for q sum += it;
   assert(sum == 116);
 
+  // variants
+  {
+    sum = 0;
+    for 0..3 sum += QueuePeek(q, it);
+    assert(sum == 116);
+
+    sum = 0;
+    for 0..3 sum += QueuePeek(q, it);
+    assert(sum == 116);
+
+    sum = 0;
+    for 0..3 sum += QueuePeekReverse(q, it);
+    assert(sum == 116);
+  }
+
   QueuePush(*q).* = 80; // removed 11; added 80
   sum = 0; for q sum += it;
   assert(sum == 185);

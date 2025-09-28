@@ -1,100 +1,113 @@
-Queue :: struct($CAPACITY: s64, $T: Type)
+Queue :: struct($CAPACITY: s64, $T: Type, OVERWRITE_ON_OVERFLOW := true)
 {
-  count: s64;
-  start_offset: s64;
+  min: u64;
+  max: u64;
   buffer: [CAPACITY] T;
 }
 
-for_expansion :: (using queue: Queue, body: Code, flags: For_Flags) #expand
+for_expansion :: (q: Queue, body: Code, flags: For_Flags) #expand
 {
   #assert(flags == 0); // @todo extend support
+  count := QueueCount(q);
   `it_index := 0;
   while true
   {
     if it_index >= count break;
-    `it := buffer[(start_offset + it_index) % CAPACITY];
+    `it := q.buffer[(q.min + it_index.(u64)) % q.CAPACITY];
     defer it_index += 1;
     #insert body;
   }
 }
 
-QueueIsFull :: (using queue: Queue) -> bool
+QueueCount :: (q: Queue) -> s64
 {
-  return count == CAPACITY;
+  result := (q.max - q.min);
+  if q.min > q.max {
+    result = q.max + (U64_MAX - q.min);
+  }
+  if result > q.CAPACITY {
+    assert(false);
+    result = q.CAPACITY;
+  }
+  return xx result;
 }
 
-QueueSpaceLeft :: (using queue: Queue) -> s64
+QueueEmptyCount :: (q: Queue) -> s64
 {
-  return CAPACITY - count;
+  return q.CAPACITY - QueueCount(q);
 }
 
-QueueIsEmpty :: (using queue: Queue) -> bool
+QueueIsEmpty :: (q: Queue) -> bool
 {
-  return count <= 0;
+  return QueueCount(q) == 0;
 }
 
-QueuePush :: (using queue: *Queue, $initialize := true) -> *queue.T
+QueueIsFull :: (q: Queue) -> bool
 {
-  push_at_index := (start_offset + count) % CAPACITY;
-  count += 1;
-  if count > CAPACITY
-  {
-    push_at_index = start_offset % CAPACITY;
-    start_offset = (start_offset + 1) % CAPACITY;
-    count = CAPACITY;
+  return QueueCount(q) == q.CAPACITY;
+}
+
+QueuePush :: (q: *Queue, $initialize := true) -> *q.T
+{
+  is_full := QueueIsFull(q);
+  if !q.OVERWRITE_ON_OVERFLOW && is_full return null;
+
+  push_idx := q.max % q.CAPACITY;
+  q.max += 1;
+
+  if is_full {
+    q.min += 1;
   }
 
-  result := *buffer[push_at_index];
+  result := *q.buffer[push_idx];
   #if initialize Initialize(result);
   return result;
 }
 
 QueuePush :: (q: *Queue, value: q.T)
 {
-  QueuePush(q).* = value;
+  is_full := QueueIsFull(q);
+  if !q.OVERWRITE_ON_OVERFLOW && is_full return;
+  QueuePush(q, false).* = value;
 }
 
 QueuePush :: (q: *Queue, values: [] q.T)
 {
   for values QueuePush(q, it);
 }
-QueuePush :: (q: *Queue, values: ..q.T)
+QueuePush :: (q: *Queue, values: ..q.T) { QueuePush(q, values); }
+
+QueuePeekPointer :: (q: *Queue, depth := 0) -> *q.T
 {
-  for values QueuePush(q, it);
+  if q.min == q.max return null;
+
+  peek_idx := (q.min + depth.(u64)) % q.CAPACITY;
+  return *q.buffer[peek_idx];
 }
 
-QueuePeekPointer :: (using queue: *Queue, depth := 0) -> *queue.T
+QueuePeek :: (q: Queue, depth := 0) -> q.T, bool
 {
-  if count <= depth return null;
-  peek_index := (start_offset + depth) % CAPACITY;
-  return *buffer[peek_index];
+  default: q.T;
+  if q.min == q.max return default, false;
+
+  peek_idx := (q.min + depth.(u64)) % q.CAPACITY;
+  return q.buffer[peek_idx], true;
 }
 
-QueuePeek :: (using queue: Queue, depth := 0) -> queue.T
+QueuePeekReverse :: (q: Queue, depth := 0) -> q.T, bool
 {
-  default: T;
-  if count <= depth return default;
-  peek_index := (start_offset + depth) % CAPACITY;
-  return buffer[peek_index];
+  default: q.T;
+  if q.min == q.max return default, false;
+
+  peek_idx := (q.max - 1 - depth.(u64)) % q.CAPACITY;
+  return q.buffer[peek_idx], true;
 }
 
-QueuePeekLast :: (using queue: Queue, depth := 0) -> queue.T
+QueuePop :: (q: *Queue) -> q.T, bool
 {
-  default: T;
-  if count <= depth return default;
-  peek_index := (start_offset + count - 1 - depth) % CAPACITY;
-  return buffer[peek_index];
-}
+  item, has_items := QueuePeek(q);
+  if !has_items return item, false;
 
-QueuePop :: (using queue: *Queue) -> queue.T, bool
-{
-  item := QueuePeek(queue);
-  success := false;
-  if count > 0
-  {
-    start_offset = (start_offset + 1) % CAPACITY;
-    count -= 1;
-    success = true;
-  }
-  return item, success;
+  q.min += 1;
+  return item, true;
 }

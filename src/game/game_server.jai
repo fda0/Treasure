@@ -72,13 +72,14 @@ SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
     top_delay = max(it.delay_since_last_received_action, top_delay);
   }
 
-  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, user.received_actions.count);
+  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
 
-  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), user.received_actions.count);
-  remove_old_items_count := targeted_delay_in_count - user.received_actions.count - 1;
+  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
+  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
   for MakeRange(remove_old_items_count)
   {
-    log("remove_old_items_count = %; user.received_actions.count: %, top_delay %; TICK_FLOAT_STEP %", remove_old_items_count, user.received_actions.count, top_delay, TICK_FLOAT_STEP);
+    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
+        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
     // @todo merging
     QueuePop(*user.received_actions);
   }

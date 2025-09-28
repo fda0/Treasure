@@ -716,8 +716,9 @@ GPU_ReadbackMousePickingTexture :: ()
   using,only(readback_queue, device) G.gpu;
   if !QueueIsEmpty(readback_queue)
   {
-    if readback_queue.count > 3
-      log("GPU readback queue count = %. Interesting... Should we try to catch up?", readback_queue.count, flags=.VERBOSE_ONLY);
+    if QueueCount(readback_queue) > 3 {
+      log("GPU readback queue count = %. Interesting... Should we try to catch up?", QueueCount(readback_queue), flags=.VERBOSE_ONLY);
+    }
 
     peeked := QueuePeek(readback_queue);
     if SDL_QueryGPUFence(device, peeked.fence)
