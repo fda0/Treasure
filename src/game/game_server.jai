@@ -375,7 +375,7 @@ SERVER_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as server");
 
-  if NET_IsClient()
+  if GAME_IsClient()
   {
     local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
   }

@@ -38,7 +38,7 @@ CLIENT_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
 
-  if NET_IsServer()
+  if GAME_IsServer()
   {
     log("Client is starting local server connection");
     G.client.server_connection.type = .LOCAL_SERVER;
@@ -382,7 +382,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
 CLIENT_PlayTick :: ()
 {
   PerfFunc();
-  assert(NET_IsClient());
+  assert(GAME_IsClient());
 
   smallest_latest_server_tick: Tick = Tick_MAX;
   biggest_oldest_server_tick: Tick;

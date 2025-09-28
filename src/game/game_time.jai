@@ -55,26 +55,26 @@ Tick_MAX :: cast(Tick) S64_MAX;
 
 GetClientActionTick :: () -> Tick
 {
-  assert(NET_IsClient());
+  assert(GAME_IsClient());
   return G.client.action_tick;
 }
 
 GetClientPlaybackTick :: () -> Tick
 {
-  assert(NET_IsClient());
+  assert(GAME_IsClient());
   return G.client.playback_tick;
 }
 
 GetServerTick :: () -> Tick
 {
-  assert(NET_IsServer());
+  assert(GAME_IsServer());
   return G.server.tick;
 }
 
 
 ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timestamp, bool
 {
-  // assert(NET_IsClient());
+  // assert(GAME_IsClient());
   // @todo debug mode assert to check that this is called from client thread
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
@@ -83,7 +83,7 @@ ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timesta
 
 ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  // assert(NET_IsClient());
+  // assert(GAME_IsClient());
   // @todo debug mode assert to check that this is called from client thread
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
@@ -95,7 +95,7 @@ ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
 ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
   // @todo debug mode assert to check that this is called from server thread
-  assert(NET_IsServer());
+  assert(GAME_IsServer());
 
   current_server_tick := G.server.tick;
   if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;

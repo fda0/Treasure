@@ -140,6 +140,8 @@ UI_BuildDeveloperWindow :: ()
       case .stats;
       Layers(UI_MONO_TEXT);
       CreateText(tprint("dt: %ms; fps: %", Round(G.dt*1000), Round(1.0 / G.dt)));
+      CreateText(tprint("is_server: %, is_client: %", GAME_IsServer(), GAME_IsClient()));
+
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
       CreateText(tprint("Camera - Player: %", G.camera_p - OBJ_Get(.NETWORK, G.client.player_key).s.p));

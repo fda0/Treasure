@@ -9,7 +9,7 @@ PROJECTILE_HIT_DISTANCE :: 0.1;
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
-  assert(NET_IsServer());
+  assert(GAME_IsServer());
 
   reset_attack_timers :: (obj: *Object)
   {

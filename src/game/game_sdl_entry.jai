@@ -140,10 +140,7 @@ PLATFORM_Iterate :: ()
       G.window_has_focus = !!(window_flags & SDL_WINDOW_MOUSE_FOCUS);
     }
 
-    push_context PatchContext(.DEFAULT) // @todo temp
-    {
-      GAME_Iterate();
-    }
+    GAME_Iterate();
 
     // Poll input cleanup
     {

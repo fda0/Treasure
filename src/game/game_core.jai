@@ -75,14 +75,8 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
-PatchContext :: (target: enum {CLIENT; SERVER; DEFAULT;}) -> (result: #Context)
+PatchContext :: (target: enum {CLIENT; SERVER;}) -> (result: #Context)
 {
-  if target == .DEFAULT
-  {
-    if !NET_IsClient() && NET_IsServer() target = .SERVER;
-    else                                 target = .CLIENT;
-  }
-
   c := context;
   if target == .CLIENT
   {
@@ -95,6 +89,19 @@ PatchContext :: (target: enum {CLIENT; SERVER; DEFAULT;}) -> (result: #Context)
   return c;
 }
 
+GAME_IsClient :: () -> bool
+{
+  return G.client.enabled;
+}
+GAME_IsClientWithHead :: () -> bool
+{
+  return !G.headless && G.client.enabled;
+}
+GAME_IsServer :: () -> bool
+{
+  return G.server.enabled;
+}
+
 GAME_Init :: ()
 {
   PerfFunc();
@@ -102,7 +109,7 @@ GAME_Init :: ()
 
   G.client.enabled |= !G.server.enabled;
 
-  if !G.headless
+  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
   {
     ASSET_InitPreGPU();
     GPU_Init();
@@ -114,16 +121,18 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
-  if NET_IsServer() push_context PatchContext(.SERVER)
-  {
-    SERVER_Init();
-    OBJ_Init();
-  }
-  if NET_IsClient() push_context PatchContext(.CLIENT)
+  if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_Init();
     OBJ_Init();
   }
+
+  if GAME_IsServer() push_context PatchContext(.SERVER)
+  {
+    SERVER_Init();
+    OBJ_Init();
+  }
+
   NET_Init();
 }
 
@@ -148,7 +157,7 @@ GAME_Iterate :: ()
 
   if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
-  if !G.headless
+  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
   {
     AUDIO_CloseFinishedStreams();
     GPU_ReadbackMousePickingTexture();
@@ -161,11 +170,11 @@ GAME_Iterate :: ()
     FONT_MaybeResizeAtlasTexture();
   }
 
-  if NET_IsServer() push_context PatchContext(.SERVER)
+  if GAME_IsServer() push_context PatchContext(.SERVER)
   {
     SERVER_IterateReceive();
   }
-  if NET_IsClient() push_context PatchContext(.CLIENT)
+  if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateReceive();
   }
@@ -176,7 +185,7 @@ GAME_Iterate :: ()
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
-    if NET_IsServer() push_context PatchContext(.SERVER)
+    if GAME_IsServer() push_context PatchContext(.SERVER)
     {
       for MakeRange(tick_count)
       {
@@ -191,7 +200,7 @@ GAME_Iterate :: ()
       }
     }
 
-    if NET_IsClient() push_context PatchContext(.CLIENT)
+    if GAME_IsClient() push_context PatchContext(.CLIENT)
     {
       for MakeRange(tick_count)
       {
@@ -202,17 +211,17 @@ GAME_Iterate :: ()
     }
   }
 
-  if NET_IsServer() push_context PatchContext(.SERVER)
+  if GAME_IsServer() push_context PatchContext(.SERVER)
   {
     SERVER_IterateTimeoutUsers();
     SERVER_IterateSend();
   }
-  if NET_IsClient() push_context PatchContext(.CLIENT)
+  if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateSend();
   }
 
-  if !G.headless && G.frame_number == 1
+  if GAME_IsClientWithHead() && G.frame_number == 1
   {
     // print("@todo remove this temporary code\n");
     // for scale_part: 1 .. 8
@@ -226,7 +235,7 @@ GAME_Iterate :: ()
     // }
   }
 
-  if !G.headless // @todo Some of this code should probably run in headless too.
+  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
   {
     if G.dev.show || G.dev.noclip || !G.window_has_focus
       G.grab_mouse = false;
@@ -409,12 +418,6 @@ GAME_Iterate :: ()
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
-      }
-
-      if false { // debug overwrite
-        G.client.action.type = .PATHING;
-        G.client.action.world_p = .{10,20,0};
-        G.client.action.target_object = .{};
       }
     }
 
