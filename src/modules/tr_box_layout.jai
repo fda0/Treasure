@@ -470,6 +470,11 @@ Inner2 :: (box: *Box, dim_type := DimType.FINAL) -> V2 #expand #no_debug {
   return box.inners[dim_type];
 }
 
+FinalInnerMinDim :: (box: *Box) -> V2, V2
+{
+  return box.abs_p + PaddingLower2(box), Inner2(box);
+}
+
 SumOutersOfChildren :: (parent: *Box, axis: Axis2) -> float
 {
   result := 0.0;

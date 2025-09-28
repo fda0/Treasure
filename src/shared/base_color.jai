@@ -97,3 +97,8 @@ InvertRGB :: (c: C32) -> C32
   c |= rgb;
   return c;
 }
+
+White :: (shade := 1.0, alpha := 1.0) -> C32
+{
+  return C32_RGBAf(shade, shade, shade, alpha);
+}

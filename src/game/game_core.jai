@@ -221,18 +221,18 @@ GAME_Iterate :: ()
     CLIENT_IterateSend();
   }
 
-  if GAME_IsClientWithHead() && G.frame_number == 1
+  if GAME_IsClientWithHead() && KEY_Pressed(.F)
   {
-    // print("@todo remove this temporary code\n");
-    // for scale_part: 1 .. 8
-    // {
-    //   scale := 16 + scale_part * 4;
-    //   for codepoint: 33 .. 126
-    //   {
-    //     // g0 := FONT_GetGlyph(xx codepoint, .Jacquard24,      xx scale);
-    //     g1 := FONT_GetGlyph(xx codepoint, .PlayfairDisplay, xx scale);
-    //   }
-    // }
+    print("@todo remove this temporary code\n");
+    for scale_part: 8 .. 8
+    {
+      scale := 16 + scale_part * 4;
+      for codepoint: 33 .. 126 + 255
+      {
+        // g0 := FONT_GetGlyph(xx codepoint, .Jacquard24,      xx scale);
+        g1 := FONT_GetGlyph(xx codepoint, .PlayfairDisplay, xx scale);
+      }
+    }
   }
 
   if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
@@ -449,6 +449,7 @@ GAME_Iterate :: ()
     WORLD_DrawObjects();
     UI_Translate3DShapes();
     UI_ProcessBoxRenderCommands();
+    UI_DrawDeveloperFontAtlas();
 
     GPU_Iterate();
 

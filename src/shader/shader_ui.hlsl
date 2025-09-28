@@ -63,29 +63,36 @@ UI_DX_Fragment UI_DxShaderVS(UI_DX_Vertex input)
   V2 tex_min = shape.tex_min;
   V2 tex_max = shape.tex_max;
 
+  // dimensions
+  V2 pos_dim = shape.p_max - shape.p_min;
+  V2 tex_dim = tex_max - tex_min;
+  V2 pos_to_tex = V2(0, 0);
+  if (tex_dim.x) pos_to_tex = tex_dim.x / pos_dim.x;
+  if (tex_dim.y) pos_to_tex = tex_dim.y / pos_dim.y;
+
   // clipping
   if (shape.clip_min.x > pos.x)
   {
-    float delta = shape.clip_min.x - pos.x;
-    tex_min.x += delta;
+    float pos_delta = shape.clip_min.x - pos.x;
+    tex_min.x += pos_delta * pos_to_tex.x;
     pos.x = shape.clip_min.x;
   }
   if (shape.clip_min.y > pos.y)
   {
-    float delta = shape.clip_min.y - pos.y;
-    tex_min.y += delta;
+    float pos_delta = shape.clip_min.y - pos.y;
+    tex_min.y += pos_delta * pos_to_tex.y;
     pos.y = shape.clip_min.y;
   }
   if (shape.clip_max.x < pos.x)
   {
-    float delta = shape.clip_max.x - pos.x;
-    tex_max.x += delta;
+    float pos_delta = shape.clip_max.x - pos.x;
+    tex_max.x += pos_delta * pos_to_tex.x;
     pos.x = shape.clip_max.x;
   }
   if (shape.clip_max.y < pos.y)
   {
-    float delta = shape.clip_max.y - pos.y;
-    tex_max.y += delta;
+    float pos_delta = shape.clip_max.y - pos.y;
+    tex_max.y += pos_delta * pos_to_tex.y;
     pos.y = shape.clip_max.y;
   }
 
