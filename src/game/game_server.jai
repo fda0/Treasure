@@ -2,13 +2,14 @@ SERVER_State :: struct
 {
   enabled: bool;
 
+  local_user_packets: NET_LocalPackets;
+
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_User;
 };
 
 SERVER_User :: struct
 {
-  active: bool;
   connection: NET_Connection;
   key: OBJ_Key;
 
@@ -100,13 +101,13 @@ SERVER_IterateSend :: ()
 
 
   client_count := 0;
-  for G.server.users if it.active  client_count += 1;
+  for G.server.users if it.connection.type  client_count += 1;
 
   // iterate over connected users
   player_number := 0;
   for *user, user_index: G.server.users
   {
-    if !user.active continue;
+    if !user.connection.type continue;
     player_number += 1;
 
     // create player characters and send them to users
@@ -217,7 +218,7 @@ SERVER_IterateSend :: ()
 
     for G.server.users
     {
-      if !it.active continue;
+      if !it.connection.type continue;
       NET_SendPacket(packet, it.connection, true);
     }
   }
@@ -225,7 +226,7 @@ SERVER_IterateSend :: ()
 
 SERVER_RemoveUser :: (user: *SERVER_User)
 {
-  assert(user.active);
+  assert(user.connection.type == .NETWORK);
   SDLNet_UnrefAddress(user.connection.address);
   user.* = .{};
 }
@@ -234,7 +235,7 @@ SERVER_IterateTimeoutUsers :: ()
 {
   for *G.server.users
   {
-    if !it.connection.address continue;
+    if it.connection.type != .NETWORK continue;
     if ElapsedSeconds(it.connection.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
     {
       Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
@@ -256,6 +257,24 @@ SERVER_IterateReceive :: ()
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
+  // Receive and process local messages
+  local_user := SERVER_FindLocalUser();
+  if local_user
+  {
+    player_id := PointerToIndex(G.server.users, local_user).(u16);
+
+    while true
+    {
+      packet, got_packet := QueuePop(*G.server.local_user_packets);
+      if !got_packet break;
+
+      packet_str := PACKET_FullAsString(packet);
+      payload, from_tick := NET_PreprocessRawPacket(packet_str);
+      SERVER_ReceivePayload(player_id, payload, from_tick);
+    }
+  }
+
+  // Receive and process network messages
   while true
   {
     dgram: *SDLNet_Datagram;
@@ -269,14 +288,13 @@ SERVER_IterateReceive :: ()
     if !user
     {
       Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
-      user = SERVER_AddUser(dgram.addr, dgram.port);
+      user = SERVER_AddUser(.NETWORK, dgram.addr, dgram.port);
     }
 
     if user
     {
       user.connection.last_msg_timestamp = GetTimestamp(.FRAME);
-      user_id := PointerToIndex(G.server.users, user);
-      player_id := user_id.(u16);
+      player_id := PointerToIndex(G.server.users, user).(u16);
 
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
@@ -310,5 +328,53 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
       Nlog(LOG_NetPayload, "Unsupported payload header kind: %d", msg_type);
       return;
     }
+  }
+}
+
+SERVER_FindLocalUser :: () -> *SERVER_User
+{
+  for *G.server.users
+  {
+    if it.connection.type == .LOCAL_CLIENT
+    {
+      return it;
+    }
+  }
+  return null;
+}
+
+SERVER_AddUser :: (type: NET_ConnectionType, address: *SDLNet_Address, port: u16) -> *SERVER_User
+{
+  // @todo move to SV_ prefix?
+  new_user_slot: *SERVER_User;
+  for *G.server.users
+  {
+    if !it.connection.type
+    {
+      new_user_slot = it;
+      break;
+    }
+  }
+
+  if new_user_slot
+  {
+    Initialize(new_user_slot);
+    new_user_slot.connection.type = type;
+    if type == .NETWORK
+    {
+      new_user_slot.connection.address = SDLNet_RefAddress(address);
+      new_user_slot.connection.port = port;
+    }
+  }
+  return new_user_slot;
+}
+
+SERVER_Init :: ()
+{
+  Nlog(LOG_NetInfo, "Launching as server");
+
+  if NET_IsClient()
+  {
+    local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
   }
 }

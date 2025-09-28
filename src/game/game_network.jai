@@ -37,8 +37,19 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
+NET_LocalPackets :: Queue(1024, PACKET_Full); // @todo replace with thread-safe Queue
+
+NET_ConnectionType :: enum u8
+{
+  EMPTY;
+  NETWORK;
+  LOCAL_SERVER;
+  LOCAL_CLIENT;
+}
+
 NET_Connection :: struct
 {
+  type: NET_ConnectionType;
   address: *SDLNet_Address;
   port: u16;
   last_msg_timestamp: Timestamp;
@@ -48,6 +59,7 @@ NET_Init :: ()
 {
   port: u16 = xx ifx NET_IsServer() /* @todo thats bad */ then NET_DEFAULT_SEVER_PORT else 0;
   G.net.socket = SDLNet_CreateDatagramSocket(null, port);
+
   if !G.net.socket
   {
     G.net.err = true;
@@ -88,26 +100,40 @@ NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: boo
 
   msg := PACKET_FullAsString(packet);
 
-  send_res := SDLNet_SendDatagram(G.net.socket, dest.address, dest.port, msg.data, xx msg.count);
-  if !send_res
+  if dest.type == .NETWORK
   {
-    Nlog(LOG_NetSend, "Sending buffer of size %lluB to %s:%d; %s",
+    send_res := SDLNet_SendDatagram(G.net.socket, dest.address, dest.port, msg.data, xx msg.count);
+    if !send_res
+    {
+      Nlog(LOG_NetSend, "Sending buffer of size %lluB to %s:%d; %s",
         msg.count, to_string(SDLNet_GetAddressString(dest.address)),
         dest.port, ifx send_res then "success" else "fail");
+    }
+  }
+  else if dest.type == .LOCAL_SERVER || dest.type == .LOCAL_CLIENT
+  {
+    packets := ifx dest.type == .LOCAL_SERVER then *G.server.local_user_packets else *G.client.local_server_packets;
+    QueuePush(packets, packet);
+  }
+  else
+  {
+    assert(false);
   }
 }
 
 NET_MatchConnection :: (a: NET_Connection, b: NET_Connection) -> bool
 {
-  return (a.port == b.port && SDLNet_CompareAddresses(a.address, b.address) == 0);
+  return (a.type == b.type &&
+    a.port == b.port &&
+    SDLNet_CompareAddresses(a.address, b.address) == 0);
 }
 
 NET_MatchConnection :: (user: NET_Connection, address: *SDLNet_Address, port: u16) -> bool
 {
-  if (!user.address)
+  if user.type != .NETWORK
     return false;
 
-  return (user.port == port && SDLNet_CompareAddresses(user.address, address) == 0);
+  return user.port == port && SDLNet_CompareAddresses(user.address, address) == 0;
 }
 
 SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
@@ -121,29 +147,6 @@ SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
     }
   }
   return null;
-}
-
-SERVER_AddUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
-{
-  // @todo move to SV_ prefix?
-  new_user_slot: *SERVER_User;
-  for *G.server.users
-  {
-    if !it.active
-    {
-      new_user_slot = it;
-      break;
-    }
-  }
-
-  if new_user_slot
-  {
-    Initialize(new_user_slot);
-    new_user_slot.active = true;
-    new_user_slot.connection.address = SDLNet_RefAddress(address);
-    new_user_slot.connection.port = port;
-  }
-  return new_user_slot;
 }
 
 NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick

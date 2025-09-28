@@ -23,6 +23,11 @@ QueueIsFull :: (using queue: Queue) -> bool
   return count == CAPACITY;
 }
 
+QueueSpaceLeft :: (using queue: Queue) -> s64
+{
+  return CAPACITY - count;
+}
+
 QueueIsEmpty :: (using queue: Queue) -> bool
 {
   return count <= 0;
@@ -44,9 +49,18 @@ QueuePush :: (using queue: *Queue, $initialize := true) -> *queue.T
   return result;
 }
 
-QueuePush :: (queue: *Queue, value: queue.T)
+QueuePush :: (q: *Queue, value: q.T)
 {
-  QueuePush(queue).* = value;
+  QueuePush(q).* = value;
+}
+
+QueuePush :: (q: *Queue, values: [] q.T)
+{
+  for values QueuePush(q, it);
+}
+QueuePush :: (q: *Queue, values: ..q.T)
+{
+  for values QueuePush(q, it);
 }
 
 QueuePeekPointer :: (using queue: *Queue, depth := 0) -> *queue.T
@@ -84,5 +98,3 @@ QueuePop :: (using queue: *Queue) -> queue.T, bool
   }
   return item, success;
 }
-
-//

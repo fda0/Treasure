@@ -59,6 +59,11 @@ IndexInBounds :: (array: [] $T, index: $Y) -> bool
   return index_s64 >= 0 && index_s64 < array.count;
 }
 
+StringToBytes :: (str: string) -> [] u8
+{
+  return [] u8.{data = str.data, count = str.count};
+}
+
 // Dynamic array helpers
 array_add_many :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocated_slice: [] T
 {

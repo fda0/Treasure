@@ -2,9 +2,8 @@ CLIENT_State :: struct
 {
   enabled: bool;
 
-  has_local_server: bool;
   server_connection: NET_Connection;
-
+  local_server_packets: NET_LocalPackets;
 
   // client actions sent to the server
   action_tick: Tick;
@@ -37,23 +36,35 @@ CLIENT_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
 
-  hostname := "localhost";
-  Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
-  G.client.server_connection.address = SDLNet_ResolveHostname(temp_c_string(hostname));
-  G.client.server_connection.port = NET_DEFAULT_SEVER_PORT;
-  if G.client.server_connection.address
+  if NET_IsServer()
   {
-    if SDLNet_WaitUntilResolved(G.client.server_connection.address, -1) < 0
-    {
-      SDLNet_UnrefAddress(G.client.server_connection.address);
-      G.client.server_connection.address = null;
-    }
+    log("Client is starting local server connection");
+    G.client.server_connection.type = .LOCAL_SERVER;
   }
-
-  if !G.client.server_connection.address
+  else
   {
-    G.net.err = true;
-    Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
+    hostname := "localhost";
+    Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
+    G.client.server_connection = .{
+      type = .NETWORK,
+      address = SDLNet_ResolveHostname(temp_c_string(hostname)),
+      port = NET_DEFAULT_SEVER_PORT,
+    };
+
+    if G.client.server_connection.address
+    {
+      if SDLNet_WaitUntilResolved(G.client.server_connection.address, -1) < 0
+      {
+        SDLNet_UnrefAddress(G.client.server_connection.address);
+        G.client.server_connection.address = null;
+      }
+    }
+
+    if !G.client.server_connection.address
+    {
+      G.net.err = true;
+      Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
+    }
   }
 }
 
@@ -253,6 +264,23 @@ CLIENT_IterateReceive :: ()
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
+  // Receive and process local messages
+  if G.client.server_connection.type == .LOCAL_SERVER
+  {
+    while true
+    {
+      packet, got_packet := QueuePop(*G.client.local_server_packets);
+      if !got_packet break;
+
+      packet_str := PACKET_FullAsString(packet);
+      payload, from_tick := NET_PreprocessRawPacket(packet_str);
+      CLIENT_ReceivePayload(payload, from_tick);
+    }
+
+    return; // No need to check network anymore
+  }
+
+  // Receive and process network messages
   while true
   {
     dgram: *SDLNet_Datagram;

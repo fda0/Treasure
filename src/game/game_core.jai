@@ -95,7 +95,7 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
-  if NET_IsServer() Nlog(LOG_NetInfo, "Launching as server");
+  if NET_IsServer() SERVER_Init();
   if NET_IsClient() CLIENT_Init();
   NET_Init();
 
@@ -494,6 +494,7 @@ GAME_ParseCommandLineArguments :: (args: [] string)
         case "-top";        G.window_on_top = true;
         case "-autolayout"; G.window_autolayout = true;
         case "-server";     G.server.enabled = true;
+        case "-client";     G.client.enabled = true;
         case "-exit-on-dc"; G.server_exit_on_disconnect = true;
 
         case;
