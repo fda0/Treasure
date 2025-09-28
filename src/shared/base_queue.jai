@@ -23,7 +23,7 @@ QueueCount :: (q: Queue) -> s64
 {
   result := (q.max - q.min);
   if q.min > q.max {
-    result = q.max + (U64_MAX - q.min);
+    result = q.max + (U64_MAX - q.min + 1);
   }
   if result > q.CAPACITY {
     assert(false);

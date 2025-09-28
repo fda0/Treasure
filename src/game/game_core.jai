@@ -109,6 +109,8 @@ GAME_Init :: ()
 
   G.client.enabled |= !G.server.enabled;
 
+  // TEST_run();
+
   if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
   {
     ASSET_InitPreGPU();

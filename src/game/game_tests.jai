@@ -2,13 +2,22 @@
 
 TEST_run :: ()
 {
-  TEST_util();
+  TEST_queue(false);
+  TEST_queue(true);
   TEST_math();
 }
 
-TEST_util :: ()
+TEST_queue :: (high_minmax: bool)
 {
   q: Queue(4, u32);
+
+  if high_minmax
+  {
+    q.min = U64_MAX - 2;
+    q.max = q.min;
+  }
+
+  assert(QueueIsEmpty(q));
 
   QueuePush(*q, 11);
   QueuePush(*q, 22);
@@ -19,6 +28,8 @@ TEST_util :: ()
   QueuePush(*q, 50); // full
   sum = 0; for q sum += it;
   assert(sum == 116);
+
+  assert(QueueIsFull(q));
 
   // variants
   {
@@ -43,6 +54,9 @@ TEST_util :: ()
   assert(popped == 22);
   sum = 0; for q sum += it;
   assert(sum == 163);
+
+  assert(QueueCount(q) == 3);
+  assert(QueueEmptyCount(q) == 1);
 
   peeked := QueuePeek(q);
   assert(peeked == 33);
