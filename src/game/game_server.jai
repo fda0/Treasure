@@ -1,8 +1,8 @@
 SERVER_State :: struct
 {
   enabled: bool;
+  occ: OccupationState;
 
-  ctx: CtxState;
   thread: Thread;
   local_user_packets: NET_LocalPackets;
 
@@ -58,8 +58,8 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
     simulation_tick_count: Timestamp;
     {
       now_timestamp := GetTimestamp(.NOW);
-      delta_timestamp := now_timestamp - context.C.frame_timestamp;
-      context.C.frame_timestamp = now_timestamp;
+      delta_timestamp := now_timestamp - context.O.frame_timestamp;
+      context.O.frame_timestamp = now_timestamp;
       timestamp_accumulator += delta_timestamp;
 
       #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
@@ -191,7 +191,7 @@ SERVER_IterateSend :: ()
   }
 
   // iterate over network objects
-  for context.C.obj.network_objects
+  for context.O.obj.network_objects
   {
     packet: PACKET_Full;
 

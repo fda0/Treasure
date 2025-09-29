@@ -190,7 +190,7 @@ ANIMATION_AnimateObjects :: ()
 {
   PerfFunc();
 
-  for *obj: context.C.obj.all_objects
+  for *obj: context.O.obj.all_objects
   {
     animate_rotation := OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION);
     animate_position := OBJ_HasAnyFlag(obj, .ANIMATE_POSITION);

@@ -10,7 +10,7 @@ TimeReference :: enum
 GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
   if #complete reference == {
-    case .FRAME; return context.C.frame_timestamp;
+    case .FRAME; return context.O.frame_timestamp;
     case .NOW; return xx SDL_GetTicks();
   }
 }
