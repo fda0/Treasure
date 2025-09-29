@@ -5,7 +5,6 @@ GAME_State :: struct
   // core game state
   in_shutdown: bool;
   frame_number: s64;
-  frame_timestamp: Timestamp;
   tick_timestamp_accumulator: Timestamp;
   dt: float; // frame delta time
   at: float; // animation time
@@ -75,20 +74,6 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
-PatchContext :: (target: enum {CLIENT; SERVER;}) -> (result: #Context)
-{
-  c := context;
-  if target == .CLIENT
-  {
-    c.OBJ = *G.client.obj;
-  }
-  else
-  {
-    c.OBJ = *G.server.obj;
-  }
-  return c;
-}
-
 GAME_IsClient :: () -> bool
 {
   return G.client.enabled;
@@ -105,7 +90,6 @@ GAME_IsServer :: () -> bool
 GAME_Init :: ()
 {
   PerfFunc();
-  G.frame_timestamp = GetTimestamp(.NOW);
 
   G.client.enabled |= !G.server.enabled;
 
@@ -125,14 +109,14 @@ GAME_Init :: ()
 
   if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
+    context.C.frame_timestamp = GetTimestamp(.NOW);
     CLIENT_Init();
     OBJ_Init();
   }
 
-  if GAME_IsServer() push_context PatchContext(.SERVER)
+  if GAME_IsServer()
   {
-    SERVER_Init();
-    OBJ_Init();
+    SERVER_Start();
   }
 
   NET_Init();
@@ -145,8 +129,8 @@ GAME_Iterate :: ()
   // pre frame logic
   {
     new_timestamp := GetTimestamp(.NOW);
-    delta_timestamp := min(new_timestamp - G.frame_timestamp, 100); // clamp dt to 100ms (10fps)
-    G.frame_timestamp = new_timestamp;
+    delta_timestamp := min(new_timestamp - context.C.frame_timestamp, 100); // clamp dt to 100ms (10fps)
+    context.C.frame_timestamp = new_timestamp;
 
     G.frame_number += 1;
     G.tick_timestamp_accumulator += delta_timestamp;
@@ -172,10 +156,6 @@ GAME_Iterate :: ()
     FONT_MaybeResizeAtlasTexture();
   }
 
-  if GAME_IsServer() push_context PatchContext(.SERVER)
-  {
-    SERVER_IterateReceive();
-  }
   if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateReceive();
@@ -186,21 +166,6 @@ GAME_Iterate :: ()
     #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
-
-    if GAME_IsServer() push_context PatchContext(.SERVER)
-    {
-      for MakeRange(tick_count)
-      {
-        G.server.tick += 1;
-        SIM_AdvanceByTick();
-
-        if tick_count > 1
-        {
-          log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", tick_count);
-          break;
-        }
-      }
-    }
 
     if GAME_IsClient() push_context PatchContext(.CLIENT)
     {
@@ -213,11 +178,6 @@ GAME_Iterate :: ()
     }
   }
 
-  if GAME_IsServer() push_context PatchContext(.SERVER)
-  {
-    SERVER_IterateTimeoutUsers();
-    SERVER_IterateSend();
-  }
   if GAME_IsClient() push_context PatchContext(.CLIENT)
   {
     CLIENT_IterateSend();
@@ -326,7 +286,7 @@ GAME_Iterate :: ()
 
       sun_dist := towards_sun_dir * 40.0;
       G.sun_camera_p = G.camera_p + sun_dist;
-      OBJ_Get(.OFFLINE, context.OBJ.sun).s.p = G.sun_camera_p;
+      OBJ_Get(.OFFLINE, context.C.obj.sun).s.p = G.sun_camera_p;
 
       transl := TranslationMatrix(-G.sun_camera_p);
       rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -416,7 +376,7 @@ GAME_Iterate :: ()
           G.client.action.target_object = .{};
           if move_pressed
           {
-            marker := OBJ_Get(.OFFLINE, context.OBJ.pathing_marker);
+            marker := OBJ_Get(.OFFLINE, context.C.obj.pathing_marker);
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
@@ -425,7 +385,7 @@ GAME_Iterate :: ()
 
     CLIENT_FlushActionTick();
 
-    marker := OBJ_Get(.OFFLINE, context.OBJ.pathing_marker);
+    marker := OBJ_Get(.OFFLINE, context.C.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.client.action.type == .PATHING
@@ -434,12 +394,12 @@ GAME_Iterate :: ()
         marker.s.model = ModelKey("Flag");
         marker.s.p = G.client.action.world_p;
         marker.l.animated_p.xy = marker.s.p.xy;
-        context.OBJ.pathing_marker_set = true;
+        context.C.obj.pathing_marker_set = true;
       }
       else
       {
         marker.s.p.z = -2.0;
-        context.OBJ.pathing_marker_set = false;
+        context.C.obj.pathing_marker_set = false;
       }
     }
 
@@ -558,6 +518,7 @@ String :: #import "String";
 #load "../shared/game_render_world_shared.jai";
 #import "tr_hash_table";
 
+#load "game_context.jai";
 #load "game_text.jai";
 #load "game_ui_core.jai";
 #load "game_ui_developer.jai";

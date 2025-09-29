@@ -1,8 +1,10 @@
 main :: ()
 {
   PLATFORM_Init();
-  PLATFORM_Iterate();
-  PLATFORM_Deinit();
+  push_context PatchContext(.CLIENT)
+  {
+    PLATFORM_Iterate();
+  }
 }
 
 PLATFORM_Init :: ()
@@ -149,13 +151,6 @@ PLATFORM_Iterate :: ()
       G.window_resized = false;
     }
   }
-}
-
-PLATFORM_Deinit :: ()
-{
-  // Debug exit cleanup - to check for resource leaks
-  // SDLNet_Quit();
-  // call something that checks leaks in SDL
 }
 
 #load "game_core.jai";

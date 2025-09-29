@@ -2,14 +2,33 @@ SERVER_State :: struct
 {
   enabled: bool;
 
+  ctx: CtxState;
+  thread: Thread;
   local_user_packets: NET_LocalPackets;
-
-  obj: OBJ_State;
 
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_User;
 };
 
+SERVER_Start :: ()
+{
+  push_context PatchContext(.SERVER)
+  {
+    log("Launching as server");
+    OBJ_Init();
+
+    if GAME_IsClient()
+    {
+      local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
+    }
+
+    G.server.thread.starting_context = context;
+    thread_init(*G.server.thread, SERVER_ThreadEntry);
+    thread_start(*G.server.thread);
+  }
+}
+
+// #scope_file;
 SERVER_User :: struct
 {
   connection: NET_Connection;
@@ -27,23 +46,54 @@ SERVER_User :: struct
   }
 };
 
-SERVER_Init :: ()
+SERVER_ThreadEntry :: (thread: *Thread) -> s64
 {
-  Nlog(LOG_NetInfo, "Launching as server");
+  assert(context.occupation == .SERVER);
+  timestamp_accumulator: Timestamp;
 
-  if GAME_IsClient()
+  while true
   {
-    local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
-  }
-}
+    SERVER_IterateReceive();
 
+    simulation_tick_count: Timestamp;
+    {
+      now_timestamp := GetTimestamp(.NOW);
+      delta_timestamp := now_timestamp - context.C.frame_timestamp;
+      context.C.frame_timestamp = now_timestamp;
+      timestamp_accumulator += delta_timestamp;
+
+      #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+      #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+      simulation_tick_count = timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
+    }
+
+    for MakeRange(simulation_tick_count)
+    {
+      G.server.tick += 1;
+      SIM_AdvanceByTick();
+
+      if simulation_tick_count > 1
+      {
+        log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", simulation_tick_count);
+        break;
+      }
+    }
+
+    SERVER_IterateTimeoutUsers();
+    SERVER_IterateSend();
+
+    SDL_Delay(0); // @todo sleep on network
+  }
+
+  return 0;
+}
 
 SERVER_IterateSend :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
-
 
   client_count := 0;
   for G.server.users if it.connection.type  client_count += 1;
@@ -141,7 +191,7 @@ SERVER_IterateSend :: ()
   }
 
   // iterate over network objects
-  for context.OBJ.network_objects
+  for context.C.obj.network_objects
   {
     packet: PACKET_Full;
 

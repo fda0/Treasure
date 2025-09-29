@@ -1,5 +1,3 @@
-#add_context OBJ: *OBJ_State;
-
 OBJ_MAX_NETWORK_OBJECTS :: 128;
 OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
 OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
@@ -170,12 +168,12 @@ OBJ_Init :: ()
     sun.s.material = MaterialKey("tex.Leather011");
     sun.s.height = 0.5;
     sun.s.collider = OBJ_ColliderFromRect(.{.5, .5});
-    context.OBJ.sun = sun.s.key;
+    context.C.obj.sun = sun.s.key;
   }
 
   // Pathing marker
   {
-    context.OBJ.pathing_marker = OBJ_Create(.OFFLINE, .ANIMATE_POSITION).s.key;
+    context.C.obj.pathing_marker = OBJ_Create(.OFFLINE, .ANIMATE_POSITION).s.key;
   }
 
   // Ground
@@ -395,7 +393,7 @@ OBJ_Get :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Object
 
   if index_in_valid_storage
   {
-    obj := *context.OBJ.all_objects[key_index];
+    obj := *context.C.obj.all_objects[key_index];
     if obj.s.key == key then result = obj;
   }
   return result;
@@ -467,11 +465,11 @@ OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_Te
   }
 
   if storage_mask & .OFFLINE
-    for *context.OBJ.offline_objects
+    for *context.C.obj.offline_objects
       test_for_nearest(it);
 
   if storage_mask & .NETWORK
-    for *context.OBJ.network_objects
+    for *context.C.obj.network_objects
       test_for_nearest(it);
 
   return nearest;
@@ -503,10 +501,10 @@ OBJ_HasAllFlags :: (obj: Object, flags: OBJ_Flags) -> bool
 
 OBJ_FromNetIndex :: (net_index: u32) -> *Object
 {
-  if net_index > context.OBJ.network_objects.count
+  if net_index > context.C.obj.network_objects.count
     return OBJ_GetNil();
 
-  return *context.OBJ.network_objects[net_index];
+  return *context.C.obj.network_objects[net_index];
 }
 
 OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
@@ -531,7 +529,7 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
   if storage & .OFFLINE
   {
     matched_storages += 1;
-    for *context.OBJ.offline_objects
+    for *context.C.obj.offline_objects
     {
       if !OBJ_SyncIsInit(it.s)
       {
@@ -543,7 +541,7 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
   if storage & .NETWORK
   {
     matched_storages += 1;
-    for *context.OBJ.network_objects
+    for *context.C.obj.network_objects
     {
       if !OBJ_SyncIsInit(it.s)
       {
@@ -563,12 +561,12 @@ OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM
   // init object
   Initialize(obj);
 
-  index := ((obj.(u64) - context.OBJ.all_objects.data.(u64)) / size_of(Object)).(u32);
-  context.OBJ.creation_serials[index] = max(context.OBJ.creation_serials[index] + 1, 1);
-  obj.s.key = OBJ_CreateKey(index, context.OBJ.creation_serials[index]);
+  index := ((obj.(u64) - context.C.obj.all_objects.data.(u64)) / size_of(Object)).(u32);
+  context.C.obj.creation_serials[index] = max(context.C.obj.creation_serials[index] + 1, 1);
+  obj.s.key = OBJ_CreateKey(index, context.C.obj.creation_serials[index]);
 
   obj.s.init = true;
-  obj.s.creation_time = GetTimestamp();
+  obj.s.creation_time = GetTimestamp(.NOW);
   obj.s.flags = flags;
   obj.s.team = team;
   return obj;

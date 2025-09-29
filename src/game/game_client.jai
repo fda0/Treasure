@@ -1,11 +1,10 @@
 CLIENT_State :: struct
 {
   enabled: bool;
+  ctx: CtxState;
 
   server_connection: NET_Connection;
   local_server_packets: NET_LocalPackets;
-
-  obj: OBJ_State;
 
   // client actions sent to the server
   action_tick: Tick;

@@ -174,6 +174,8 @@ Build :: (using config: BuildConfig)
   options.output_executable_name = output_name;
   options.text_output_flags = .OUTPUT_TIMING_INFO;
 
+  // options.backend = .X64;
+
   modules_path: [..] string;
   array_add(*modules_path, "libs/");
   array_add(*modules_path, "src/modules/");

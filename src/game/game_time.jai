@@ -10,7 +10,7 @@ TimeReference :: enum
 GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
   if #complete reference == {
-    case .FRAME; return G.frame_timestamp;
+    case .FRAME; return context.C.frame_timestamp;
     case .NOW; return xx SDL_GetTicks();
   }
 }
@@ -55,27 +55,26 @@ Tick_MAX :: cast(Tick) S64_MAX;
 
 GetClientActionTick :: () -> Tick
 {
-  assert(GAME_IsClient());
+  assert(context.occupation == .CLIENT);
   return G.client.action_tick;
 }
 
 GetClientPlaybackTick :: () -> Tick
 {
-  assert(GAME_IsClient());
+  assert(context.occupation == .CLIENT);
   return G.client.playback_tick;
 }
 
 GetServerTick :: () -> Tick
 {
-  assert(GAME_IsServer());
+  assert(context.occupation == .SERVER);
   return G.server.tick;
 }
 
 
 ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timestamp, bool
 {
-  // assert(GAME_IsClient());
-  // @todo debug mode assert to check that this is called from client thread
+  assert(context.occupation == .CLIENT);
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
   return G.client.server_tick_to_client_timestamps[server_tick], true;
@@ -83,8 +82,7 @@ ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timesta
 
 ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  // assert(GAME_IsClient());
-  // @todo debug mode assert to check that this is called from client thread
+  assert(context.occupation == .CLIENT);
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
   start_client_timestamp := G.client.server_tick_to_client_timestamps[start_server_tick];
@@ -94,8 +92,7 @@ ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
 
 ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  // @todo debug mode assert to check that this is called from server thread
-  assert(GAME_IsServer());
+  assert(context.occupation == .SERVER);
 
   current_server_tick := G.server.tick;
   if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;
