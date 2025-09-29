@@ -27,74 +27,16 @@ SERVER_User :: struct
   }
 };
 
-SERVER_ReceiveUserActions :: (player: *SERVER_User, net_msg: *PACKET_Actions, client_tick: Tick)
+SERVER_Init :: ()
 {
-  if player.latest_client_tick >= client_tick then return;
-  PerfFunc();
+  Nlog(LOG_NetInfo, "Launching as server");
 
-  // log("Client tick %; actions: %", client_tick, net_msg.actions);
-
-  new_actions := ArrayPrefix(net_msg.actions, xx client_tick); // For initial client ticks only the first elements of action buffer will be filled. Truncate the array to skip these unitialized elements.
-
-  end_tick := client_tick;
-  start_tick := end_tick - xx new_actions.count;
-
-  if player.latest_client_tick >= start_tick
+  if GAME_IsClient()
   {
-    stale_ticks_count := player.latest_client_tick - start_tick + 1;
-
-    new_actions = ArraySkip(new_actions, xx stale_ticks_count);
-    start_tick += stale_ticks_count;
+    local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
   }
-
-  if !new_actions.count then return; // no new actions
-
-  for new_actions
-  {
-    now := GetTimestamp();
-    received := SERVER_User.ReceivedAction.{
-      it, ElapsedSeconds(player.latest_received_timestamp, now, false)
-    };
-    player.latest_received_timestamp = now;
-
-    QueuePush(*player.received_actions, received);
-  }
-
-  player.latest_client_tick = client_tick;
 }
 
-SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
-{
-  PerfFunc();
-  top_delay: float;
-  for user.received_actions
-  {
-    top_delay = max(it.delay_since_last_received_action, top_delay);
-  }
-
-  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
-
-  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
-  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
-  for MakeRange(remove_old_items_count)
-  {
-    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
-        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
-    // @todo merging
-    QueuePop(*user.received_actions);
-  }
-
-  received_action, did_pop := QueuePop(*user.received_actions);
-
-  result := received_action.action;
-  if did_pop then user.last_action = received_action.action;
-  else
-  {
-    // @todo more advanced extrapolation?
-    result = user.last_action;
-  }
-  return result;
-}
 
 SERVER_IterateSend :: ()
 {
@@ -227,13 +169,6 @@ SERVER_IterateSend :: ()
   }
 }
 
-SERVER_RemoveUser :: (user: *SERVER_User)
-{
-  assert(user.connection.type == .NETWORK);
-  SDLNet_UnrefAddress(user.connection.address);
-  user.* = .{};
-}
-
 SERVER_IterateTimeoutUsers :: ()
 {
   for *G.server.users
@@ -308,6 +243,82 @@ SERVER_IterateReceive :: ()
   }
 }
 
+SERVER_ReceiveUserActions :: (player: *SERVER_User, net_msg: *PACKET_Actions, client_tick: Tick)
+{
+  if player.latest_client_tick >= client_tick then return;
+  PerfFunc();
+
+  // log("Client tick %; actions: %", client_tick, net_msg.actions);
+
+  new_actions := ArrayPrefix(net_msg.actions, xx client_tick); // For initial client ticks only the first elements of action buffer will be filled. Truncate the array to skip these unitialized elements.
+
+  end_tick := client_tick;
+  start_tick := end_tick - xx new_actions.count;
+
+  if player.latest_client_tick >= start_tick
+  {
+    stale_ticks_count := player.latest_client_tick - start_tick + 1;
+
+    new_actions = ArraySkip(new_actions, xx stale_ticks_count);
+    start_tick += stale_ticks_count;
+  }
+
+  if !new_actions.count then return; // no new actions
+
+  for new_actions
+  {
+    now := GetTimestamp();
+    received := SERVER_User.ReceivedAction.{
+      it, ElapsedSeconds(player.latest_received_timestamp, now, false)
+    };
+    player.latest_received_timestamp = now;
+
+    QueuePush(*player.received_actions, received);
+  }
+
+  player.latest_client_tick = client_tick;
+}
+
+SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
+{
+  PerfFunc();
+  top_delay: float;
+  for user.received_actions
+  {
+    top_delay = max(it.delay_since_last_received_action, top_delay);
+  }
+
+  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
+
+  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
+  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
+  for MakeRange(remove_old_items_count)
+  {
+    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
+        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
+    // @todo merging
+    QueuePop(*user.received_actions);
+  }
+
+  received_action, did_pop := QueuePop(*user.received_actions);
+
+  result := received_action.action;
+  if did_pop then user.last_action = received_action.action;
+  else
+  {
+    // @todo more advanced extrapolation?
+    result = user.last_action;
+  }
+  return result;
+}
+
+SERVER_RemoveUser :: (user: *SERVER_User)
+{
+  assert(user.connection.type == .NETWORK);
+  SDLNet_UnrefAddress(user.connection.address);
+  user.* = .{};
+}
+
 SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
 {
   PerfFunc();
@@ -370,14 +381,4 @@ SERVER_AddUser :: (type: NET_ConnectionType, address: *SDLNet_Address, port: u16
     }
   }
   return new_user_slot;
-}
-
-SERVER_Init :: ()
-{
-  Nlog(LOG_NetInfo, "Launching as server");
-
-  if GAME_IsClient()
-  {
-    local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
-  }
 }
