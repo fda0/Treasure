@@ -1,11 +1,12 @@
+#add_context role: Role;
+#add_context R: *RoleState;
+
 Role :: enum
 {
   NOT_SET;
   SERVER;
   CLIENT;
 }
-#add_context role: Role;
-#add_context R: *RoleState;
 
 RoleState :: struct
 {

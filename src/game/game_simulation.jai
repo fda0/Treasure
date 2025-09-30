@@ -11,13 +11,6 @@ SIM_AdvanceByTick :: ()
   PerfFunc();
   assert(GAME_ServerEnabled());
 
-  reset_attack_timers :: (obj: *Object)
-  {
-    obj.s.target = .{};
-    obj.s.attack_t = min(obj.s.attack_t, 0.0);
-    obj.s.attack_continous_t = 0.0;
-  }
-
   if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 15.0
   {
     G.sleepers_spawned_in_group_count = 0;
@@ -76,101 +69,7 @@ SIM_AdvanceByTick :: ()
   // apply actions
   for *obj: context.R.obj.network_objects
   {
-    if OBJ_IsNil(obj) continue;
-    if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
-
-    obj.s.desired_dp = .{};
-    if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
-    {
-      obj.s.action = .{};
-    }
-
-    if obj.s.action.type == .ATTACK
-    {
-      target := OBJ_Get(.NETWORK, obj.s.action.target_object);
-      targets_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
-      if !targets_valid_enemy
-      {
-        obj.s.action = .{};
-      }
-    }
-
-    if obj.s.action.type != .ATTACK
-    {
-      obj.s.is_attacking = false;
-    }
-
-    obj_move_dir: V2;
-    if obj.s.action.type == .PATHING
-    {
-      obj_to_destination := obj.s.action.world_p.xy - obj.s.p.xy;
-      distance := length(obj_to_destination);
-      if distance >= MINIMUM_MOVE_START_DISTANCE then obj_move_dir = obj_to_destination;
-    }
-
-    // Advance attack timers
-    {
-      attack_t_delta := TICK_FLOAT_STEP * obj.s.attack_speed;
-      obj.s.attack_t += attack_t_delta;
-      obj.s.attack_continous_t += attack_t_delta;
-    }
-
-    // Handle action type .ATTACK
-    if obj.s.action.type == .ATTACK
-    {
-      if obj.s.target != obj.s.action.target_object
-      {
-        reset_attack_timers(obj);
-        obj.s.is_attacking = false;
-      }
-      obj.s.target = obj.s.action.target_object;
-
-      attacked := OBJ_Get(.NETWORK, obj.s.action.target_object);
-      if !OBJ_IsNil(attacked)
-      {
-        obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
-        distance := length(obj_to_destination);
-
-        if distance < MELEE_ATTACK_DISTANCE || obj.s.is_attacking
-        {
-          obj.s.rotation = DirectionXYToRotationZ(attacked.s.p - obj.s.p);
-          obj.s.is_attacking = true;
-
-          attack_damage := 10.0;
-          while obj.s.attack_t >= obj.s.attack_landed_t
-          {
-            obj.s.attack_t -= obj.s.attack_cooldown_t;
-            attacked.s.hp -= attack_damage;
-
-            OBJ_PlayAnimation(attacked, .HIT);
-            OBJ_PlaySound(attacked, .HIT);
-
-            stop_attacking := false;
-            stop_attacking |= (distance >= MELEE_ATTACK_DISTANCE);
-            stop_attacking |= !OBJ_Test(attacked, .{common = .IS_ALIVE});
-            if stop_attacking
-            {
-              obj.s.is_attacking = false;
-              break;
-            }
-          }
-        }
-
-        if !obj.s.is_attacking && distance >= MINIMUM_MOVE_START_DISTANCE
-        {
-          obj_move_dir = obj_to_destination;
-        }
-      }
-    }
-
-    if !obj.s.is_attacking
-    {
-      reset_attack_timers(obj);
-    }
-
-    // Move obj
-    obj_speed := obj.s.move_speed * TICK_FLOAT_STEP;
-    obj.s.desired_dp = V3.{xy = normalize(obj_move_dir) * obj_speed, z = 0};
+    inline SIM_ProcessObjectActions(obj);
   }
 
   for *turret: context.R.obj.network_objects
@@ -245,7 +144,7 @@ SIM_AdvanceByTick :: ()
     }
     else
     {
-      reset_attack_timers(turret);
+      SIM_ResetAttackTimers(turret);
     }
   }
 
@@ -337,6 +236,130 @@ SIM_AdvanceByTick :: ()
         obj.s.rotation = DirectionXYToRotationZ(obj.s.moved_dp);
     }
   }
+}
+
+SIM_ResetAttackTimers :: (obj: *Object)
+{
+  obj.s.target = .{};
+  obj.s.attack_t = min(obj.s.attack_t, 0.0);
+  obj.s.attack_continous_t = 0.0;
+}
+
+SIM_ProcessObjectActions :: (obj: *Object)
+{
+  if OBJ_IsNil(obj) return;
+  if !OBJ_HasAnyFlag(obj, .HAS_ACTION) return;
+
+  obj.s.desired_dp = .{};
+  action := *obj.s.action;
+
+  if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
+  {
+    action.* = .{};
+  }
+
+  if action.skills & .Q
+  {
+    // @todo launch a skillshot projectile
+  }
+
+  if action.skills & .W
+  {
+    obj.s.move_speed += 2.0;
+  }
+
+  if action.skills & .E
+  {
+    // @todo blink somewhere and deal dmg
+  }
+
+
+  if action.type == .ATTACK
+  {
+    target := OBJ_Get(.NETWORK, action.target_object);
+    targets_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
+    if !targets_valid_enemy
+    {
+      action.* = .{};
+    }
+  }
+
+  if action.type != .ATTACK
+  {
+    obj.s.is_attacking = false;
+  }
+
+  obj_move_dir: V2;
+  if action.type == .PATHING
+  {
+    obj_to_destination := action.world_p.xy - obj.s.p.xy;
+    distance := length(obj_to_destination);
+    if distance >= MINIMUM_MOVE_START_DISTANCE then obj_move_dir = obj_to_destination;
+  }
+
+  // Advance attack timers
+  {
+    attack_t_delta := TICK_FLOAT_STEP * obj.s.attack_speed;
+    obj.s.attack_t += attack_t_delta;
+    obj.s.attack_continous_t += attack_t_delta;
+  }
+
+  // Handle action type .ATTACK
+  if action.type == .ATTACK
+  {
+    if obj.s.target != action.target_object
+    {
+      SIM_ResetAttackTimers(obj);
+      obj.s.is_attacking = false;
+    }
+    obj.s.target = action.target_object;
+
+    attacked := OBJ_Get(.NETWORK, action.target_object);
+    if !OBJ_IsNil(attacked)
+    {
+      obj_to_destination := attacked.s.p.xy - obj.s.p.xy;
+      distance := length(obj_to_destination);
+
+      if distance < MELEE_ATTACK_DISTANCE || obj.s.is_attacking
+      {
+        obj.s.rotation = DirectionXYToRotationZ(attacked.s.p - obj.s.p);
+        obj.s.is_attacking = true;
+
+        attack_damage := 10.0;
+        while obj.s.attack_t >= obj.s.attack_landed_t
+        {
+          obj.s.attack_t -= obj.s.attack_cooldown_t;
+          attacked.s.hp -= attack_damage;
+
+          OBJ_PlayAnimation(attacked, .HIT);
+          OBJ_PlaySound(attacked, .HIT);
+
+          stop_attacking := false;
+          stop_attacking |= (distance >= MELEE_ATTACK_DISTANCE);
+          stop_attacking |= !OBJ_Test(attacked, .{common = .IS_ALIVE});
+          if stop_attacking
+          {
+            obj.s.is_attacking = false;
+            break;
+          }
+        }
+      }
+
+      if !obj.s.is_attacking && distance >= MINIMUM_MOVE_START_DISTANCE
+      {
+        obj_move_dir = obj_to_destination;
+      }
+    }
+  }
+
+  if !obj.s.is_attacking
+  {
+    SIM_ResetAttackTimers(obj);
+  }
+
+  // Move obj
+  obj_speed := obj.s.move_speed * TICK_FLOAT_STEP;
+  obj.s.desired_dp = V3.{xy = normalize(obj_move_dir) * obj_speed, z = 0};
 }
 
 SIM_MoveAndCollideObjects :: ()

@@ -136,19 +136,6 @@ NET_MatchConnection :: (user: NET_Connection, address: *SDLNet_Address, port: u1
   return user.port == port && SDLNet_CompareAddresses(user.address, address) == 0;
 }
 
-SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
-{
-  // @todo move to SV_ prefix?
-  for *G.server.users
-  {
-    if NET_MatchConnection(it.connection, address, port)
-    {
-      return it;
-    }
-  }
-  return null;
-}
-
 NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick
 {
   packet := raw_packet;

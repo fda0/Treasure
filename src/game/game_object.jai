@@ -106,7 +106,7 @@ OBJ_Sync :: struct
   // game stats
   max_hp: float;
   hp: float;
-  attack_speed: float = 1.75;
+  attack_speed: float = 1.2;
   move_speed: float = 1.0;
 
   attack_landed_t := 0.25;
@@ -122,6 +122,7 @@ OBJ_Sync :: struct
   sound_requests: Queue(3, AUDIO_Request);
 
   action: Action; // what object is trying to do currently
+  skill_cooldowns: [4] float;
 
   // visuals
   color: Color32 = 0xffff_ffff; // unused?
@@ -604,7 +605,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
 
     obj.s.max_hp = 100;
     obj.s.hp = 80;
-    obj.s.move_speed = 2.7;
+    obj.s.move_speed = 1.5;
 
     obj.s.team = team;
   }

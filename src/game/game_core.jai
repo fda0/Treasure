@@ -332,9 +332,17 @@ GAME_Iterate :: ()
 
     // Process gameplay actions
     {
+      action := *G.client.action;
+      action.skills = 0;
+
       move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
       move_pressed := KEY_Pressed(..move_buttons);
       move_held := KEY_Held(..move_buttons, held_for = 0.25);
+
+      if KEY_Pressed(.Q) action.skills |= .Q;
+      if KEY_Pressed(.W) action.skills |= .W;
+      if KEY_Pressed(.E) action.skills |= .E;
+      if KEY_Pressed(.R) action.skills |= .R;
 
       if G.world_mouse_valid
       {
@@ -347,17 +355,17 @@ GAME_Iterate :: ()
 
         if move_pressed && hovers_enemy
         {
-          G.client.action.type = .ATTACK;
-          G.client.action.target_object = G.hover_object;
-          G.client.action.world_p = G.world_mouse;
+          action.type = .ATTACK;
+          action.target_object = G.hover_object;
+          action.world_p = G.world_mouse;
         }
 
         if (move_pressed && !hovers_enemy) ||
-           (move_held && G.client.action.type == .PATHING)
+           (move_held && action.type == .PATHING)
         {
-          G.client.action.type = .PATHING;
-          G.client.action.world_p = G.world_mouse;
-          G.client.action.target_object = .{};
+          action.type = .PATHING;
+          action.world_p = G.world_mouse;
+          action.target_object = .{};
           if move_pressed
           {
             marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);

@@ -28,7 +28,40 @@ SERVER_Start :: ()
   }
 }
 
-// #scope_file;
+SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
+{
+  PerfFunc();
+  top_delay: float;
+  for user.received_actions
+  {
+    top_delay = max(it.delay_since_last_received_action, top_delay);
+  }
+
+  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
+
+  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
+  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
+  for MakeRange(remove_old_items_count)
+  {
+    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
+        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
+    // @todo merging
+    QueuePop(*user.received_actions);
+  }
+
+  received_action, did_pop := QueuePop(*user.received_actions);
+
+  result := received_action.action;
+  if did_pop then user.last_action = received_action.action;
+  else
+  {
+    // @todo more advanced extrapolation?
+    result = user.last_action;
+  }
+  return result;
+}
+
+#scope_file;
 SERVER_User :: struct
 {
   connection: NET_Connection;
@@ -329,37 +362,17 @@ SERVER_ReceiveUserActions :: (player: *SERVER_User, net_msg: *PACKET_Actions, cl
   player.latest_client_tick = client_tick;
 }
 
-SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
+SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
 {
-  PerfFunc();
-  top_delay: float;
-  for user.received_actions
+  // @todo move to SV_ prefix?
+  for *G.server.users
   {
-    top_delay = max(it.delay_since_last_received_action, top_delay);
+    if NET_MatchConnection(it.connection, address, port)
+    {
+      return it;
+    }
   }
-
-  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
-
-  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
-  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
-  for MakeRange(remove_old_items_count)
-  {
-    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
-        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
-    // @todo merging
-    QueuePop(*user.received_actions);
-  }
-
-  received_action, did_pop := QueuePop(*user.received_actions);
-
-  result := received_action.action;
-  if did_pop then user.last_action = received_action.action;
-  else
-  {
-    // @todo more advanced extrapolation?
-    result = user.last_action;
-  }
-  return result;
+  return null;
 }
 
 SERVER_RemoveUser :: (user: *SERVER_User)
