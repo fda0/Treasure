@@ -74,28 +74,17 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
-GAME_IsClient :: () -> bool
-{
-  return G.client.enabled;
-}
-GAME_IsClientWithHead :: () -> bool
-{
-  return !G.headless && G.client.enabled;
-}
-GAME_IsServer :: () -> bool
-{
-  return G.server.enabled;
-}
+GAME_ClientEnabled :: () -> bool { return G.client.enabled; }
+GAME_ServerEnabled :: () -> bool { return G.server.enabled; }
 
 GAME_Init :: ()
 {
   PerfFunc();
 
   G.client.enabled |= !G.server.enabled;
-
   // TEST_run();
 
-  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
+  if !G.headless
   {
     ASSET_InitPreGPU();
     GPU_Init();
@@ -107,14 +96,14 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
-  if GAME_IsClient() push_context PatchContext(.CLIENT)
+  if GAME_ClientEnabled() push_context PatchContext(.CLIENT)
   {
-    context.O.frame_timestamp = GetTimestamp(.NOW);
+    context.R.frame_timestamp = GetTimestamp(.NOW);
     CLIENT_Init();
     OBJ_Init();
   }
 
-  if GAME_IsServer()
+  if GAME_ServerEnabled()
   {
     SERVER_Start();
   }
@@ -124,13 +113,14 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
+  assert(context.role == .CLIENT);
   PerfFunc();
 
   // pre frame logic
   {
     new_timestamp := GetTimestamp(.NOW);
-    delta_timestamp := min(new_timestamp - context.O.frame_timestamp, 100); // clamp dt to 100ms (10fps)
-    context.O.frame_timestamp = new_timestamp;
+    delta_timestamp := min(new_timestamp - context.R.frame_timestamp, 100); // clamp dt to 100ms (10fps)
+    context.R.frame_timestamp = new_timestamp;
 
     G.frame_number += 1;
     G.tick_timestamp_accumulator += delta_timestamp;
@@ -143,7 +133,7 @@ GAME_Iterate :: ()
 
   if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
-  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
+  if !G.headless
   {
     AUDIO_CloseFinishedStreams();
     GPU_ReadbackMousePickingTexture();
@@ -156,10 +146,7 @@ GAME_Iterate :: ()
     FONT_MaybeResizeAtlasTexture();
   }
 
-  if GAME_IsClient() push_context PatchContext(.CLIENT)
-  {
-    CLIENT_IterateReceive();
-  }
+  CLIENT_IterateReceive();
 
   {
     #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
@@ -167,7 +154,7 @@ GAME_Iterate :: ()
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
-    if GAME_IsClient() push_context PatchContext(.CLIENT)
+    if GAME_ClientEnabled() push_context PatchContext(.CLIENT)
     {
       for MakeRange(tick_count)
       {
@@ -178,12 +165,9 @@ GAME_Iterate :: ()
     }
   }
 
-  if GAME_IsClient() push_context PatchContext(.CLIENT)
-  {
-    CLIENT_IterateSend();
-  }
+  CLIENT_IterateSend();
 
-  if GAME_IsClientWithHead() && KEY_Pressed(.F)
+  if !G.headless && KEY_Pressed(.F)
   {
     print("@todo remove this temporary code\n");
     for scale_part: 8 .. 12
@@ -197,7 +181,7 @@ GAME_Iterate :: ()
     }
   }
 
-  if GAME_IsClientWithHead() push_context PatchContext(.CLIENT)
+  if !G.headless
   {
     if G.dev.show || G.dev.noclip || !G.window_has_focus
       G.grab_mouse = false;
@@ -286,7 +270,7 @@ GAME_Iterate :: ()
 
       sun_dist := towards_sun_dir * 40.0;
       G.sun_camera_p = G.camera_p + sun_dist;
-      OBJ_Get(.OFFLINE, context.O.obj.sun).s.p = G.sun_camera_p;
+      OBJ_Get(.OFFLINE, context.R.obj.sun).s.p = G.sun_camera_p;
 
       transl := TranslationMatrix(-G.sun_camera_p);
       rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -376,7 +360,7 @@ GAME_Iterate :: ()
           G.client.action.target_object = .{};
           if move_pressed
           {
-            marker := OBJ_Get(.OFFLINE, context.O.obj.pathing_marker);
+            marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
             if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
           }
         }
@@ -385,7 +369,7 @@ GAME_Iterate :: ()
 
     CLIENT_FlushActionTick();
 
-    marker := OBJ_Get(.OFFLINE, context.O.obj.pathing_marker);
+    marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.client.action.type == .PATHING
@@ -394,12 +378,12 @@ GAME_Iterate :: ()
         marker.s.model = ModelKey("Flag");
         marker.s.p = G.client.action.world_p;
         marker.l.animated_p.xy = marker.s.p.xy;
-        context.O.obj.pathing_marker_set = true;
+        context.R.obj.pathing_marker_set = true;
       }
       else
       {
         marker.s.p.z = -2.0;
-        context.O.obj.pathing_marker_set = false;
+        context.R.obj.pathing_marker_set = false;
       }
     }
 

@@ -10,7 +10,7 @@ TimeReference :: enum
 GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
   if #complete reference == {
-    case .FRAME; return context.O.frame_timestamp;
+    case .FRAME; return context.R.frame_timestamp;
     case .NOW; return xx SDL_GetTicks();
   }
 }
@@ -55,26 +55,26 @@ Tick_MAX :: cast(Tick) S64_MAX;
 
 GetClientActionTick :: () -> Tick
 {
-  assert(context.occupation == .CLIENT);
+  assert(context.role == .CLIENT);
   return G.client.action_tick;
 }
 
 GetClientPlaybackTick :: () -> Tick
 {
-  assert(context.occupation == .CLIENT);
+  assert(context.role == .CLIENT);
   return G.client.playback_tick;
 }
 
 GetServerTick :: () -> Tick
 {
-  assert(context.occupation == .SERVER);
+  assert(context.role == .SERVER);
   return G.server.tick;
 }
 
 
 ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timestamp, bool
 {
-  assert(context.occupation == .CLIENT);
+  assert(context.role == .CLIENT);
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
   return G.client.server_tick_to_client_timestamps[server_tick], true;
@@ -82,7 +82,7 @@ ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timesta
 
 ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  assert(context.occupation == .CLIENT);
+  assert(context.role == .CLIENT);
 
   if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
   start_client_timestamp := G.client.server_tick_to_client_timestamps[start_server_tick];
@@ -92,7 +92,7 @@ ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
 
 ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
-  assert(context.occupation == .SERVER);
+  assert(context.role == .SERVER);
 
   current_server_tick := G.server.tick;
   if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;

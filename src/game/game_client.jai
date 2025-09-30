@@ -1,7 +1,7 @@
 CLIENT_State :: struct
 {
   enabled: bool;
-  occ: OccupationState;
+  occ: RoleState;
 
   server_connection: NET_Connection;
   local_server_packets: NET_LocalPackets;
@@ -37,7 +37,7 @@ CLIENT_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
 
-  if GAME_IsServer()
+  if GAME_ServerEnabled()
   {
     log("Client is starting local server connection");
     G.client.server_connection.type = .LOCAL_SERVER;
@@ -381,7 +381,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
 CLIENT_PlayTick :: ()
 {
   PerfFunc();
-  assert(GAME_IsClient());
+  assert(context.role == .CLIENT);
 
   smallest_latest_server_tick: Tick = Tick_MAX;
   biggest_oldest_server_tick: Tick;

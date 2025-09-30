@@ -9,7 +9,7 @@ PROJECTILE_HIT_DISTANCE :: 0.1;
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
-  assert(GAME_IsServer());
+  assert(GAME_ServerEnabled());
 
   reset_attack_timers :: (obj: *Object)
   {
@@ -74,7 +74,7 @@ SIM_AdvanceByTick :: ()
   }
 
   // apply actions
-  for *obj: context.O.obj.network_objects
+  for *obj: context.R.obj.network_objects
   {
     if OBJ_IsNil(obj) continue;
     if !OBJ_HasAnyFlag(obj, .HAS_ACTION) continue;
@@ -173,7 +173,7 @@ SIM_AdvanceByTick :: ()
     obj.s.desired_dp = V3.{xy = normalize(obj_move_dir) * obj_speed, z = 0};
   }
 
-  for *turret: context.O.obj.network_objects
+  for *turret: context.R.obj.network_objects
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -249,7 +249,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *projectile: context.O.obj.network_objects
+  for *projectile: context.R.obj.network_objects
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
 
@@ -294,7 +294,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *obj: context.O.obj.network_objects
+  for *obj: context.R.obj.network_objects
   {
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
@@ -329,7 +329,7 @@ SIM_AdvanceByTick :: ()
 
   SIM_MoveAndCollideObjects();
 
-  for * obj: context.O.obj.all_objects
+  for * obj: context.R.obj.all_objects
   {
     if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
     {
@@ -342,7 +342,7 @@ SIM_AdvanceByTick :: ()
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
-  for * obj: context.O.obj.network_objects
+  for * obj: context.R.obj.network_objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -359,7 +359,7 @@ SIM_MoveAndCollideObjects :: ()
       obj_collider := obj.s.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: context.O.obj.network_objects
+      for * obstacle: context.R.obj.network_objects
       {
         if obj == obstacle continue;
         if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;

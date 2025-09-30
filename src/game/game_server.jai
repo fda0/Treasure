@@ -1,7 +1,7 @@
 SERVER_State :: struct
 {
   enabled: bool;
-  occ: OccupationState;
+  occ: RoleState;
 
   thread: Thread;
   local_user_packets: NET_LocalPackets;
@@ -17,7 +17,7 @@ SERVER_Start :: ()
     log("Launching as server");
     OBJ_Init();
 
-    if GAME_IsClient()
+    if GAME_ClientEnabled()
     {
       local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
     }
@@ -48,7 +48,7 @@ SERVER_User :: struct
 
 SERVER_ThreadEntry :: (thread: *Thread) -> s64
 {
-  assert(context.occupation == .SERVER);
+  assert(context.role == .SERVER);
   timestamp_accumulator: Timestamp;
 
   while true
@@ -58,8 +58,8 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
     simulation_tick_count: Timestamp;
     {
       now_timestamp := GetTimestamp(.NOW);
-      delta_timestamp := now_timestamp - context.O.frame_timestamp;
-      context.O.frame_timestamp = now_timestamp;
+      delta_timestamp := now_timestamp - context.R.frame_timestamp;
+      context.R.frame_timestamp = now_timestamp;
       timestamp_accumulator += delta_timestamp;
 
       #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
@@ -191,7 +191,7 @@ SERVER_IterateSend :: ()
   }
 
   // iterate over network objects
-  for context.O.obj.network_objects
+  for context.R.obj.network_objects
   {
     packet: PACKET_Full;
 

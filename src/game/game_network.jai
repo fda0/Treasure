@@ -33,7 +33,7 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   if net_category != LOG_NetPacket return;
   // @todo do something with net_category and logging in general
   // @todo add "NET_Label()" before every net log?, or do that for logs globally
-  log(ifx GAME_IsServer() then "[SERVER]" else "[CLIENT]");
+  log(ifx GAME_ServerEnabled() then "[SERVER]" else "[CLIENT]");
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
@@ -57,7 +57,7 @@ NET_Connection :: struct
 
 NET_Init :: ()
 {
-  port: u16 = xx ifx GAME_IsServer() /* @todo thats bad */ then NET_DEFAULT_SEVER_PORT else 0;
+  port: u16 = xx ifx GAME_ServerEnabled() /* @todo thats bad */ then NET_DEFAULT_SEVER_PORT else 0;
   G.net.socket = SDLNet_CreateDatagramSocket(null, port);
 
   if !G.net.socket
