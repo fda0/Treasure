@@ -175,6 +175,7 @@ UI_BuildDeveloperWindow :: ()
         // Create graph background
         Layer(.{layout.padding = PaddingAll(Px(0))});
         graph_box := Parent(CreateBox(.{is_persistent = true,
+                                        track_signal = .WITHOUT_ACTIVATION,
                                         layout.size.min.y = Rem(1),
                                         snap_to_full_pixel = true,
                                         bg_color = C32_0xRGB(0)}));
@@ -208,8 +209,10 @@ UI_BuildDeveloperWindow :: ()
             height_px = parent_height_px * height_pct;
           }
 
+          // Checking hover on graph_box before enabling hover tracking on each bar saves quite a lot of perfomance.
+          signal_on_bars := ifx graph_box.signal & .HOVER_ON_CHILD then TrackSignal.WITHOUT_ACTIVATION else .NONE;
           total := Parent(CreateBox(.{layout.size = .{min.x = Px(bar_width_px), pref.y = Grow()},
-                                      track_signal = .ALL}));
+                                      track_signal = signal_on_bars}));
           filled := CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
                                 bg_color = UI_YELLOW1});
 
