@@ -174,7 +174,8 @@ UI_BuildDeveloperWindow :: ()
 
         // Create graph background
         Layer(.{layout.padding = PaddingAll(Px(0))});
-        graph_box := Parent(CreateBox(.{layout.size.min.y = Rem(1),
+        graph_box := Parent(CreateBox(.{is_persistent = true,
+                                        layout.size.min.y = Rem(1),
                                         snap_to_full_pixel = true,
                                         bg_color = C32_0xRGB(0)}));
 
@@ -392,7 +393,8 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
 {
   Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64))});
 
-  window := Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
+  window := Parent(CreateBox(.{is_persistent = true,
+                               layout.child_order = .TOP_TO_BOTTOM,
                                floating.attach_to = .ROOT},
                              UI_WINDOW_LOOK));
 
@@ -518,7 +520,8 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
   Parent(scrollable);
 
   // Content box
-  content := CreateBox(.{layout = .{child_order = .TOP_TO_BOTTOM,
+  content := CreateBox(.{is_persistent = true,
+                         layout = .{child_order = .TOP_TO_BOTTOM,
                                     size.min = Fit2(), size.pref = Grow2(),
                                     padding = UI_WINDOW_PAD},
                          corner_radius = UI_RADIUS});

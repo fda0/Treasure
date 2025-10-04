@@ -324,6 +324,7 @@ BoxSpec :: struct
 {
   key: BoxKey;
   seed: u64;
+  is_persistent: bool;
 
   layout: struct
   {
@@ -593,34 +594,48 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
 {
   layout_state.boxes_count += 1;
 
-  init_key := init_spec.key;
-  if !init_key
+  // Generate key if needed
+  generate_key_if_empty := init_spec.is_persistent || init_spec.track_signal;
+  // generate_key_if_empty = true;
+
+  original_key := init_spec.key;
+  if !original_key && generate_key_if_empty
   {
-    init_key = CreateKey(loc, init_spec.seed);
+    original_key = CreateKey(loc, init_spec.seed);
   }
 
-  final_key := init_key;
+  // Deduplicate key if needed
+  deduplicated_key := original_key;
+  if !!deduplicated_key
   {
-    increment, new_entry := find_or_add(*layout_state.seed_increments, init_key.hash);
+    increment, new_entry := find_or_add(*layout_state.seed_increments, original_key.hash);
     if new_entry then increment.* = 0;
     else
     {
       increment.* += 1;
-      final_key.hash += (increment.* << 48);
+      deduplicated_key.hash += (increment.* << 48);
     }
   }
 
-  box_slot := find_or_add(*layout_state.box_table, final_key.hash);
-  if !box_slot.*
+  box: *Box;
+  if !!deduplicated_key
   {
-    box_slot.* = AllocBoxFromStorage();
+    box_slot := find_or_add(*layout_state.box_table, deduplicated_key.hash);
+    if !box_slot.*
+    {
+      box_slot.* = AllocBoxFromStorage();
+    }
+    box = box_slot.*;
   }
-  box := box_slot.*;
+  else
+  {
+    box = xar_add(*layout_state.single_use_storage, .{});
+  }
 
   box.spec = init_spec;
   box.loc = loc;
-  box.key = final_key;
-  box.key_would_collide = final_key != init_key;
+  box.key = deduplicated_key;
+  box.key_would_collide = deduplicated_key != original_key;
   box.key_was_specified_manually = !!init_spec.key;
   box.signal = 0;
 
@@ -840,6 +855,8 @@ LayoutBegin :: (new_spec: LayoutSpec)
     for buttons      not_held &&= !(it & .HELD);
     if not_held then active_key = .{};
   }
+
+  xar_reset(*single_use_storage);
 
   init(*seed_increments, boxes_count*2 + 1024); // @todo this just leaks memory atm? api of the table could be better here?
   for box_table
@@ -1703,7 +1720,8 @@ LayoutState :: struct
   seed_increments: Table(Value_Type = u64);
   box_table: Table(Value_Type = *Box);
   storage: Xar(Box, 10, 16); // storage size 1024 .. 33554432 of Box
-  storage_free_list: *Box;
+  storage_free_list: *Box; // @todo put boxes from storage here after they weren't used for 1 full layout
+  single_use_storage: Xar(Box, 10, 16); // storage size 1024 .. 33554432 of Box
 
   render_commands: [..] RenderCommand;
 
