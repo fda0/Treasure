@@ -542,5 +542,5 @@ String :: #import "String";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
 
-#import "superluminal"()(ENABLE_PROFILER = false);
+#import "superluminal"()(ENABLE_PROFILER = true);
 BOX :: #import "tr_box_layout"(Color=Color32);

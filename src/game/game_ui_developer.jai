@@ -207,13 +207,14 @@ UI_BuildDeveloperWindow :: ()
             height_px = parent_height_px * height_pct;
           }
 
-          total := Signal(Parent(CreateBox(.{layout.size = .{min.x = Px(bar_width_px), pref.y = Grow()}})));
+          total := Parent(CreateBox(.{layout.size = .{min.x = Px(bar_width_px), pref.y = Grow()},
+                                      track_signal = .ALL}));
           filled := CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Px(height_px)},
                                 bg_color = UI_YELLOW1});
 
           if it_index % 2 == 0 then filled.bg_color = UI_YELLOW2;
 
-          if total.flags & .HOVER
+          if total.signal & .HOVER
           {
             Parent(CreateBox(.{layout.child_order = .TOP_TO_BOTTOM,
                                layout.size.min = Fit2(),
@@ -326,11 +327,13 @@ UI_BuildDeveloperWindow :: ()
 
           RecursivePrint :: (skeleton: Skeleton, index: u32, indent := 0.0, highlight := false)
           {
-            sig := Signal(CreateText(skeleton.joint_names[index], .{layout.padding.left = Px(indent)}));
-            if sig.flags & .HOVER then highlight = true;
+            label := CreateText(skeleton.joint_names[index],
+                                .{layout.padding.left = Px(indent),
+                                  track_signal = .ALL});
+            if label.signal & .HOVER then highlight = true;
             if highlight
             {
-              sig.box.spec.text.color = Color32_RGBf(1,1,0);
+              label.spec.text.color = Color32_RGBf(1,1,0);
             }
 
             for skeleton.child_index_ranges[index]
@@ -395,16 +398,17 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
 
   // Window bar
   {
-    window_bar := Signal(Parent(CreateBox(.{layout = .{size.pref.x = Grow(), size.min.y = Fit(),
-                                                       padding = PaddingAll(Rem(0.4)),
-                                                       child_align = .{x = .CENTER, y = .CENTER}},
-                                            bg_color = UI_ORANGE2,
-                                            corner_radius = UI_RADIUS})));
+    window_bar := Parent(CreateBox(.{layout = .{size.pref.x = Grow(), size.min.y = Fit(),
+                                                padding = PaddingAll(Rem(0.4)),
+                                                child_align = .{x = .CENTER, y = .CENTER}},
+                                     bg_color = UI_ORANGE2,
+                                     corner_radius = UI_RADIUS,
+                                     track_signal = .ALL}));
 
-    if (window_bar.flags & .DRAG) window_position.* += G.mouse_delta;
+    if (window_bar.signal & .DRAG) window_position.* += G.mouse_delta;
     clamped_win_p := clamp(window_position.*, .{}, G.window_dim * 0.9);
     window.floating.offset = Px2(clamped_win_p);
-    if !(window_bar.flags & .DRAG) window_position.* = clamped_win_p;
+    if !(window_bar.signal & .DRAG) window_position.* = clamped_win_p;
 
     CreateText(label, .{text.color = UI_BG});
   }
@@ -413,7 +417,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
 
   // Scrolling
   scrollable: *Box;
-  resize_button: BoxSignal;
+  resize_button: *Box;
   {
     BAR_THICKNESS :: #run Rem(0.75);
     color_bar_bg := Color32_SetAlphai(UI_FG, 24);
@@ -436,11 +440,12 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       Parent(container_scroll_area_x);
       scroll_area_x = CreateBox();
 
-      resize_button = Signal(CreateBox(.{layout.size.min = Len2(Rem(0.5)),
-                                         layout.padding = PaddingAll(Rem(0.125)),
-                                         bg_color = color_bar_bg}));
+      resize_button = CreateBox(.{layout.size.min = Len2(Rem(0.5)),
+                                  layout.padding = PaddingAll(Rem(0.125)),
+                                  bg_color = color_bar_bg,
+                                  track_signal = .ALL});
 
-      decoration_color := ifx resize_button.flags & .HOVER then color_scroll_active else color_scroll;
+      decoration_color := ifx resize_button.signal & .HOVER then color_scroll_active else color_scroll;
 
       Parent(resize_button);
       Parent(CreateBox(.{layout.size.min = Len2(Rem(0.25)),
@@ -463,8 +468,8 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       other_axis := (!axis).(Axis2);
       scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
 
-      scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
-      scrollable_body_sig := Signal(scrollable, .CANT_ACTIVATE);
+      scroll_area_signal := CalculateSignalFlags(scroll_area, .WITHOUT_ACTIVATION);
+      scrollable_body_signal := CalculateSignalFlags(scrollable, .WITHOUT_ACTIVATION);
 
       scroll_area.bg_color = color_bar_bg;
       scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -476,25 +481,25 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       if bar_size_pct > 1.0 then bar_size_pct = clamp(bar_size_pct*0.1, 0.2, 0.8);
 
       box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
-      box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
+      box_bar := CreateBox(.{bg_color = color_scroll, track_signal = .ALL});
       box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
       box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
       box_bar.layout.size.pref.axes[other_axis] = Grow();
 
       // @feature(box_layout) a way to check "is this or its children hovered"
-      is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
-      if is_scroll_area_hovered || (scrollable_body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
+      is_scroll_area_hovered := scroll_area_signal & .HOVER || box_bar.signal & .HOVER;
+      if is_scroll_area_hovered || (scrollable_body_signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
       {
         scrollable.scroll.delta_px.component[axis] -= G.mouse_scroll.y * 128.0;
       }
 
       if bar_size_pct < 1.0
       {
-        if box_bar.flags & .HOVER
+        if box_bar.signal & .HOVER
         {
           box_bar.bg_color = color_scroll_active;
         }
-        if box_bar.flags & .DRAG
+        if box_bar.signal & .DRAG
         {
           scrollable_size_px := Inner(scroll_area, axis) - Inner(box_bar, axis);
           if scrollable_size_px > 0.0
@@ -519,9 +524,9 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
                          corner_radius = UI_RADIUS});
 
   // Resize button signal
-  if (resize_button.flags & .DRAG) then window_size.* += G.mouse_delta;
+  if (resize_button.signal & .DRAG) then window_size.* += G.mouse_delta;
   clamped_window_size := clamp(window_size.*, .{200, 100}, .{2000, 2000});
-  if !(resize_button.flags & .DRAG) then window_size.* = clamped_window_size;
+  if !(resize_button.signal & .DRAG) then window_size.* = clamped_window_size;
   window.layout.size.min = Px2(clamped_window_size);
 
   return content, window;
@@ -533,16 +538,16 @@ UI_ToggleButton :: (label: string, value: *bool)
 {
   Layer(.{seed = Hash64Any(label, value.(u64))});
 
-  button := Signal(CreateText(label, .{layout.padding = UI_BUTTON_PAD,
-                                       border = .{color = UI_BUTTON_HOVER_BG, widths = BorderOutside(Px(1))}
-                                       }));
-  if button.flags & .HOVER
+  button := CreateText(label, .{layout.padding = UI_BUTTON_PAD,
+                                border = .{color = UI_BUTTON_HOVER_BG, widths = BorderOutside(Px(1))},
+                                track_signal = .ALL});
+  if button.signal & .HOVER
   {
     button.border.color = UI_FG3;
   }
   if value
   {
-    if button.flags & .CLICK then value.* = !value.*;
+    if button.signal & .CLICK then value.* = !value.*;
 
     button.bg_color = ifx value.* then UI_BG2 else UI_BG;
     button.text.color = ifx value.* then UI_FG0 else UI_FG3;
@@ -554,19 +559,20 @@ UI_Checkbox :: (label: string, checkbox_value: *$T, set_flags: T)
 {
   Layer(.{seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
-                                          padding = UI_BUTTON_PAD,
-                                          child_align.y = .CENTER,
-                                          child_gap = UI_WINDOW_GAP}}));
+  button := CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
+                                   padding = UI_BUTTON_PAD,
+                                   child_align.y = .CENTER,
+                                   child_gap = UI_WINDOW_GAP},
+                        track_signal = .ALL});
   Parent(button);
 
-  if button.flags & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
+  if button.signal & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
 
   square_text := "";
   if checkbox_value
   {
     is_active := (checkbox_value.* & set_flags) == set_flags;
-    if button.flags & .CLICK
+    if button.signal & .CLICK
     {
       if is_active checkbox_value.* &= ~set_flags;
       else         checkbox_value.* |= set_flags;
@@ -592,18 +598,19 @@ UI_Checkbox :: (label: string, checkbox_value: *bool)
 {
   Layer(.{seed = Hash64Any(label, checkbox_value.(u64))});
 
-  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
-                                          padding = UI_BUTTON_PAD,
-                                          child_align.y = .CENTER,
-                                          child_gap = UI_WINDOW_GAP}}));
+  button := CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
+                                   padding = UI_BUTTON_PAD,
+                                   child_align.y = .CENTER,
+                                   child_gap = UI_WINDOW_GAP},
+                        track_signal = .ALL});
   Parent(button);
 
-  if button.flags & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
+  if button.signal & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
 
   square_text := "";
   if checkbox_value
   {
-    if button.flags & .CLICK then checkbox_value.* = !checkbox_value.*;
+    if button.signal & .CLICK then checkbox_value.* = !checkbox_value.*;
     square_text = ifx checkbox_value.* then "X" else "";
   }
   else square_text = "/";
@@ -624,21 +631,22 @@ UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
 {
   Layer(.{seed = Hash64Any(label, button_value.(u64), set_value)});
 
-  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
-                                          padding = UI_BUTTON_PAD,
-                                          child_align.x = .RIGHT,
-                                          child_align.y = .CENTER,
-                                          child_gap = UI_WINDOW_GAP}}));
+  button := CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
+                                   padding = UI_BUTTON_PAD,
+                                   child_align.x = .RIGHT,
+                                   child_align.y = .CENTER,
+                                   child_gap = UI_WINDOW_GAP},
+                        track_signal = .ALL});
   Parent(button);
 
   button.bg_color = UI_BUTTON_BG;
-  if button.flags & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
+  if button.signal & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
 
   label_box := CreateText(label);
 
   if button_value
   {
-    if button.flags & .CLICK then button_value.* = set_value;
+    if button.signal & .CLICK then button_value.* = set_value;
     if button_value.* == set_value
     {
       button.bg_color = UI_FG;
@@ -652,18 +660,19 @@ UI_Button :: (label: string) -> clicked: bool
 {
   Layer(.{seed = Hash64Any(label)});
 
-  button := Signal(CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
-                                          padding = UI_BUTTON_PAD,
-                                          child_align.x = .RIGHT,
-                                          child_align.y = .CENTER,
-                                          child_gap = UI_WINDOW_GAP}}));
+  button := CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
+                                   padding = UI_BUTTON_PAD,
+                                   child_align.x = .RIGHT,
+                                   child_align.y = .CENTER,
+                                   child_gap = UI_WINDOW_GAP},
+                        track_signal = .ALL});
   Parent(button);
 
   button.bg_color = UI_BUTTON_BG;
-  if button.flags & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
+  if button.signal & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
 
   label_box := CreateText(label);
-  return !!(button.flags & .CLICK);
+  return !!(button.signal & .CLICK);
 }
 
 UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{}) -> *Box
@@ -700,8 +709,8 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
     if !scroll continue;
 
-    scroll_area_sig := Signal(scroll_area, .CANT_ACTIVATE);
-    body_sig := Signal(body, .CANT_ACTIVATE);
+    scroll_area_signal := CalculateSignalFlags(scroll_area, .WITHOUT_ACTIVATION);
+    body_signal := CalculateSignalFlags(body, .WITHOUT_ACTIVATION);
 
     scroll_area.bg_color = color_bar_bg;
     scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -718,14 +727,14 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     }
 
     box_margin0 := CreateBox(.{layout.size.pref = Grow2()});
-    box_bar := Signal(CreateBox(.{bg_color = color_scroll}));
+    box_bar := CreateBox(.{bg_color = color_scroll, track_signal = .ALL});
     box_margin1 := CreateBox(.{layout.size.pref = Grow2()});
     box_bar.layout.size.pref.axes[axis] = Pct(bar_size_pct);
     box_bar.layout.size.pref.axes[other_axis] = Grow();
 
     // @feature(box_layout) a way to check "is this or its children hovered"
-    is_scroll_area_hovered := scroll_area_sig.flags & .HOVER || box_bar.flags & .HOVER;
-    if is_scroll_area_hovered || (body_sig.flags & .HOVER_ON_SCROLL_CHILD && axis == .Y)
+    is_scroll_area_hovered := scroll_area_signal & .HOVER || box_bar.signal & .HOVER;
+    if is_scroll_area_hovered || (body_signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
     {
       scroll_by := G.mouse_scroll.y * 0.05;
       scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
@@ -733,11 +742,11 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
     if bar_size_pct < 1.0
     {
-      if box_bar.flags & .HOVER
+      if box_bar.signal & .HOVER
       {
         box_bar.bg_color = color_scroll_active;
       }
-      if box_bar.flags & .DRAG
+      if box_bar.signal & .DRAG
       {
         scrollable_size_px := Inner(scroll_area, axis) - Inner(box_bar, axis);
         if scrollable_size_px > 0.0

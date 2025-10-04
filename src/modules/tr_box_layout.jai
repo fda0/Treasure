@@ -182,71 +182,6 @@ CreateKey :: (text: string, seed: u64 = 0) -> BoxKey
   return BoxKey.{h};
 }
 
-BoxSpec :: struct
-{
-  key: BoxKey;
-  seed: u64;
-
-  layout: struct
-  {
-    size: struct
-    {
-      pref: Length2;
-      min: Length2;
-      max: Length2;
-      #place pref; all: [3] Length2;
-    }
-
-    padding: Padding;
-    child_gap: Length;
-    child_align: struct { x, y: Align; #place x; axes: [2] Align; }
-    child_order: Order;
-  }
-
-  bg_color: Color;
-  corner_radius: CornerRadius;
-  edge_softness: Length;
-  capture_hover: bool;
-  snap_to_full_pixel: bool;
-
-  scroll: struct
-  {
-    enable: enum_flags u8 { SCROLL_X; SCROLL_Y; }
-    delta_px: V2;
-    set_pct: V2 = .{-1, -1};
-  }
-
-  floating: struct
-  {
-    attach_to: enum
-    {
-      NONE; // disables floating
-      PARENT;
-      REFERENCE_BOX;
-      ROOT;
-    }
-    reference: BoxKey;
-
-    offset: Length2;
-    anchors: struct { itself: Anchor; parent: Anchor; }
-    z_index: s16;
-  }
-
-  border: struct
-  {
-    color: Color;
-    widths: BorderWidths;
-  }
-
-  text: struct
-  {
-    str: string;
-    color: Color;
-    font: s32 = -1;
-    font_size: Length; // EM on font size will be interpreted as REM!
-  }
-}
-
 //
 // BoxSpec Layer helpers
 //
@@ -385,6 +320,71 @@ MergeWithActiveLayers :: (spec: *BoxSpec)
 //
 // Box struct and helpers
 //
+BoxSpec :: struct
+{
+  key: BoxKey;
+  seed: u64;
+
+  layout: struct
+  {
+    size: struct
+    {
+      pref: Length2;
+      min: Length2;
+      max: Length2;
+      #place pref; all: [3] Length2;
+    }
+
+    padding: Padding;
+    child_gap: Length;
+    child_align: struct { x, y: Align; #place x; axes: [2] Align; }
+    child_order: Order;
+  }
+
+  bg_color: Color;
+  corner_radius: CornerRadius;
+  edge_softness: Length;
+  snap_to_full_pixel: bool;
+  track_signal: TrackSignal;
+
+  scroll: struct
+  {
+    enable: enum_flags u8 { SCROLL_X; SCROLL_Y; }
+    delta_px: V2;
+    set_pct: V2 = .{-1, -1};
+  }
+
+  floating: struct
+  {
+    attach_to: enum
+    {
+      NONE; // disables floating
+      PARENT;
+      REFERENCE_BOX;
+      ROOT;
+    }
+    reference: BoxKey;
+
+    offset: Length2;
+    anchors: struct { itself: Anchor; parent: Anchor; }
+    z_index: s16;
+  }
+
+  border: struct
+  {
+    color: Color;
+    widths: BorderWidths;
+  }
+
+  text: struct
+  {
+    str: string;
+    color: Color;
+    font: s32 = -1;
+    font_size: Length; // EM on font size will be interpreted as REM!
+  }
+}
+
 Box :: struct
 {
   using spec: BoxSpec;
@@ -418,11 +418,12 @@ Box :: struct
   clipped_min: V2;
   clipped_max: V2;
 
-  signal_info: enum_flags u32 {
-    HAS_HOVER;
-    HAS_CHILD_WITH_HOVER;
-    HAS_SCROLL_CHILD_WITH_HOVER;
-  }
+  // This data is calculated at LayoutEnd
+  // And will be used in the next frame
+  // to calculate signal: SignalFlags;
+  previous_signal_data: PreviousSignalData;
+
+  signal: SignalFlags;
 
   #place inner; inners: [3] V2;
 };
@@ -535,6 +536,59 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   return CreateBoxDirect(merged, loc);
 }
 
+CalculateSignalFlags :: (box: *Box, assign_track_signal := TrackSignal.ALL) -> SignalFlags
+{
+  using layout_state;
+  using ButtonType;
+  // using ButtonFlags;
+  // @todo See if things like 2 boxes catching the same click,
+  //       floating boxes and their Z-order etc are a problem to be solved.
+
+  box.track_signal = assign_track_signal;
+  signal: SignalFlags;
+  if !box.track_signal
+  {
+    return signal;
+  }
+
+  mouse_overlaps_box := (mouse.x >= box.clipped_min.x && mouse.x < box.clipped_max.x &&
+                         mouse.y >= box.clipped_min.y && mouse.y < box.clipped_max.y);
+  if mouse_overlaps_box
+  {
+    signal |= .OVERLAPS;
+  }
+
+  if !active_key
+  {
+    if box.previous_signal_data & .HAS_HOVER
+    {
+      signal |= .HOVER | .HOVER_ON_CHILD | .HOVER_ON_SCROLL_CHILD;
+
+      for buttons
+      {
+        if it & .PRESSED
+        {
+          if box.track_signal == .ALL then active_key = box.key;
+          drag_start_p = mouse;
+          drag_box_abs_p_offset = mouse - box.abs_p;
+          signal |= xx (SignalFlags.CLICK.(u32) + it_index);
+        }
+      }
+    }
+
+    if box.previous_signal_data & .HAS_CHILD_WITH_HOVER        then signal |= .HOVER_ON_CHILD;
+    if box.previous_signal_data & .HAS_SCROLL_CHILD_WITH_HOVER then signal |= .HOVER_ON_SCROLL_CHILD;
+  }
+
+  if active_key == box.key
+  {
+    signal |= .HOVER;
+    signal |= .DRAG;
+  }
+
+  return signal;
+}
+
 CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
 {
   layout_state.boxes_count += 1;
@@ -568,6 +622,7 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
   box.key = final_key;
   box.key_would_collide = final_key != init_key;
   box.key_was_specified_manually = !!init_spec.key;
+  box.signal = 0;
 
   if box.text.str
   {
@@ -592,6 +647,11 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
       box.prev.next = box;
       box.parent.last = box;
     }
+  }
+
+  if box.track_signal
+  {
+    box.signal = CalculateSignalFlags(box, box.track_signal);
   }
 
   return box;
@@ -654,77 +714,30 @@ TempParentScope :: () #expand
 }
 
 //
-// BoxSignal
+// Signal
 //
-BoxSignal :: struct
+SignalFlags :: enum_flags u32
 {
-  using #as box: *Box;
-  flags: Flags;
+  OVERLAPS; HOVER;
+  HOVER_ON_CHILD; HOVER_ON_SCROLL_CHILD;
 
-  Flags :: enum_flags u32
-  {
-    OVERLAPS; HOVER;
-    HOVER_ON_CHILD; HOVER_ON_SCROLL_CHILD;
-
-    CLICK; DOUBLE_CLICK; TRIPLE_CLICK;
-    RIGHT_CLICK; RIGHT_DOUBLE_CLICK; RIGHT_TRIPLE_CLICK;
-    DRAG;
-  };
-};
-
-BoxSignalMask :: enum_flags u32
-{
-  CANT_ACTIVATE;
-  NONE :: 0;
+  CLICK; DOUBLE_CLICK; TRIPLE_CLICK;
+  RIGHT_CLICK; RIGHT_DOUBLE_CLICK; RIGHT_TRIPLE_CLICK;
+  DRAG;
 }
 
-Signal :: (box: *Box, mask := BoxSignalMask.NONE) -> BoxSignal
+TrackSignal :: enum u8
 {
-  using layout_state;
-  using ButtonType;
-  // using ButtonFlags;
-  // @todo See if things like 2 boxes catching the same click,
-  //       floating boxes and their Z-order etc are a problem to be solved.
+  NONE;
+  WITHOUT_ACTIVATION;
+  ALL;
+}
 
-  signal := BoxSignal.{box = box};
-  box.capture_hover = true;
-
-  mouse_overlaps_box := (mouse.x >= box.clipped_min.x && mouse.x < box.clipped_max.x &&
-                         mouse.y >= box.clipped_min.y && mouse.y < box.clipped_max.y);
-  if mouse_overlaps_box
-  {
-    signal.flags |= .OVERLAPS;
-  }
-
-  if !active_key
-  {
-    if box.signal_info & .HAS_HOVER
-    {
-      signal.flags |= .HOVER | .HOVER_ON_CHILD | .HOVER_ON_SCROLL_CHILD;
-
-      for buttons
-      {
-        if it & .PRESSED
-        {
-          if !(mask & .CANT_ACTIVATE) then active_key = box.key;
-          drag_start_p = mouse;
-          drag_box_abs_p_offset = mouse - box.abs_p;
-          signal.flags |= xx (BoxSignal.Flags.CLICK.(u32) + it_index);
-        }
-      }
-    }
-
-    if box.signal_info & .HAS_CHILD_WITH_HOVER        then signal.flags |= .HOVER_ON_CHILD;
-    if box.signal_info & .HAS_SCROLL_CHILD_WITH_HOVER then signal.flags |= .HOVER_ON_SCROLL_CHILD;
-  }
-
-  if active_key == box.key
-  {
-    signal.flags |= .HOVER;
-    signal.flags |= .DRAG;
-  }
-
-  return signal;
+PreviousSignalData :: enum_flags u8
+{
+  HAS_HOVER;
+  HAS_CHILD_WITH_HOVER;
+  HAS_SCROLL_CHILD_WITH_HOVER;
 }
 
 //
@@ -1273,7 +1286,7 @@ LayoutEnd :: ()
   }
 
   // Solve clip rectangles (userful for rendering and mouse intersection testing)
-  // + Reset signal_info
+  // + Reset previous_signal_data
   for :TreeBreadthFirst root_box
   {
     it.clipped_min = it.abs_p;
@@ -1284,20 +1297,20 @@ LayoutEnd :: ()
       it.clipped_max = min(it.clipped_max, it.parent.clipped_max);
     }
 
-    it.signal_info = 0;
+    it.previous_signal_data = 0;
   }
 
-  // Fill signal_info
+  // Fill previous_signal_data
   {
     hover_box: *Box;
     for :TreePostOrder root_box
     {
-      if it.capture_hover
+      if it.track_signal
       {
         if mouse.x >= it.clipped_min.x && mouse.x < it.clipped_max.x &&
            mouse.y >= it.clipped_min.y && mouse.y < it.clipped_max.y
         {
-          it.signal_info |= .HAS_HOVER;
+          it.previous_signal_data |= .HAS_HOVER;
           hover_box = it;
           break;
         }
@@ -1310,10 +1323,10 @@ LayoutEnd :: ()
       b := hover_box.parent;
       while !IsNil(b)
       {
-        b.signal_info |= .HAS_CHILD_WITH_HOVER;
+        b.previous_signal_data |= .HAS_CHILD_WITH_HOVER;
         if scroll
         {
-          b.signal_info |= .HAS_SCROLL_CHILD_WITH_HOVER;
+          b.previous_signal_data |= .HAS_SCROLL_CHILD_WITH_HOVER;
           if b.scroll.enable then scroll = false;
         }
         b = b.parent;

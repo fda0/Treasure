@@ -17,7 +17,7 @@ UI_BuildHUD :: ()
                      floating.attach_to = .ROOT,
                      floating.anchors = .{itself = .{horizontal = .CENTER, vertical = .BOTTOM},
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
-  Signal(Parent(hud));
+  Parent(hud);
 
   player := OBJ_Get(.NETWORK, G.client.player_key);
   hp_ratio := SafeDiv(player.s.hp, player.s.max_hp);
