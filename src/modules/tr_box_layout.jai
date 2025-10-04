@@ -537,7 +537,7 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   return CreateBoxDirect(merged, loc);
 }
 
-CalculateSignalFlags :: (box: *Box, assign_track_signal := TrackSignal.ALL) -> SignalFlags
+CalculateSignalFlagsTodoDeleteThisFunc :: (box: *Box, assign_track_signal := TrackSignal.ALL) -> SignalFlags
 {
   using layout_state;
   using ButtonType;
@@ -594,12 +594,13 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
 {
   layout_state.boxes_count += 1;
 
-  // Generate key if needed
-  generate_key_if_empty := init_spec.is_persistent || init_spec.track_signal;
-  // generate_key_if_empty = true;
+  // Generate key if it's missing and box is persistent
+  is_persistent := init_spec.is_persistent;
+  is_persistent |= !!init_spec.track_signal;
+  is_persistent |= !!init_spec.scroll.enable;
 
   original_key := init_spec.key;
-  if !original_key && generate_key_if_empty
+  if !original_key && is_persistent
   {
     original_key = CreateKey(loc, init_spec.seed);
   }
@@ -633,6 +634,7 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
   }
 
   box.spec = init_spec;
+  box.spec.is_persistent = is_persistent;
   box.loc = loc;
   box.key = deduplicated_key;
   box.key_would_collide = deduplicated_key != original_key;
@@ -666,7 +668,7 @@ CreateBoxDirect :: (init_spec: BoxSpec, loc := #caller_location) -> *Box
 
   if box.track_signal
   {
-    box.signal = CalculateSignalFlags(box, box.track_signal);
+    box.signal = CalculateSignalFlagsTodoDeleteThisFunc(box, box.track_signal);
   }
 
   return box;

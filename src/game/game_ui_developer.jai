@@ -440,7 +440,7 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       container_scroll_area_x := CreateBox(.{layout.size.min = Fit2(),
                                              layout.size.pref.x = Grow()});
       Parent(container_scroll_area_x);
-      scroll_area_x = CreateBox();
+      scroll_area_x = CreateBox(.{track_signal = .WITHOUT_ACTIVATION});
 
       resize_button = CreateBox(.{layout.size.min = Len2(Rem(0.5)),
                                   layout.padding = PaddingAll(Rem(0.125)),
@@ -462,16 +462,14 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
 
     Parent(container_y);
     scrollable = CreateBox(.{layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM},
+                             track_signal = .WITHOUT_ACTIVATION,
                              scroll.enable = .SCROLL_X | .SCROLL_Y});
-    scroll_area_y := CreateBox();
+    scroll_area_y := CreateBox(.{track_signal = .WITHOUT_ACTIVATION});
 
     for axis: Axis2.X .. Axis2.Y
     {
       other_axis := (!axis).(Axis2);
       scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
-
-      scroll_area_signal := CalculateSignalFlags(scroll_area, .WITHOUT_ACTIVATION);
-      scrollable_body_signal := CalculateSignalFlags(scrollable, .WITHOUT_ACTIVATION);
 
       scroll_area.bg_color = color_bar_bg;
       scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -489,8 +487,8 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
       box_bar.layout.size.pref.axes[other_axis] = Grow();
 
       // @feature(box_layout) a way to check "is this or its children hovered"
-      is_scroll_area_hovered := scroll_area_signal & .HOVER || box_bar.signal & .HOVER;
-      if is_scroll_area_hovered || (scrollable_body_signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
+      is_scroll_area_hovered := scroll_area.signal & .HOVER || box_bar.signal & .HOVER;
+      if is_scroll_area_hovered || (scrollable.signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
       {
         scrollable.scroll.delta_px.component[axis] -= G.mouse_scroll.y * 128.0;
       }
@@ -695,11 +693,11 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
 
   Parent(container_x);
   container_y := CreateBox(spec, .{layout.child_order = .LEFT_TO_RIGHT}, default_spec);
-  scroll_area_x := CreateBox();
+  scroll_area_x := CreateBox(.{track_signal = .WITHOUT_ACTIVATION});
 
   Parent(container_y);
-  body := CreateBox();
-  scroll_area_y := CreateBox();
+  body := CreateBox(.{track_signal = .WITHOUT_ACTIVATION});
+  scroll_area_y := CreateBox(.{track_signal = .WITHOUT_ACTIVATION});
 
   body.layout = .{size.pref = Grow2(), child_order = .TOP_TO_BOTTOM};
   if scroll_x then body.scroll.enable |= .SCROLL_X;
@@ -711,9 +709,6 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     scroll      := ifx axis == .X then scroll_x else scroll_y;
     scroll_area := ifx axis == .X then scroll_area_x else scroll_area_y;
     if !scroll continue;
-
-    scroll_area_signal := CalculateSignalFlags(scroll_area, .WITHOUT_ACTIVATION);
-    body_signal := CalculateSignalFlags(body, .WITHOUT_ACTIVATION);
 
     scroll_area.bg_color = color_bar_bg;
     scroll_area.layout.child_order = ifx axis == .X then .LEFT_TO_RIGHT else .TOP_TO_BOTTOM;
@@ -736,8 +731,8 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
     box_bar.layout.size.pref.axes[other_axis] = Grow();
 
     // @feature(box_layout) a way to check "is this or its children hovered"
-    is_scroll_area_hovered := scroll_area_signal & .HOVER || box_bar.signal & .HOVER;
-    if is_scroll_area_hovered || (body_signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
+    is_scroll_area_hovered := scroll_area.signal & .HOVER || box_bar.signal & .HOVER;
+    if is_scroll_area_hovered || (body.signal & .HOVER_ON_SCROLL_CHILD && axis == .Y)
     {
       scroll_by := G.mouse_scroll.y * 0.05;
       scroll.* = clamp(scroll.* + scroll_by, 0.0, 1.0);
