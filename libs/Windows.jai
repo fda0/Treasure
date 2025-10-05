@@ -1815,6 +1815,23 @@ RTL_CRITICAL_SECTION :: struct {
 
 CRITICAL_SECTION :: RTL_CRITICAL_SECTION;
 
+RTL_BARRIER :: struct {
+    Reserved1: DWORD;
+    Reserved2: DWORD;
+    Reserved3: [2] *void;
+    Reserved4: DWORD;
+    Reserved5: DWORD;
+}
+
+SYNCHRONIZATION_BARRIER :: RTL_BARRIER;
+
+SYNCHRONIZATION_BARRIER_FLAGS :: enum_flags s32
+{
+    BLOCK_ONLY :: 0x01;
+    SPIN_ONLY  :: 0x02;
+    NO_DELETE  :: 0x04;
+}
+
 OVERLAPPED :: struct {
     // @bryce The non-internal names were added for clarity
     Internal:                 u64;
@@ -1899,12 +1916,12 @@ CreateWaitableTimerW :: (lpTimerAttributes: *SECURITY_ATTRIBUTES, bManualReset: 
 //CreateWaitableTimerEx
 //DeleteBoundaryDescriptor
 DeleteCriticalSection :: (lpCriticalSection: *CRITICAL_SECTION) #foreign kernel32;
-//DeleteSynchronizationBarrier
+DeleteSynchronizationBarrier :: (barrier: *SYNCHRONIZATION_BARRIER) -> BOOL #foreign kernel32;
 //DeleteTimerQueue
 //DeleteTimerQueueEx
 //DeleteTimerQueueTimer
 EnterCriticalSection :: (lpCriticalSection: *CRITICAL_SECTION) #foreign kernel32;
-//EnterSynchronizationBarrier
+EnterSynchronizationBarrier :: (barrier: *SYNCHRONIZATION_BARRIER, flags: SYNCHRONIZATION_BARRIER_FLAGS) -> BOOL #foreign kernel32;
 GetOverlappedResult :: (hFile: HANDLE, lpOverlapped: *OVERLAPPED, lpNumberOfBytesTransferred: *s32, bWait: s32) -> s32 #foreign kernel32;
 //GetOverlappedResultEx
 InitializeCriticalSection :: (lpCriticalSection: *CRITICAL_SECTION) #foreign kernel32;
@@ -1912,7 +1929,7 @@ InitializeCriticalSection :: (lpCriticalSection: *CRITICAL_SECTION) #foreign ker
 //InitializeCriticalSectionEx
 //InitializeSListHead
 //InitializeSRWLock
-//InitializeSynchronizationBarrier
+InitializeSynchronizationBarrier :: (barrier: *SYNCHRONIZATION_BARRIER, totalThreads: s32, spinCount: s32) -> BOOL #foreign kernel32;
 //InitOnceBeginInitialize
 //InitOnceCallback
 //InitOnceComplete
