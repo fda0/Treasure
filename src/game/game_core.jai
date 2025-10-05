@@ -438,13 +438,16 @@ GAME_Iterate :: ()
     }
   }
 
-  // Play debug sound
   if LaneIdx() == 0 && !G.headless
   {
+    // Play debug sound
     if KEY_Pressed(.M)
     {
       AUDIO_PlaySound(.HIT);
     }
+
+    // Draw objects
+    WORLD_DrawObjects();
   }
 
   LaneSync();
@@ -452,7 +455,6 @@ GAME_Iterate :: ()
   // Post frame work
   if LaneIdx() == 0 && !G.headless
   {
-    WORLD_DrawObjects();
     UI_Translate3DShapes();
     UI_ProcessBoxRenderCommands();
     UI_DrawDeveloperFontAtlas();
