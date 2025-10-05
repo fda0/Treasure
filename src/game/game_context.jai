@@ -26,7 +26,7 @@ CreateContextWithRole :: (role: Role) -> (result: #Context)
   return ctx;
 }
 
-// raddebugger inspired
+// Lane/Wavefront multithreading - raddebugger / cmuratori inspired
 LaneState :: struct
 {
   lane_id: s64;

@@ -182,8 +182,6 @@ GAME_Iterate :: ()
     }
   }
 
-  LaneSync();
-
   // Client network / playback
   if LaneIdx() == 0
   {
@@ -209,8 +207,7 @@ GAME_Iterate :: ()
   LaneSync();
 
   // UI work
-  UI_LANE_IDX :: 1;
-  if LaneIdx() == LaneFromTaskIdx(UI_LANE_IDX)
+  if LaneIdx() == LaneFromTaskIdx(1)
   {
     if !G.headless
     {
@@ -221,6 +218,24 @@ GAME_Iterate :: ()
       UI_BuildDeveloperWindow();
       UI_FinishBoxLayout();
     }
+  }
+
+  // Calculate animations
+  if LaneIdx() == LaneFromTaskIdx(2) && !G.headless
+  {
+    ANIMATION_AnimateObjects();
+  }
+
+  // Play sounds
+  if LaneIdx() == LaneFromTaskIdx(3) && !G.headless
+  {
+    // Play debug sound
+    if KEY_Pressed(.M)
+    {
+      AUDIO_PlaySound(.HIT);
+    }
+
+    AUDIO_PlayObjectSounds();
   }
 
   // Calculate mouse input and camera
@@ -357,18 +372,6 @@ GAME_Iterate :: ()
     G.sun_camera_transform = projection * (rot * transl);
   }
 
-  // Calculate animations
-  if LaneIdx() == LaneFromTaskIdx(2) && !G.headless
-  {
-    ANIMATION_AnimateObjects();
-  }
-
-  // Play sounds
-  if LaneIdx() == LaneFromTaskIdx(3) && !G.headless
-  {
-    AUDIO_PlayObjectSounds();
-  }
-
   // Prepare client player input and send it
   if LaneIdx() == 0 && !G.headless
   {
@@ -438,15 +441,9 @@ GAME_Iterate :: ()
     }
   }
 
+  // Draw objects
   if LaneIdx() == 0 && !G.headless
   {
-    // Play debug sound
-    if KEY_Pressed(.M)
-    {
-      AUDIO_PlaySound(.HIT);
-    }
-
-    // Draw objects
     WORLD_DrawObjects();
   }
 
