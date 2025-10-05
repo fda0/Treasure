@@ -142,7 +142,7 @@ build :: ()
   {
     Build(.{workspace_name = "Treasure",
             output_name = "Treasure",
-            entry_file = "src/game/game_sdl_entry.jai",
+            entry_file = "src/game/game_main.jai",
             icon_path = "res/ico/coin.ico"});
   }
 

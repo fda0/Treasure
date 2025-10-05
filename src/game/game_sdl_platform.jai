@@ -1,13 +1,4 @@
-main :: ()
-{
-  PLATFORM_Init();
-  push_context CreateContextWithRole(.CLIENT)
-  {
-    PLATFORM_Iterate();
-  }
-}
-
-PLATFORM_Init :: ()
+PLATFORM_PreInit :: ()
 {
   G.time_launch = current_time_monotonic();
   G.dpi_scaling = 1;
@@ -70,13 +61,6 @@ PLATFORM_Init :: ()
     y := ifx G.init_window_p.y > 0 then xx G.init_window_p.y else cast(s32) SDL_WINDOWPOS_UNDEFINED();
     SDL_SetWindowPosition(G.window, x, y);
   }
-  G.time_init_sdl = current_time_monotonic();
-
-  GAME_Init();
-  G.time_init_game = current_time_monotonic();
-
-  if ok && !G.headless
-    SDL_ShowWindow(G.window);
 
   if !ok
   {
@@ -84,76 +68,76 @@ PLATFORM_Init :: ()
     exit(1);
   }
 
+  G.time_init_sdl = current_time_monotonic();
+}
+
+PLATFORM_PostInit :: ()
+{
+  G.time_init_game = current_time_monotonic();
+
+  if !G.headless
+    SDL_ShowWindow(G.window);
+
   G.time_init_finished = current_time_monotonic();
 }
 
-PLATFORM_Iterate :: ()
+PLATFORM_PreIterate :: ()
 {
-  while !G.in_shutdown
+  G.mouse_scroll = V2.{};
+  G.mouse_delta = V2.{};
+  G.window_resized = false;
+
+  if !G.headless && G.window_fullscreen != G.sdl_is_fullscreen
   {
-    if !G.headless && G.window_fullscreen != G.sdl_is_fullscreen
-    {
-      G.sdl_is_fullscreen = G.window_fullscreen;
-      SDL_SetWindowFullscreen(G.window, G.window_fullscreen);
-    }
+    G.sdl_is_fullscreen = G.window_fullscreen;
+    SDL_SetWindowFullscreen(G.window, G.window_fullscreen);
+  }
 
-    // Poll input
+  // Poll input
+  {
+    ev: SDL_Event;
+    while SDL_PollEvent(*ev)
     {
-      ev: SDL_Event;
-      while SDL_PollEvent(*ev)
+      if ev.type ==
       {
-        if ev.type ==
-        {
-          case xx SDL_EventType.QUIT;
-          G.in_shutdown = true;
+        case xx SDL_EventType.QUIT;
+        G.in_shutdown = true;
 
-          case xx SDL_EventType.WINDOW_RESIZED;
-          window := ev.window;
-          G.window_dim = V2.{xx window.data1, xx window.data2};
-          G.window_resized = true;
+        case xx SDL_EventType.WINDOW_RESIZED;
+        window := ev.window;
+        G.window_dim = V2.{xx window.data1, xx window.data2};
+        G.window_resized = true;
 
-          case xx SDL_EventType.KEY_DOWN;
-          if ev.key.key == SDLK_ESCAPE  G.in_shutdown = true;
+        case xx SDL_EventType.KEY_DOWN;
+        if ev.key.key == SDLK_ESCAPE  G.in_shutdown = true;
 
-          case xx SDL_EventType.MOUSE_MOTION;
-          motion := ev.motion;
-          delta := V2.{motion.xrel, motion.yrel};
-          G.mouse_delta += delta;
+        case xx SDL_EventType.MOUSE_MOTION;
+        motion := ev.motion;
+        delta := V2.{motion.xrel, motion.yrel};
+        G.mouse_delta += delta;
 
-          case xx SDL_EventType.MOUSE_WHEEL;
-          wheel := ev.wheel;
-          delta := V2.{wheel.x, wheel.y};
-          G.mouse_scroll += delta;
-        }
+        case xx SDL_EventType.MOUSE_WHEEL;
+        wheel := ev.wheel;
+        delta := V2.{wheel.x, wheel.y};
+        G.mouse_scroll += delta;
       }
-
-      SDL_SetWindowMouseGrab(G.window, G.grab_mouse);
-
-      mouse_keys := SDL_GetMouseState(*G.mouse.x, *G.mouse.y);
-      KEY_Update(.MOUSE_LEFT, !!(mouse_keys & SDL_BUTTON_LMASK));
-      KEY_Update(.MOUSE_RIGHT, !!(mouse_keys & SDL_BUTTON_RMASK));
-
-      num_keys: s32;
-      key_states := SDL_GetKeyboardState(*num_keys);
-      for MakeRange(num_keys)
-        KEY_Update(xx it, key_states[it]);
-
-      window_flags := SDL_GetWindowFlags(G.window);
-      G.window_has_focus = !!(window_flags & SDL_WINDOW_MOUSE_FOCUS);
     }
 
-    GAME_Iterate();
+    SDL_SetWindowMouseGrab(G.window, G.grab_mouse);
 
-    // Poll input cleanup
-    {
-      G.mouse_scroll = V2.{};
-      G.mouse_delta = V2.{};
-      G.window_resized = false;
-    }
+    mouse_keys := SDL_GetMouseState(*G.mouse.x, *G.mouse.y);
+    KEY_Update(.MOUSE_LEFT, !!(mouse_keys & SDL_BUTTON_LMASK));
+    KEY_Update(.MOUSE_RIGHT, !!(mouse_keys & SDL_BUTTON_RMASK));
+
+    num_keys: s32;
+    key_states := SDL_GetKeyboardState(*num_keys);
+    for MakeRange(num_keys)
+    KEY_Update(xx it, key_states[it]);
+
+    window_flags := SDL_GetWindowFlags(G.window);
+    G.window_has_focus = !!(window_flags & SDL_WINDOW_MOUSE_FOCUS);
   }
 }
-
-#load "game_core.jai";
 
 //
 // SDL THINGS

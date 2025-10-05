@@ -25,17 +25,12 @@ CreateContextWithRole :: (role: Role) -> (result: #Context)
   return ctx;
 }
 
+// raddebugger inspired
 LaneCtx :: struct
 {
   lane_id: s64;
   lane_count: s64;
+  barrier: *Barrier;
+  broadcast_memory: *u64;
 }
 
-WINDOWS :: #import "Windows";
-
-// Barrier ::
-
-BarrierWait :: ()
-{
-
-}
