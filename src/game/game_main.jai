@@ -4,14 +4,47 @@ main :: ()
   GAME_Init();
   PLATFORM_PostInit();
 
-  push_context CreateContextWithRole(.CLIENT)
+  client_ctx := CreateContextWithRole(.CLIENT);
+
+  threads: [4] Thread;
+  barrier: Barrier;
+  BarrierInit(*barrier, xx threads.count);
+  broadcast_memory: u64;
+
+  for *threads
   {
-    while !G.in_shutdown
+    it.starting_context = client_ctx;
+    it.starting_context.lane.lane_id = it_index;
+    it.starting_context.lane.lane_count = threads.count;
+    it.starting_context.lane.barrier = *barrier;
+    it.starting_context.lane.broadcast_memory = *broadcast_memory;
+
+    if it_index > 0
     {
-      PLATFORM_PreIterate();
-      GAME_Iterate();
+      thread_init(it, GAME_LoopThreadEntry);
+      thread_start(it);
+    }
+    else
+    {
+      context = it.starting_context;
     }
   }
+
+  GAME_LoopThreadEntry(null);
+}
+
+GAME_LoopThreadEntry :: (thread: *Thread) -> s64
+{
+  thread_name := sprint("Client_%", LaneIdx());
+  PerfThreadName(thread_name);
+
+  while !G.in_shutdown
+  {
+    LaneSync();
+    if (LaneIdx() == 0) PLATFORM_PreIterate();
+    GAME_Iterate();
+  }
+  return 0;
 }
 
 // Mostly all program includes
@@ -70,4 +103,5 @@ BOX :: #import "tr_box_layout"(Color=Color32);
 #import "Basic";
 #import "File";
 #import "Thread";
+#import "Atomics";
 String :: #import "String";

@@ -74,10 +74,7 @@ PLATFORM_PreInit :: ()
 PLATFORM_PostInit :: ()
 {
   G.time_init_game = current_time_monotonic();
-
-  if !G.headless
-    SDL_ShowWindow(G.window);
-
+  if !G.headless SDL_ShowWindow(G.window);
   G.time_init_finished = current_time_monotonic();
 }
 

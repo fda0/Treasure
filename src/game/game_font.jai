@@ -301,6 +301,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
 {
   using G.font;
   assert(!G.headless);
+  AssertThatScopeIsSingleThreaded();
 
   margin: u16 = FONT_ATLAS_MARGIN;
   margin2 := margin * 2;

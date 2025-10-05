@@ -3,6 +3,8 @@
 // Multiple calls to UniqueFloat from the same place in the source code will result in the same float being returned.
 //
 
+// @todo collapse these functions into one
+
 UniqueFloat :: ($init := 0.0) -> *float #expand
 {
   index := #run -> s64 {
@@ -29,6 +31,16 @@ UniqueTimestamp :: ($init: Timestamp = 0) -> *Timestamp #expand
   return (*UniqueS64Array[index]).(*Timestamp);
 }
 
+UniqueS64 :: ($init: s64 = 0) -> *s64 #expand
+{
+  index := #run -> s64 {
+    number := init;
+    array := []s64.{data = *number, count = 1};
+    return ReserveS64Range(array);
+  }
+  return *UniqueS64Array[index];
+}
+
 #scope_file;
 ReserveFloatRange :: (init_floats: [] float) -> s64
 {
@@ -46,7 +58,7 @@ ReserveS64Range :: (init_s64s: [] s64) -> s64
   UniqueS64Counter += init_s64s.count;
   assert(UniqueS64Counter < UniqueS64Array.count);
 
-  memcpy(*UniqueS64Array[index], init_s64s.data, init_s64s.count * size_of(float));
+  memcpy(*UniqueS64Array[index], init_s64s.data, init_s64s.count * size_of(s64));
   return index;
 }
 

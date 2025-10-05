@@ -189,6 +189,7 @@ ANIMATION_InitSkeletons :: ()
 ANIMATION_AnimateObjects :: ()
 {
   PerfFunc();
+  AssertThatScopeIsSingleThreaded();
 
   for *obj: context.R.obj.all_objects
   {

@@ -116,7 +116,8 @@ GAME_Iterate :: ()
   assert(context.role == .CLIENT);
   PerfFunc();
 
-  // pre frame logic
+  // Collect timing info
+  if LaneIdx() == 0
   {
     new_timestamp := GetTimestamp(.NOW);
     delta_timestamp := min(new_timestamp - context.R.frame_timestamp, 100); // clamp dt to 100ms (10fps)
@@ -131,60 +132,87 @@ GAME_Iterate :: ()
     Post(.TEST_FRAME_NUMBER, G.frame_number);
   }
 
-  if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
-
-  if !G.headless
+  // Mouse input things
+  if LaneIdx() == 0
   {
-    AUDIO_CloseFinishedStreams();
-    GPU_ReadbackMousePickingTexture();
-  }
+    if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
-  // pre frame calls
-  if G.window_resized
-  {
-    GPU_ResizeFramebuffer();
-    FONT_MaybeResizeAtlasTexture();
-  }
-
-  CLIENT_IterateReceive();
-
-  {
-    #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-    #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-    tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-    G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
-
-    for MakeRange(tick_count)
+    if G.dev.show || G.dev.noclip || !G.window_has_focus
     {
-      G.client.playback_tick += 1;
-      CLIENT_PlayTick();
+      G.grab_mouse = false;
     }
-    Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
+    else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse)
+    {
+      G.grab_mouse = true;
+    }
   }
 
-  CLIENT_IterateSend();
-
-  if !G.headless && KEY_Pressed(.F)
+  // Pre frame inits
+  if LaneIdx() == 0
   {
-    print("@todo remove this temporary code\n");
-    for scale_part: 8 .. 12
+    if !G.headless
     {
-      scale := 16 + scale_part * 4;
-      for codepoint: 33 .. 126 + 255
+      AUDIO_CloseFinishedStreams();
+      GPU_ReadbackMousePickingTexture();
+    }
+
+    // pre frame calls
+    if G.window_resized
+    {
+      GPU_ResizeFramebuffer();
+      FONT_MaybeResizeAtlasTexture();
+    }
+  }
+
+  // Hacky font testing
+  if LaneIdx() == 0
+  {
+    if !G.headless && KEY_Pressed(.F)
+    {
+      print("@todo remove this temporary code\n");
+      for scale_part: 8 .. 12
       {
-        g0 := FONT_GetGlyph(xx codepoint, .Jacquard24,      xx scale);
-        g1 := FONT_GetGlyph(xx codepoint, .PlayfairDisplay, xx scale);
+        scale := 16 + scale_part * 4;
+        for codepoint: 33 .. 126 + 255
+        {
+          g0 := FONT_GetGlyph(xx codepoint, .Jacquard24,      xx scale);
+          g1 := FONT_GetGlyph(xx codepoint, .PlayfairDisplay, xx scale);
+        }
       }
     }
   }
 
-  if !G.headless
-  {
-    if G.dev.show || G.dev.noclip || !G.window_has_focus
-      G.grab_mouse = false;
-    else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse)
-      G.grab_mouse = true;
+  LaneSync();
 
+  // Client network / playback
+  if LaneIdx() == 0
+  {
+    CLIENT_IterateReceive();
+
+    {
+      #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+      #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+      tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+
+      for MakeRange(tick_count)
+      {
+        G.client.playback_tick += 1;
+        CLIENT_PlayTick();
+      }
+      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
+    }
+
+    CLIENT_IterateSend();
+  }
+
+  LaneSync();
+
+  // UI work
+  UI_LANE_IDX :: 1;
+  if LaneIdx() == LaneFromTaskIdx(UI_LANE_IDX)
+  {
+    if !G.headless
     {
       PerfScope("UI workload");
       UI_DeveloperKeyShortcuts();
@@ -193,7 +221,11 @@ GAME_Iterate :: ()
       UI_BuildDeveloperWindow();
       UI_FinishBoxLayout();
     }
+  }
 
+  // Calculate mouse input and camera
+  if LaneIdx() == 0 && !G.headless
+  {
     if G.dev.noclip
     {
       if KEY_Held(.MOUSE_LEFT)
@@ -246,35 +278,11 @@ GAME_Iterate :: ()
       }
 
       player := OBJ_Get(.NETWORK, G.client.player_key);
-      if KEY_Held(.SPACE) ||
-         G.frame_number < 10 // temp hack to center camera on player on startup
+      if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
       {
         G.camera_p.xy = player.s.p.xy;
         G.camera_p.x -= 8.5;
       }
-    }
-
-    // Sun things
-    {
-      // Move sun
-      sun_time := G.at*4.0;
-      sun_time = 6.0;
-
-      sun_x := Sin(0.5 + sun_time * 0.03);
-      sun_y := Cos(0.5 + sun_time * 0.03);
-      towards_sun_dir := normalize(V3.{sun_x, sun_y, 2.0});
-      G.sun_dir = -towards_sun_dir;
-
-      sun_dist := towards_sun_dir * 40.0;
-      G.sun_camera_p = G.camera_p + sun_dist;
-      OBJ_Get(.OFFLINE, context.R.obj.sun).s.p = G.sun_camera_p;
-
-      transl := TranslationMatrix(-G.sun_camera_p);
-      rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
-
-      dim := 20.0;
-      projection := OrthographicMatrix(-dim, dim, -dim, dim, 30.0, 100.0);
-      G.sun_camera_transform = projection * (rot * transl);
     }
 
     // calculate camera transform matrices
@@ -323,57 +331,94 @@ GAME_Iterate :: ()
         G.world_mouse = V3.{xy = world_mouse.xy, z = 0}; // @todo pass real Z?
       }
     }
+  }
 
+  // Move the sun object
+  if LaneIdx() == 0
+  {
+    // Move sun
+    sun_time := G.at*4.0;
+    sun_time = 6.0;
+
+    sun_x := Sin(0.5 + sun_time * 0.03);
+    sun_y := Cos(0.5 + sun_time * 0.03);
+    towards_sun_dir := normalize(V3.{sun_x, sun_y, 2.0});
+    G.sun_dir = -towards_sun_dir;
+
+    sun_dist := towards_sun_dir * 40.0;
+    G.sun_camera_p = G.camera_p + sun_dist;
+    OBJ_Get(.OFFLINE, context.R.obj.sun).s.p = G.sun_camera_p;
+
+    transl := TranslationMatrix(-G.sun_camera_p);
+    rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
+
+    dim := 20.0;
+    projection := OrthographicMatrix(-dim, dim, -dim, dim, 30.0, 100.0);
+    G.sun_camera_transform = projection * (rot * transl);
+  }
+
+  // Calculate animations
+  if LaneIdx() == LaneFromTaskIdx(2) && !G.headless
+  {
     ANIMATION_AnimateObjects();
+  }
+
+  // Play sounds
+  if LaneIdx() == LaneFromTaskIdx(3) && !G.headless
+  {
     AUDIO_PlayObjectSounds();
+  }
 
-    // Process gameplay actions
+  // Prepare client player input and send it
+  if LaneIdx() == 0 && !G.headless
+  {
+    action := *G.client.action;
+    action.skills = 0;
+
+    move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
+    move_pressed := KEY_Pressed(..move_buttons);
+    move_held := KEY_Held(..move_buttons, held_for = 0.25);
+
+    if KEY_Pressed(.Q) action.skills |= .Q;
+    if KEY_Pressed(.W) action.skills |= .W;
+    if KEY_Pressed(.E) action.skills |= .E;
+    if KEY_Pressed(.R) action.skills |= .R;
+
+    if G.world_mouse_valid
     {
-      action := *G.client.action;
-      action.skills = 0;
+      self := OBJ_Get(.NETWORK, G.client.player_key);
+      hovered_obj := OBJ_Get(.ALL, G.hover_object);
+      hovers_enemy := OBJ_Test2(hovered_obj, self,
+                                .{require_flags = .TARGETABLE,
+                                  common = .IS_ALIVE,
+                                  common2 = .ARE_ENEMIES});
 
-      move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
-      move_pressed := KEY_Pressed(..move_buttons);
-      move_held := KEY_Held(..move_buttons, held_for = 0.25);
-
-      if KEY_Pressed(.Q) action.skills |= .Q;
-      if KEY_Pressed(.W) action.skills |= .W;
-      if KEY_Pressed(.E) action.skills |= .E;
-      if KEY_Pressed(.R) action.skills |= .R;
-
-      if G.world_mouse_valid
+      if move_pressed && hovers_enemy
       {
-        self := OBJ_Get(.NETWORK, G.client.player_key);
-        hovered_obj := OBJ_Get(.ALL, G.hover_object);
-        hovers_enemy := OBJ_Test2(hovered_obj, self,
-                                  .{require_flags = .TARGETABLE,
-                                    common = .IS_ALIVE,
-                                    common2 = .ARE_ENEMIES});
+        action.type = .ATTACK;
+        action.target_object = G.hover_object;
+        action.world_p = G.world_mouse;
+      }
 
-        if move_pressed && hovers_enemy
+      if (move_pressed && !hovers_enemy) || (move_held && action.type == .PATHING)
+      {
+        action.type = .PATHING;
+        action.world_p = G.world_mouse;
+        action.target_object = .{};
+        if move_pressed
         {
-          action.type = .ATTACK;
-          action.target_object = G.hover_object;
-          action.world_p = G.world_mouse;
-        }
-
-        if (move_pressed && !hovers_enemy) ||
-           (move_held && action.type == .PATHING)
-        {
-          action.type = .PATHING;
-          action.world_p = G.world_mouse;
-          action.target_object = .{};
-          if move_pressed
-          {
-            marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
-            if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
-          }
+          marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
+          if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
         }
       }
     }
 
     CLIENT_FlushActionTick();
+  }
 
+  // Update marker object
+  if LaneIdx() == 0 && !G.headless
+  {
     marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
@@ -391,12 +436,22 @@ GAME_Iterate :: ()
         context.R.obj.pathing_marker_set = false;
       }
     }
+  }
 
+  // Play debug sound
+  if LaneIdx() == 0 && !G.headless
+  {
     if KEY_Pressed(.M)
     {
       AUDIO_PlaySound(.HIT);
     }
+  }
 
+  LaneSync();
+
+  // Post frame work
+  if LaneIdx() == 0 && !G.headless
+  {
     WORLD_DrawObjects();
     UI_Translate3DShapes();
     UI_ProcessBoxRenderCommands();
@@ -413,9 +468,11 @@ GAME_Iterate :: ()
   }
 
   // Post frame logic
-  STATS_PostFrame();
-  LOG_FileFlush();
-  reset_temporary_storage();
+  if LaneIdx() == 0
+  {
+    STATS_PostFrame();
+    LOG_FileFlush();
+  }
 
   if !G.time_finished_first_iterate
   {
@@ -430,6 +487,9 @@ GAME_Iterate :: ()
     first_iter := G.time_finished_first_iterate - G.time_init_finished;
     log("[TIMING] First iteration (excluding init): %ms", ms(first_iter));
   }
+
+  LaneSync();
+  reset_temporary_storage();
 
   if G.headless
   {
