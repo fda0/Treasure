@@ -1,7 +1,7 @@
 main :: ()
 {
   PLATFORM_Init();
-  push_context PatchContext(.CLIENT)
+  push_context CreateContextWithRole(.CLIENT)
   {
     PLATFORM_Iterate();
   }

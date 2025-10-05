@@ -6,10 +6,14 @@ PerfColor :: PERFORMANCEAPI_MAKE_COLOR;
 PerfDefaultColor :: PERFORMANCEAPI_DEFAULT_COLOR;
 
 #if ENABLE_PROFILER == false {
+
   PerfScope :: (#discard name: string, #discard color := PerfDefaultColor) #expand #no_debug {}
   PerfFunc :: (#discard color := PerfDefaultColor) #expand #no_debug {}
   PerfInit :: () #expand #no_debug {}
+  PerfThreadName :: (#discard name: string) #expand #no_debug {}
+
 } else { // ENABLE_PROFILER == true
+
   PerfScope :: (name: string, color := PerfDefaultColor) #expand #no_debug
   {
     PerfFuncs.BeginEventN(name.data, xx name.count, null, 0, color);
@@ -21,6 +25,11 @@ PerfDefaultColor :: PERFORMANCEAPI_DEFAULT_COLOR;
     name := #procedure_name();
     PerfFuncs.BeginEventN(name.data, xx name.count, null, 0, color);
     `defer PerfFuncs.EndEvent();
+  }
+
+  PerfThreadName :: (name: string)
+  {
+    PerfFuncs.SetCurrentThreadNameN(name.data, xx name.count);
   }
 
   PerfInit :: ()

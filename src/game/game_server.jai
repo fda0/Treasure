@@ -1,7 +1,7 @@
 SERVER_State :: struct
 {
   enabled: bool;
-  occ: RoleState;
+  role_state: RoleState;
 
   thread: Thread;
   local_user_packets: NET_LocalPackets;
@@ -12,7 +12,7 @@ SERVER_State :: struct
 
 SERVER_Start :: ()
 {
-  push_context PatchContext(.SERVER)
+  push_context CreateContextWithRole(.SERVER)
   {
     log("Launching as server");
     OBJ_Init();
@@ -81,11 +81,13 @@ SERVER_User :: struct
 
 SERVER_ThreadEntry :: (thread: *Thread) -> s64
 {
+  PerfThreadName("TR server");
   assert(context.role == .SERVER);
   timestamp_accumulator: Timestamp;
 
   while true
   {
+    PerfScope("Server iteration");
     SERVER_IterateReceive();
 
     simulation_tick_count: Timestamp;

@@ -96,7 +96,7 @@ GAME_Init :: ()
     HOT_RELOAD_InitWatcher();
   }
 
-  if GAME_ClientEnabled() push_context PatchContext(.CLIENT)
+  if GAME_ClientEnabled() push_context CreateContextWithRole(.CLIENT)
   {
     context.R.frame_timestamp = GetTimestamp(.NOW);
     CLIENT_Init();
@@ -154,15 +154,12 @@ GAME_Iterate :: ()
     tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
     G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
-    if GAME_ClientEnabled() push_context PatchContext(.CLIENT)
+    for MakeRange(tick_count)
     {
-      for MakeRange(tick_count)
-      {
-        G.client.playback_tick += 1;
-        CLIENT_PlayTick();
-      }
-      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
+      G.client.playback_tick += 1;
+      CLIENT_PlayTick();
     }
+    Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
   }
 
   CLIENT_IterateSend();

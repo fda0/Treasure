@@ -858,7 +858,7 @@ LayoutBegin :: (new_spec: LayoutSpec)
     if not_held then active_key = .{};
   }
 
-  xar_reset(*single_use_storage);
+  single_use_storage.count = 0;
 
   init(*seed_increments, boxes_count*2 + 1024); // @todo this just leaks memory atm? api of the table could be better here?
   for box_table

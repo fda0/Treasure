@@ -11,7 +11,7 @@ SIM_AdvanceByTick :: ()
   PerfFunc();
   assert(GAME_ServerEnabled());
 
-  if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 15.0
+  if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 40.0
   {
     G.sleepers_spawned_in_group_count = 0;
     G.last_sleeper_group_spawn = GetServerTick();

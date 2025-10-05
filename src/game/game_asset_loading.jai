@@ -24,7 +24,7 @@ ASSET_InitPostGPU :: ()
   {
     using G.ast;
     init(*tex_semaphore);
-    thread_init(*tex_thread, ASSET_TextureThread);
+    thread_init(*tex_thread, ASSET_TextureThreadEntry);
     thread_start(*tex_thread);
   }
 }
@@ -76,8 +76,10 @@ ASSET_InitSounds :: ()
 }
 
 // TEXTURE THREAD
-ASSET_TextureThread :: (thread: *Thread) -> s64
+ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
 {
+  PerfThreadName("TR texture loading");
+
   // This thread just touched the same global data as the main thread.
   // Any false-sharing etc wasn't a concern when making this and it could be improved.
   while true

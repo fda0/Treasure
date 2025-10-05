@@ -14,13 +14,28 @@ RoleState :: struct
   obj: OBJ_State;
 }
 
-PatchContext :: (role: Role) -> (result: #Context)
+CreateContextWithRole :: (role: Role) -> (result: #Context)
 {
   ctx := context;
   ctx.role = role;
 
-  if      role == .SERVER  ctx.R = *G.client.occ;
-  else if role == .CLIENT  ctx.R = *G.server.occ;
+  if      role == .SERVER  ctx.R = *G.client.role_state;
+  else if role == .CLIENT  ctx.R = *G.server.role_state;
   else                             assert(false);
   return ctx;
+}
+
+LaneCtx :: struct
+{
+  lane_id: s64;
+  lane_count: s64;
+}
+
+WINDOWS :: #import "Windows";
+
+// Barrier ::
+
+BarrierWait :: ()
+{
+
 }

@@ -1,7 +1,7 @@
 CLIENT_State :: struct
 {
   enabled: bool;
-  occ: RoleState;
+  role_state: RoleState;
 
   server_connection: NET_Connection;
   local_server_packets: NET_LocalPackets;
