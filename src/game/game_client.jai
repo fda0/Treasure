@@ -8,8 +8,8 @@ CLIENT_State :: struct
 
   // client actions sent to the server
   action_tick: Tick;
-  action: Action; // Accumulates actions. Flushed to client.action_queue once in a while.
-  action_queue: Queue(NET_MAX_ACTION_COUNT, Action);
+  action: InputAction; // Accumulates actions. Flushed to client.action_queue once in a while.
+  action_queue: Queue(NET_MAX_ACTION_COUNT, InputAction);
 
   // playback state received from the server
   playback_tick: Tick;
@@ -248,7 +248,7 @@ CLIENT_IterateSend :: ()
   }
 
   {
-    payload: PACKET_Actions;
+    payload: PACKET_InputActions;
     for * payload.actions
     {
       it.* = QueuePeek(G.client.action_queue, it_index);

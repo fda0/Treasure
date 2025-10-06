@@ -1,4 +1,4 @@
-Action :: struct
+InputAction :: struct
 {
   type: enum
   {

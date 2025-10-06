@@ -28,7 +28,7 @@ SERVER_Start :: ()
   }
 }
 
-SERVER_GetNextUserAction :: (user: *SERVER_User) -> Action
+SERVER_GetNextUserInputAction :: (user: *SERVER_User) -> InputAction
 {
   PerfFunc();
   top_delay: float;
@@ -68,13 +68,13 @@ SERVER_User :: struct
   key: OBJ_Key;
 
   received_actions: Queue(NET_MAX_ACTION_COUNT, ReceivedAction);
-  last_action: Action;
+  last_action: InputAction;
   latest_received_timestamp: Timestamp;
   latest_client_tick: Tick;
 
   ReceivedAction :: struct
   {
-    action: Action;
+    action: InputAction;
     delay_since_last_received_action: float;
   }
 };
@@ -328,7 +328,7 @@ SERVER_IterateReceive :: ()
   }
 }
 
-SERVER_ReceiveUserActions :: (player: *SERVER_User, net_msg: *PACKET_Actions, client_tick: Tick)
+SERVER_ReceiveUserInputActions :: (player: *SERVER_User, net_msg: *PACKET_InputActions, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -396,11 +396,11 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
     {
       ping := PACKET_Consume(PACKET_Ping, *msg);
     }
-    else if msg_type == .Actions
+    else if msg_type == .InputActions
     {
-      in_net := PACKET_Consume(PACKET_Actions, *msg);
+      in_net := PACKET_Consume(PACKET_InputActions, *msg);
       user := *G.server.users[player_id];
-      SERVER_ReceiveUserActions(user, *in_net, from_tick);
+      SERVER_ReceiveUserInputActions(user, *in_net, from_tick);
     }
     else
     {

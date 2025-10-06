@@ -77,6 +77,7 @@ OBJ_Flags :: enum_flags u32
   IS_TURRET;
   TARGETED_PROJECTILE;
   HAS_ACTION;
+  HAS_ACTIVITY;
   DELETE_ON_DEATH;
   RESPAWN;
 };
@@ -88,6 +89,21 @@ OBJ_Team :: enum u8
   RED;
 }
 BOTH_TEAMS :: OBJ_Team.[.BLUE, .RED];
+
+OBJ_Activity :: struct
+{
+  is_walking: bool;
+  wants_to_attack: bool;
+  is_attacking: bool;
+
+  walking_to: V2;
+
+  attack_t: float;
+  visual_attack_t: float;
+
+  target: OBJ_Key;
+  last_projectile: OBJ_Key;
+}
 
 OBJ_Sync :: struct
 {
@@ -113,15 +129,11 @@ OBJ_Sync :: struct
   attack_cooldown_t := 1.0;
 
   // game state
-  is_attacking: bool;
-  target: OBJ_Key;
-  last_projectile: OBJ_Key;
-  attack_t: float;
-  attack_continous_t: float;
+  activity: OBJ_Activity;
   animation_requests: Queue(3, ANIMATION_Request);
   sound_requests: Queue(3, AUDIO_Request);
 
-  action: Action; // what object is trying to do currently
+  input_action: InputAction; // what object is trying to do currently
   skill_cooldowns: [4] float;
 
   // visuals
@@ -592,7 +604,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
 {
   obj := OBJ_Create(storage,
     .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTION | .RESPAWN);
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTION | .HAS_ACTIVITY | .RESPAWN);
 
   if !OBJ_IsNil(obj)
   {

@@ -37,12 +37,13 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 {
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
+  LaneSync();
 
   while !G.in_shutdown
   {
-    LaneSync();
     if (LaneIdx() == 0) PLATFORM_PreIterate();
     GAME_Iterate();
+    LaneSync();
   }
   return 0;
 }
