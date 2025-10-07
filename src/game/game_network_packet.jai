@@ -21,7 +21,7 @@ PACKET_Type :: enum u32
   ObjUpdate;
   ObjEmpty;
   NetworkTest;
-  InputActions;
+  PlayerInput;
   AssignPlayerKey;
   WindowLayout;
 };
@@ -45,10 +45,10 @@ PACKET_ObjEmpty :: struct
   net_index: u32;
 };
 
-PACKET_InputActions :: struct
+PACKET_PlayerInput :: struct
 {
-  PT := PACKET_Type.InputActions;
-  actions: [NET_MAX_ACTION_COUNT] InputAction;
+  PT := PACKET_Type.PlayerInput;
+  inputs: [NET_MAX_PLAYER_INPUT_COUNT] PlayerInput;
 };
 
 PACKET_AssignPlayerKey :: struct

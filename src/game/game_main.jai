@@ -58,7 +58,6 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_ui_player.jai";
 #load "game_time.jai";
 #load "game_key.jai";
-#load "game_action.jai";
 #load "game_animation.jai";
 #load "game_asset.jai";
 #load "game_asset_loading.jai";

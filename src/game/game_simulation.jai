@@ -6,6 +6,22 @@ MINIMUM_MOVE_START_DISTANCE :: 0.05;
 MELEE_ATTACK_DISTANCE :: 0.8;
 PROJECTILE_HIT_DISTANCE :: 0.1;
 
+PlayerInput :: struct
+{
+  type: enum
+  {
+    IDLE;
+    PATHING;
+    ATTACK;
+    SKILL_Q;
+  }
+
+  world_p: V3; // used by PATHING*
+  target_object: OBJ_Key; // used by ATTACK
+
+  skills: enum_flags u8 { Q; W; E; R; }
+}
+
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
@@ -61,18 +77,19 @@ SIM_AdvanceByTick :: ()
     player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 20.0, player.s.max_hp);
   }
 
-  // transfer action to player objects
+  // transfer input to player objects
   for *G.server.users
   {
     player := OBJ_Get(.NETWORK, it.key);
     if OBJ_IsNil(player) continue;
-    player.s.input_action = SERVER_GetNextUserInputAction(it);
+
+    input := SERVER_GetNextPlayerInput(it);
+    SIM_ApplyInputsToObject(player, input);
   }
 
-  // apply actions
+  // Advance state machine
   for *obj: context.R.obj.network_objects
   {
-    SIM_ProcessObjectActions(obj);
     SIM_ProcessStateMachine(obj);
   }
 
@@ -245,13 +262,11 @@ SIM_AdvanceByTick :: ()
   }
 }
 
-SIM_ProcessObjectActions :: (obj: *Object)
+SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 {
   if OBJ_IsNil(obj) return;
-  if !OBJ_HasAnyFlag(obj, .HAS_ACTION) return;
 
   obj.s.desired_dp = .{};
-  action := *obj.s.input_action;
   state_machine := *obj.s.state_machine;
 
   if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
@@ -260,34 +275,34 @@ SIM_ProcessObjectActions :: (obj: *Object)
     return;
   }
 
-  if action.skills & .Q
+  if input.skills & .Q
   {
     // @todo launch a skillshot projectile
   }
 
-  if action.skills & .W
+  if input.skills & .W
   {
     obj.s.move_speed += 2.0;
   }
 
-  if action.skills & .E
+  if input.skills & .E
   {
     // @todo blink somewhere and deal dmg
   }
 
   // ATTACK yes/no
-  if action.type == .ATTACK
+  if input.type == .ATTACK
   {
     state_machine.wants_to_attack = true;
 
-    if state_machine.target != action.target_object
+    if state_machine.target != input.target_object
     {
       state_machine.is_attacking = false;
       state_machine.attack_t = min(state_machine.attack_t, 0.0);
     }
-    state_machine.target = action.target_object;
+    state_machine.target = input.target_object;
   }
-  if action.type != .ATTACK
+  if input.type != .ATTACK
   {
     state_machine.wants_to_attack = false;
     state_machine.is_attacking = false;
@@ -296,12 +311,12 @@ SIM_ProcessObjectActions :: (obj: *Object)
 
   // PATHING yes/no
   pathing_direction: V2;
-  if action.type == .PATHING
+  if input.type == .PATHING
   {
     state_machine.is_walking = true;
-    state_machine.walking_to = action.world_p.xy;
+    state_machine.walking_to = input.world_p.xy;
   }
-  if action.type != .PATHING
+  if input.type != .PATHING
   {
     state_machine.is_walking = false;
     state_machine.walking_to = .{};

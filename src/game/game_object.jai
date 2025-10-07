@@ -76,7 +76,6 @@ OBJ_Flags :: enum_flags u32
   PLAY_SOUNDS;
   IS_TURRET;
   TARGETED_PROJECTILE;
-  HAS_ACTION;
   HAS_ACTIVITY;
   DELETE_ON_DEATH;
   RESPAWN;
@@ -133,7 +132,6 @@ OBJ_Sync :: struct
   animation_requests: Queue(3, ANIMATION_Request);
   sound_requests: Queue(3, AUDIO_Request);
 
-  input_action: InputAction; // what object is trying to do currently
   skill_cooldowns: [4] float;
 
   // visuals
@@ -604,7 +602,7 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
 {
   obj := OBJ_Create(storage,
     .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTION | .HAS_ACTIVITY | .RESPAWN);
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
 
   if !OBJ_IsNil(obj)
   {

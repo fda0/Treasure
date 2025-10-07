@@ -28,35 +28,35 @@ SERVER_Start :: ()
   }
 }
 
-SERVER_GetNextUserInputAction :: (user: *SERVER_User) -> InputAction
+SERVER_GetNextPlayerInput :: (user: *SERVER_User) -> PlayerInput
 {
   PerfFunc();
   top_delay: float;
-  for user.received_actions
+  for user.received_inputs
   {
-    top_delay = max(it.delay_since_last_received_action, top_delay);
+    top_delay = max(it.delay_since_last_received_input, top_delay);
   }
 
-  Post(.SERVER_GET_USER_ACTION_QUEUE_SIZE, QueueCount(user.received_actions));
+  Post(.SERVER_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
 
-  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_actions));
-  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_actions) - 1;
+  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_inputs));
+  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_inputs) - 1;
   for MakeRange(remove_old_items_count)
   {
-    log("remove_old_items_count = %; QueueCount(user.received_actions): %, top_delay %; TICK_FLOAT_STEP %",
-        remove_old_items_count, QueueCount(user.received_actions), top_delay, TICK_FLOAT_STEP);
+    log("remove_old_items_count = %; QueueCount(user.received_inputs): %, top_delay %; TICK_FLOAT_STEP %",
+        remove_old_items_count, QueueCount(user.received_inputs), top_delay, TICK_FLOAT_STEP);
     // @todo merging
-    QueuePop(*user.received_actions);
+    QueuePop(*user.received_inputs);
   }
 
-  received_action, did_pop := QueuePop(*user.received_actions);
+  received_input, did_pop := QueuePop(*user.received_inputs);
 
-  result := received_action.action;
-  if did_pop then user.last_action = received_action.action;
+  result := received_input.input;
+  if did_pop then user.last_input = received_input.input;
   else
   {
     // @todo more advanced extrapolation?
-    result = user.last_action;
+    result = user.last_input;
   }
   return result;
 }
@@ -67,15 +67,15 @@ SERVER_User :: struct
   connection: NET_Connection;
   key: OBJ_Key;
 
-  received_actions: Queue(NET_MAX_ACTION_COUNT, ReceivedAction);
-  last_action: InputAction;
+  received_inputs: Queue(NET_MAX_PLAYER_INPUT_COUNT, ReceivedInput);
+  last_input: PlayerInput;
   latest_received_timestamp: Timestamp;
   latest_client_tick: Tick;
 
-  ReceivedAction :: struct
+  ReceivedInput :: struct
   {
-    action: InputAction;
-    delay_since_last_received_action: float;
+    input: PlayerInput;
+    delay_since_last_received_input: float;
   }
 };
 
@@ -328,37 +328,37 @@ SERVER_IterateReceive :: ()
   }
 }
 
-SERVER_ReceiveUserInputActions :: (player: *SERVER_User, net_msg: *PACKET_InputActions, client_tick: Tick)
+SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_PlayerInput, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
 
-  // log("Client tick %; actions: %", client_tick, net_msg.actions);
+  // log("Client tick %; inputs: %", client_tick, net_msg.inputs);
 
-  new_actions := ArrayPrefix(net_msg.actions, xx client_tick); // For initial client ticks only the first elements of action buffer will be filled. Truncate the array to skip these unitialized elements.
+  new_inputs := ArrayPrefix(net_msg.inputs, xx client_tick); // For initial client ticks only the first elements of input buffer will be filled. Truncate the array to skip these unitialized elements.
 
   end_tick := client_tick;
-  start_tick := end_tick - xx new_actions.count;
+  start_tick := end_tick - xx new_inputs.count;
 
   if player.latest_client_tick >= start_tick
   {
     stale_ticks_count := player.latest_client_tick - start_tick + 1;
 
-    new_actions = ArraySkip(new_actions, xx stale_ticks_count);
+    new_inputs = ArraySkip(new_inputs, xx stale_ticks_count);
     start_tick += stale_ticks_count;
   }
 
-  if !new_actions.count then return; // no new actions
+  if !new_inputs.count then return; // no new inputs
 
-  for new_actions
+  for new_inputs
   {
     now := GetTimestamp();
-    received := SERVER_User.ReceivedAction.{
+    received := SERVER_User.ReceivedInput.{
       it, ElapsedSeconds(player.latest_received_timestamp, now, false)
     };
     player.latest_received_timestamp = now;
 
-    QueuePush(*player.received_actions, received);
+    QueuePush(*player.received_inputs, received);
   }
 
   player.latest_client_tick = client_tick;
@@ -396,11 +396,11 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
     {
       ping := PACKET_Consume(PACKET_Ping, *msg);
     }
-    else if msg_type == .InputActions
+    else if msg_type == .PlayerInput
     {
-      in_net := PACKET_Consume(PACKET_InputActions, *msg);
+      in_net := PACKET_Consume(PACKET_PlayerInput, *msg);
       user := *G.server.users[player_id];
-      SERVER_ReceiveUserInputActions(user, *in_net, from_tick);
+      SERVER_ReceiveUserPlayerInputs(user, *in_net, from_tick);
     }
     else
     {

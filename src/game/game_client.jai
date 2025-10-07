@@ -6,10 +6,10 @@ CLIENT_State :: struct
   server_connection: NET_Connection;
   local_server_packets: NET_LocalPackets;
 
-  // client actions sent to the server
-  action_tick: Tick;
-  action: InputAction; // Accumulates actions. Flushed to client.action_queue once in a while.
-  action_queue: Queue(NET_MAX_ACTION_COUNT, InputAction);
+  // client inputs sent to the server
+  input_tick: Tick;
+  input: PlayerInput; // Accumulates inputs. Flushed to client.input_queue once in a while.
+  input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
   // playback state received from the server
   playback_tick: Tick;
@@ -69,12 +69,12 @@ CLIENT_Init :: ()
   }
 }
 
-CLIENT_FlushActionTick :: ()
+CLIENT_FlushPlayerInput :: ()
 {
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
-  G.client.action_tick += 1;
-  QueuePush(*G.client.action_queue, G.client.action);
+  G.client.input_tick += 1;
+  QueuePush(*G.client.input_queue, G.client.input);
   // @todo clear skills queue once it exsits in Action
 }
 
@@ -243,18 +243,18 @@ CLIENT_IterateSend :: ()
 
   {
     ping: PACKET_Ping;
-    packet := PACKET_Create(GetClientActionTick(), ping);
+    packet := PACKET_Create(GetClientInputTick(), ping);
     NET_SendPacket(packet, G.client.server_connection, false);
   }
 
   {
-    payload: PACKET_InputActions;
-    for * payload.actions
+    payload: PACKET_PlayerInput;
+    for * payload.inputs
     {
-      it.* = QueuePeek(G.client.action_queue, it_index);
+      it.* = QueuePeek(G.client.input_queue, it_index);
     }
 
-    packet := PACKET_Create(GetClientActionTick(), payload);
+    packet := PACKET_Create(GetClientInputTick(), payload);
     NET_SendPacket(packet, G.client.server_connection, false);
   }
 }

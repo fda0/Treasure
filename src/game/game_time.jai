@@ -53,10 +53,10 @@ FailSeconds :: (max_on_fail: bool) -> float
 Tick :: #type,distinct s64;
 Tick_MAX :: cast(Tick) S64_MAX;
 
-GetClientActionTick :: () -> Tick
+GetClientInputTick :: () -> Tick
 {
   assert(context.role == .CLIENT);
-  return G.client.action_tick;
+  return G.client.input_tick;
 }
 
 GetClientPlaybackTick :: () -> Tick

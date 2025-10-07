@@ -375,17 +375,17 @@ GAME_Iterate :: ()
   // Prepare client player input and send it
   if LaneIdx() == 0 && !G.headless
   {
-    action := *G.client.action;
-    action.skills = 0;
+    input := *G.client.input;
+    input.skills = 0;
 
     move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
     move_pressed := KEY_Pressed(..move_buttons);
     move_held := KEY_Held(..move_buttons, held_for = 0.25);
 
-    if KEY_Pressed(.Q) action.skills |= .Q;
-    if KEY_Pressed(.W) action.skills |= .W;
-    if KEY_Pressed(.E) action.skills |= .E;
-    if KEY_Pressed(.R) action.skills |= .R;
+    if KEY_Pressed(.Q) input.skills |= .Q;
+    if KEY_Pressed(.W) input.skills |= .W;
+    if KEY_Pressed(.E) input.skills |= .E;
+    if KEY_Pressed(.R) input.skills |= .R;
 
     if G.world_mouse_valid
     {
@@ -398,16 +398,16 @@ GAME_Iterate :: ()
 
       if move_pressed && hovers_enemy
       {
-        action.type = .ATTACK;
-        action.target_object = G.hover_object;
-        action.world_p = G.world_mouse;
+        input.type = .ATTACK;
+        input.target_object = G.hover_object;
+        input.world_p = G.world_mouse;
       }
 
-      if (move_pressed && !hovers_enemy) || (move_held && action.type == .PATHING)
+      if (move_pressed && !hovers_enemy) || (move_held && input.type == .PATHING)
       {
-        action.type = .PATHING;
-        action.world_p = G.world_mouse;
-        action.target_object = .{};
+        input.type = .PATHING;
+        input.world_p = G.world_mouse;
+        input.target_object = .{};
         if move_pressed
         {
           marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
@@ -416,7 +416,7 @@ GAME_Iterate :: ()
       }
     }
 
-    CLIENT_FlushActionTick();
+    CLIENT_FlushPlayerInput();
   }
 
   // Update marker object
@@ -425,11 +425,11 @@ GAME_Iterate :: ()
     marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if G.client.action.type == .PATHING
+      if G.client.input.type == .PATHING
       {
         marker.s.flags |= .DRAW_MODEL;
         marker.s.model = ModelKey("Flag");
-        marker.s.p = G.client.action.world_p;
+        marker.s.p = G.client.input.world_p;
         marker.l.animated_p.xy = marker.s.p.xy;
         context.R.obj.pathing_marker_set = true;
       }
