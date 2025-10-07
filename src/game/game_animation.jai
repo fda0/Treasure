@@ -193,13 +193,13 @@ ANIMATION_AnimateObjects :: ()
 
   for *obj: context.R.obj.all_objects
   {
-    activity := *obj.s.activity;
+    state_machine := *obj.s.state_machine;
     animate_rotation := OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION);
     animate_position := OBJ_HasAnyFlag(obj, .ANIMATE_POSITION);
 
     if OBJ_HasAnyFlag(obj, .IS_TURRET)
     {
-      t := WrapFloat(0.0, obj.s.attack_cooldown_t, activity.attack_t);
+      t := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.attack_t);
       max_t := min(1.25, obj.s.attack_cooldown_t);
       t = min(t, max_t) / max_t;
 
@@ -207,7 +207,7 @@ ANIMATION_AnimateObjects :: ()
       rot_t := EasingInOut(t, obj.s.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
       obj.l.animated_p.xy = obj.s.p.xy;
-      if activity.is_attacking || activity.attack_t < 0.0
+      if state_machine.is_attacking || state_machine.attack_t < 0.0
       {
         obj.l.animated_p.z = pos_t * 1.0;
         obj.l.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
@@ -292,21 +292,21 @@ ANIMATION_AnimateObjects :: ()
         }
 
         // Attack calculations
-        if !activity.is_attacking
+        if !state_machine.is_attacking
         {
           obj.l.animation_attack_hide_cooldown = true;
         }
-        if activity.is_attacking && activity.attack_t >= 0.0
+        if state_machine.is_attacking && state_machine.attack_t >= 0.0
         {
           obj.l.animation_attack_hide_cooldown = false;
         }
 
-        is_punching := activity.is_attacking && !obj.l.animation_attack_hide_cooldown;
+        is_punching := state_machine.is_attacking && !obj.l.animation_attack_hide_cooldown;
         AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
         AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
-        attack_normalized_t := WrapFloat(0.0, obj.s.attack_cooldown_t, activity.attack_t);
+        attack_normalized_t := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.attack_t);
         attack_normalized_t /= obj.s.attack_cooldown_t;
-        use_jab_animation := WrapFloat(0.0, obj.s.attack_cooldown_t*2, activity.visual_attack_t) > obj.s.attack_cooldown_t;
+        use_jab_animation := WrapFloat(0.0, obj.s.attack_cooldown_t*2, state_machine.visual_attack_t) > obj.s.attack_cooldown_t;
 
         // Fill animation tracks
         all_joints_are_masked := false;
