@@ -74,24 +74,13 @@ ANIMATION_Track :: struct
   weight: float;
 }
 
-ANIMATION_RecordFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *ANIMATION_Record
-{
-  return *skeleton.animation_records[type];
-}
-
-ANIMATION_FromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
-{
-  return *skeleton.animations[ANIMATION_RecordFromType(skeleton, type).animation_index];
-}
-
-
 ANIMATION_InitSkeletons :: ()
 {
   PerfFunc();
 
   MaskJoints :: (joint_name: string, value: float) #expand
   {
-    ANIMATION_WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
+    WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
   skeleton := GetModel(ModelKey("Dude")).skeleton;
@@ -199,7 +188,7 @@ ANIMATION_AnimateObjects :: ()
 
     if OBJ_HasAnyFlag(obj, .IS_TURRET)
     {
-      t := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.attack_t);
+      t := WrapFloat(state_machine.attack_t, 0.0, obj.s.attack_cooldown_t);
       max_t := min(1.25, obj.s.attack_cooldown_t);
       t = min(t, max_t) / max_t;
 
@@ -274,148 +263,185 @@ ANIMATION_AnimateObjects :: ()
 
     if OBJ_HasAnyFlag(obj, .ANIMATE_TRACKS)
     {
+      AS := *obj.l.animation_state;
       model := GetModel(obj.s.model);
       if model.is_skinned
       {
-        // Movement calculations
-        {
-          WALK_T_SPEED :: 0.016;
-          RUN_T_SPEED :: WALK_T_SPEED * 0.15;
+        WALK_T_SPEED :: 0.016;
+        WALK_TO_RUN :: 0.2;
+        RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
 
-          moved_distance := length(obj.s.moved_dp);
-          distance01_delta := moved_distance * WALK_T_SPEED * TICK_RATE;
-          obj.l.animation_distance01 = WrapFloat(0.0, 1.0, obj.l.animation_distance01 + distance01_delta);
-          AddClamp01(*obj.l.animation_moving_hot_t, (ifx moved_distance > 0 then G.dt else -G.dt) * 10);
+        moved_distance := length(obj.s.moved_dp);
+        moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo this is nonsense; this has to be multiplied by dt actually
 
-          if obj.l.animation_moving_hot_t == 0
-            obj.l.animation_distance01 = 0;
+        AS.walk_cycle += moved_cycle_delta;
+        AS.walk_cycle = WrapFloat(AS.walk_cycle, 0, 100);
+
+        is_walking_sign := Smoothstep(moved_distance, .00001*TICK_RATE, .00002*TICK_RATE)*2.0 - 1.0;
+        AS.is_walking += is_walking_sign * G.dt * 10.0;
+        AS.is_walking = clamp(AS.is_walking, 0.0, 1.0);
+
+        is_running_sign := Smoothstep(moved_distance, .0002*TICK_RATE, .00022*TICK_RATE)*2.0 - 1.0;
+        AS.is_running += is_running_sign * G.dt * 10.0;
+        AS.is_running = clamp(AS.is_running, 0.0, 1.0);
+
+        if (obj.s.key == G.client.player_key) {
+          log("moved_distance: %; is_walking_sign: %; AS.is_walking %", moved_distance, is_walking_sign, AS.is_walking);
+          log("is_running_sign: %; AS.is_running %", is_running_sign, AS.is_running);
         }
 
-        // Attack calculations
-        if !state_machine.is_attacking
-        {
-          obj.l.animation_attack_hide_cooldown = true;
-        }
-        if state_machine.is_attacking && state_machine.attack_t >= 0.0
-        {
-          obj.l.animation_attack_hide_cooldown = false;
-        }
+        AS.tracks[0].weight = 1.0;
+        AS.tracks[0].type = .IDLE;
+        AS.tracks[0].t += G.dt;
+        AS.tracks[0].t = WrapTime(model.skeleton, AS.tracks[0].type, AS.tracks[0].t);
 
-        is_punching := state_machine.is_attacking && !obj.l.animation_attack_hide_cooldown;
-        AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
-        AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
-        attack_normalized_t := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.attack_t);
-        attack_normalized_t /= obj.s.attack_cooldown_t;
-        use_jab_animation := WrapFloat(0.0, obj.s.attack_cooldown_t*2, state_machine.visual_attack_t) > obj.s.attack_cooldown_t;
+        AS.tracks[1].weight = AS.is_walking;
+        AS.tracks[1].type = .WALK;
+        walk_anim := AnimationFromType(model.skeleton, AS.tracks[1].type);
+        AS.tracks[1].t = (walk_anim.t_max - walk_anim.t_min) * WrapFloat(AS.walk_cycle, 0, 1) + walk_anim.t_min;
 
-        // Fill animation tracks
-        all_joints_are_masked := false;
-        for < *obj.l.animation_tracks
-        {
-          if all_joints_are_masked
-            it.weight = 0.0;
+        AS.tracks[2].weight = AS.is_running;
+        AS.tracks[2].type = .RUN;
+        run_anim := AnimationFromType(model.skeleton, AS.tracks[2].type);
+        AS.tracks[2].t = (run_anim.t_max - run_anim.t_min) * WrapFloat(AS.walk_cycle * WALK_TO_RUN, 0, 1) + run_anim.t_min;
 
-          anim_mode: ANIMATION_AdvanceMode = .MANUAL;
-          time: float;
+        #if 0 {
+          // Movement calculations
+          {
 
-          // Select an animation per slot
-          if it_index == 0
-          {
-            anim_mode = .TIME;
-            it.weight = 1.0;
-            it.type = .IDLE;
+            obj.l.animation_distance01 = WrapFloat(obj.l.animation_distance01 + distance01_delta, 0.0, 1.0);
+            AddClamp01(*obj.l.animation_moving_hot_t, (ifx moved_distance > 0 then G.dt else -G.dt) * 10);
+
+            if obj.l.animation_moving_hot_t == 0
+              obj.l.animation_distance01 = 0;
           }
-          else if it_index == 1
+
+          // Attack calculations
+          if !state_machine.is_attacking
           {
-            anim_mode = .DISTANCE;
-            it.weight = obj.l.animation_moving_hot_t;
-            it.type = .WALK;
+            obj.l.animation_attack_hide_cooldown = true;
           }
-          else if it_index == 2
+          if state_machine.is_attacking && state_machine.attack_t >= 0.0
           {
-            anim_mode = .DISTANCE;
-            it.weight = 0.0;
-            it.type = .RUN;
+            obj.l.animation_attack_hide_cooldown = false;
           }
-          else if it_index == 3
+
+          is_punching := state_machine.is_attacking && !obj.l.animation_attack_hide_cooldown;
+          AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
+          AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
+          attack_normalized_t := WrapFloat(state_machine.attack_t, 0.0, obj.s.attack_cooldown_t);
+          attack_normalized_t /= obj.s.attack_cooldown_t;
+          use_jab_animation := WrapFloat(state_machine.visual_attack_t, 0.0, obj.s.attack_cooldown_t*2) > obj.s.attack_cooldown_t;
+
+          // Fill animation tracks
+          all_joints_are_masked := false;
+          for < *obj.l.animation_tracks
           {
-            anim_mode = .MANUAL01;
-            it.type = ifx use_jab_animation then .JAB_HANDS else .PUNCH_HANDS;
-            it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
-            it.weight = obj.l.animation_hands_punching_hot_t;
-          }
-          else if it_index == 4
-          {
-            anim_mode = .MANUAL01;
-            it.type = ifx use_jab_animation then .JAB else .PUNCH;
-            it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
-            it.weight = obj.l.animation_full_punching_hot_t;
-          }
-          else if it_index == 5
-          {
-            anim_mode = .MANUAL01;
-            p := QueuePeek(obj.s.animation_requests, 2);
-            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
-            it.type = p.type;
-            it.t = pt;
-            it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
-          }
-          else if it_index == 6
-          {
-            anim_mode = .MANUAL01;
-            p := QueuePeek(obj.s.animation_requests, 1);
-            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
-            it.type = p.type;
-            it.t = pt;
-            it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
-          }
-          else if it_index == 7
-          {
-            anim_mode = .MANUAL01;
-            p := QueuePeek(obj.s.animation_requests, 0);
-            pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
-            it.type = p.type;
-            it.t = pt;
-            it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
-          }
-          else if it_index == 8
-          {
-            if obj.s.death_time
+            if all_joints_are_masked
+              it.weight = 0.0;
+
+            anim_mode: ANIMATION_AdvanceMode = .MANUAL;
+            time: float;
+
+            // Select an animation per slot
+            if it_index == 0
             {
-              it.type = .DEATH;
-              it.t = ElapsedSeconds(obj.s.death_time) * 1.0;
-              it.weight = min(1.0, it.t * 10.0);
+              anim_mode = .TIME;
+              it.weight = 1.0;
+              it.type = .IDLE;
             }
-            else it.weight = 0.0;
-          }
-          else
-          {
-            it.weight = 0.0;
-          }
+            else if it_index == 1
+            {
+              anim_mode = .DISTANCE;
+              it.weight = obj.l.animation_moving_hot_t;
+              it.type = .WALK;
+            }
+            else if it_index == 2
+            {
+              anim_mode = .DISTANCE;
+              it.weight = 0.0;
+              it.type = .RUN;
+            }
+            else if it_index == 3
+            {
+              anim_mode = .MANUAL01;
+              it.type = ifx use_jab_animation then .JAB_HANDS else .PUNCH_HANDS;
+              it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
+              it.weight = obj.l.animation_hands_punching_hot_t;
+            }
+            else if it_index == 4
+            {
+              anim_mode = .MANUAL01;
+              it.type = ifx use_jab_animation then .JAB else .PUNCH;
+              it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
+              it.weight = obj.l.animation_full_punching_hot_t;
+            }
+            else if it_index == 5
+            {
+              anim_mode = .MANUAL01;
+              p := QueuePeek(obj.s.animation_requests, 2);
+              pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
+              it.type = p.type;
+              it.t = pt;
+              it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
+            }
+            else if it_index == 6
+            {
+              anim_mode = .MANUAL01;
+              p := QueuePeek(obj.s.animation_requests, 1);
+              pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
+              it.type = p.type;
+              it.t = pt;
+              it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
+            }
+            else if it_index == 7
+            {
+              anim_mode = .MANUAL01;
+              p := QueuePeek(obj.s.animation_requests, 0);
+              pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
+              it.type = p.type;
+              it.t = pt;
+              it.weight = ifx pt <= 1.0 then 1.0 else 0.0;
+            }
+            else if it_index == 8
+            {
+              if obj.s.death_time
+              {
+                it.type = .DEATH;
+                it.t = ElapsedSeconds(obj.s.death_time) * 1.0;
+                it.weight = min(1.0, it.t * 10.0);
+              }
+              else it.weight = 0.0;
+            }
+            else
+            {
+              it.weight = 0.0;
+            }
 
 
-          // Advance T
-          if anim_mode == .DISTANCE
-          {
-            anim := ANIMATION_FromType(model.skeleton, it.type);
-            dist_t := (anim.t_max - anim.t_min) * obj.l.animation_distance01 + anim.t_min;
-            it.t = ANIMATION_WrapTime(model.skeleton, it.type, dist_t);
-          }
-          else if anim_mode == .TIME
-          {
-            it.t += G.dt;
-            it.t = ANIMATION_WrapTime(model.skeleton, it.type, it.t);
-          }
-          else if anim_mode == .MANUAL01
-          {
-            anim := ANIMATION_FromType(model.skeleton, it.type);
-            it.t = (anim.t_max - anim.t_min) * it.t + anim.t_min;
-          }
+            // Advance T
+            if anim_mode == .DISTANCE
+            {
+              anim := AnimationFromType(model.skeleton, it.type);
+              dist_t := (anim.t_max - anim.t_min) * obj.l.animation_distance01 + anim.t_min;
+              it.t = WrapTime(model.skeleton, it.type, dist_t);
+            }
+            else if anim_mode == .TIME
+            {
+              it.t += G.dt;
+              it.t = WrapTime(model.skeleton, it.type, it.t);
+            }
+            else if anim_mode == .MANUAL01
+            {
+              anim := AnimationFromType(model.skeleton, it.type);
+              it.t = (anim.t_max - anim.t_min) * it.t + anim.t_min;
+            }
 
 
-          record := ANIMATION_RecordFromType(model.skeleton, it.type);
-          if record.joint_weights.count == 0 && it.weight == 1.0
-            all_joints_are_masked = true;
+            record := RecordFromType(model.skeleton, it.type);
+            if record.joint_weights.count == 0 && it.weight == 1.0
+              all_joints_are_masked = true;
+          }
         }
 
 
@@ -455,7 +481,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
       translations = array_copy(skeleton.bind_translations,, temp);
     }
 
-    record := ANIMATION_RecordFromType(skeleton, param.type);
+    record := RecordFromType(skeleton, param.type);
 
     // Overwrite translations, rotations, scales with values from animation
     {
@@ -549,7 +575,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
     it.* = trans * (rot * scale);
   }
 
-  ANIMATION_WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
+  WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
 
   for *result_matrices
     it.* = it.* * skeleton.inverse_matrices[it_index];
@@ -557,25 +583,29 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
   return result_matrices;
 }
 
-ANIMATION_WrapTime :: (skeleton: Skeleton, anim_index: s32, time: float) -> float
+#scope_file;
+RecordFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *ANIMATION_Record
 {
-  if anim_index < skeleton.animations.count
-  {
-    anim := skeleton.animations[anim_index];
-    time = WrapFloat(anim.t_min, anim.t_max, time);
-  }
-  else
-  {
-    time = 0;
-  }
-  return time;
-}
-ANIMATION_WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, time: float) -> float
-{
-  return ANIMATION_WrapTime(skeleton, skeleton.animation_records[type].animation_index, time);
+  return *skeleton.animation_records[type];
 }
 
-ANIMATION_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
+AnimationFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
+{
+  return *skeleton.animations[RecordFromType(skeleton, type).animation_index];
+}
+
+WrapTime :: (skeleton: Skeleton, anim_index: s32, time: float) -> float
+{
+  anim := skeleton.animations[anim_index];
+  time = WrapFloat(time, anim.t_min, anim.t_max);
+  return time;
+}
+WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, time: float) -> float
+{
+  return WrapTime(skeleton, skeleton.animation_records[type].animation_index, time);
+}
+
+WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
   skeleton: Skeleton, joint_index: u32, values: [] $T, parent_value: T)
 {
   // This function traverses skeleton joint hierarchy from root joint to children.
@@ -601,7 +631,7 @@ ANIMATION_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
     }
 
     child_joint_index := skeleton.child_index_buffer[it];
-    ANIMATION_WaterfallToChildren(mode, skeleton, child_joint_index, values, values[joint_index]);
+    WaterfallToChildren(mode, skeleton, child_joint_index, values, values[joint_index]);
   }
 }
 

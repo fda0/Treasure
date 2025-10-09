@@ -396,11 +396,11 @@ SIM_ProcessStateMachine :: (obj: *Object)
   {
     if state_machine.visual_attack_t != 0.0
     {
-      wrapped := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.visual_attack_t);
+      wrapped := WrapFloat(obj.s.attack_cooldown_t, state_machine.visual_attack_t, 0.0);
       dir := ifx wrapped >= obj.s.attack_landed_t then 1.0 else -1.0;
       state_machine.visual_attack_t += dir * attack_t_delta;
 
-      wrapped2 := WrapFloat(0.0, obj.s.attack_cooldown_t, state_machine.visual_attack_t);
+      wrapped2 := WrapFloat(state_machine.visual_attack_t, 0.0, obj.s.attack_cooldown_t);
       dir2 := ifx wrapped2 >= obj.s.attack_landed_t then 1.0 else -1.0;
 
       if (dir != dir2) state_machine.visual_attack_t = 0.0;

@@ -126,7 +126,7 @@ GAME_Iterate :: ()
     G.frame_number += 1;
     G.tick_timestamp_accumulator += delta_timestamp;
     G.dt = delta_timestamp * 0.001;
-    G.at = WrapFloat(0, 1000, G.at + G.dt);
+    G.at = WrapFloat(G.at + G.dt, 0, 1000);
 
     Post(.DELTA_TIMESTMAP_MS, xx delta_timestamp);
     Post(.TEST_FRAME_NUMBER, G.frame_number);
@@ -345,7 +345,7 @@ GAME_CalculateCameraAndMouseThings :: ()
       rot_speed := 0.0004;
       G.camera_angles.z += rot_speed * G.mouse_delta.x;
       G.camera_angles.y += rot_speed * G.mouse_delta.y * (-2.0 / 3.0);
-      G.camera_angles.z = WrapFloat(-0.5, 0.5, G.camera_angles.z);
+      G.camera_angles.z = WrapFloat(G.camera_angles.z, -0.5, 0.5);
       G.camera_angles.y = clamp(G.camera_angles.y, -0.2, 0.2);
     }
 

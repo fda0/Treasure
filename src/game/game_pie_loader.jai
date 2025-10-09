@@ -26,7 +26,7 @@ PIE_LOAD_Check :: (expr: bool, msg_code: Code, critical := true) -> bool #expand
 //
 PIE_LOAD_OffsetSizeToString :: (offset: s64, size: s64) -> string
 {
-  result := Substring(PIE_LOAD_File(), offset, offset+size);
+  result := Substr(PIE_LOAD_File(), offset, size);
   PIE_LOAD_Check(result.count == size,
     tprint("Out of bounds access. Offset: %, size: %. File size: %.", offset, size, PIE_LOAD_File().count));
   return result;

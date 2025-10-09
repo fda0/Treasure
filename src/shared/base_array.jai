@@ -6,7 +6,7 @@ ArrayRange :: (first: *$T, last: *T) -> [] T
   res.count = cast(s64)last - cast(s64)first;
   return res;
 }
-ArraySubarray :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
+Subarray :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
 {
   sub_max = clamp(sub_max, 0, array.count);
   sub_min = clamp(sub_min, 0, array.count);
@@ -17,7 +17,7 @@ ArraySubarray :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
   res.data = array.data + sub_min;
   return res;
 }
-ArraySkip :: (array: [] $T, distance: s64) -> [] T
+Skip :: (array: [] $T, distance: s64) -> [] T
 {
   distance = clamp(distance, 0, array.count);
 
@@ -26,7 +26,7 @@ ArraySkip :: (array: [] $T, distance: s64) -> [] T
   res.count -= distance;
   return res;
 }
-ArrayChop :: (array: [] $T, distance_from_end: s64) -> [] T
+Chop :: (array: [] $T, distance_from_end: s64) -> [] T
 {
   distance_from_end = clamp(distance_from_end, 0, array.count);
 
@@ -34,7 +34,7 @@ ArrayChop :: (array: [] $T, distance_from_end: s64) -> [] T
   res.count -= distance_from_end;
   return res;
 }
-ArrayPrefix :: (array: [] $T, count: s64) -> [] T
+Prefix :: (array: [] $T, count: s64) -> [] T
 {
   count = clamp(count, 0, array.count);
 
@@ -42,7 +42,7 @@ ArrayPrefix :: (array: [] $T, count: s64) -> [] T
   res.count = count;
   return res;
 }
-ArraySuffix :: (array: [] $T, count: s64) -> [] T
+Suffix :: (array: [] $T, count: s64) -> [] T
 {
   count = clamp(count, 0, array.count);
   distance := array.count - count;

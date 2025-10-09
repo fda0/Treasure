@@ -156,7 +156,7 @@ DirectionXYToRotationZ :: (not_normalized_dir3: V3) -> Quat
 {
   dir := normalize(not_normalized_dir3.xy);
   turns := -Atan2(dir) + 0.25;
-  turns = WrapFloat(-0.5, 0.5, turns);
+  turns = WrapFloat(turns, -0.5, 0.5);
   rotation := RotationAroundAxis(AxisV3(.Z), turns);
   return rotation;
 }
@@ -261,10 +261,10 @@ CeilPow2 :: (v: u32) -> u32
   return v;
 }
 
-WrapFloat :: (min: float, max: float, value: float) -> float
+WrapFloat :: (t: float, min: float, max: float) -> float // @todo replace arg order to be (t, min, max) to mirror clamp/Smoothstep
 {
   range := max - min;
-  offset := value - min;
+  offset := t - min;
   return (offset - (floor(offset / range) * range) + min);
 }
 

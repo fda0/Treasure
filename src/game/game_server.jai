@@ -335,7 +335,7 @@ SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_Player
 
   // log("Client tick %; inputs: %", client_tick, net_msg.inputs);
 
-  new_inputs := ArrayPrefix(net_msg.inputs, xx client_tick); // For initial client ticks only the first elements of input buffer will be filled. Truncate the array to skip these unitialized elements.
+  new_inputs := Prefix(net_msg.inputs, xx client_tick); // For initial client ticks only the first elements of input buffer will be filled. Truncate the array to skip these unitialized elements.
 
   end_tick := client_tick;
   start_tick := end_tick - xx new_inputs.count;
@@ -344,7 +344,7 @@ SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_Player
   {
     stale_ticks_count := player.latest_client_tick - start_tick + 1;
 
-    new_inputs = ArraySkip(new_inputs, xx stale_ticks_count);
+    new_inputs = Skip(new_inputs, xx stale_ticks_count);
     start_tick += stale_ticks_count;
   }
 

@@ -145,22 +145,34 @@ OBJ_Sync :: struct
   collider: OBJ_Collider;
 };
 
+OBJ_AnimationState :: struct
+{
+  // @todo can is_walking and is_running be merged?
+  is_walking: float;
+  is_running: float;
+
+  walk_cycle: float;
+  is_attacking: float;
+  is_hit: float;
+
+
+  tracks: [10] ANIMATION_Track;
+}
+
 OBJ_Local :: struct
 {
   // Object data that's kept on client side only
   animated_rot: Quat; // animates towards rotation
   animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
 
-  overwrite_animation_index: s32 = -1; // debug tool
-  overwrite_animation_mode: ANIMATION_AdvanceMode;
+  animation_state: OBJ_AnimationState;
 
-  animation_distance01: float; // in range [0; 1]
-  animation_moving_hot_t: float; // 1 = moving; 0 = idling
-  animation_hands_punching_hot_t: float;
-  animation_full_punching_hot_t: float;
-  animation_attack_hide_cooldown: bool;
+  // animation_distance01: float; // in range [0; 1]
+  // animation_moving_hot_t: float; // 1 = moving; 0 = idling
+  // animation_hands_punching_hot_t: float;
+  // animation_full_punching_hot_t: float;
+  // animation_attack_hide_cooldown: bool;
   // animation_requests_hot_t: [3] float;
-  animation_tracks: [10] ANIMATION_Track;
 
   audio_handled: Timestamp; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
 };

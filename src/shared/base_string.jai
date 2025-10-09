@@ -6,14 +6,14 @@ MatchFlags :: enum_flags u32
   SlashInsensitive;
 };
 
-FromRange :: (first: *u8, last: *u8) -> string
+StringRange :: (first: *u8, last: *u8) -> string
 {
   res: string;
   res.data = first;
   res.count = cast(s64)last - cast(s64)first;
   return res;
 }
-Substring :: (str: string, sub_min: s64, sub_max: s64) -> string
+StringMinMax :: (str: string, sub_min: s64, sub_max: s64) -> string
 {
   sub_max = clamp(sub_max, 0, str.count);
   sub_min = clamp(sub_min, 0, str.count);
@@ -22,6 +22,17 @@ Substring :: (str: string, sub_min: s64, sub_max: s64) -> string
   res: string;
   res.count = sub_max - sub_min;
   res.data = str.data + sub_min;
+  return res;
+}
+Substr :: (str: string, offset: s64, count: s64) -> string
+{
+  offset = clamp(offset, 0, str.count);
+  count = min(count, str.count - offset);
+  count = max(count, 0);
+
+  res: string;
+  res.count = count;
+  res.data = str.data + offset;
   return res;
 }
 Skip :: (str: string, distance: s64) -> string

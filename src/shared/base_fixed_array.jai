@@ -5,6 +5,14 @@ FixedArray :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
   count: s64;
 }
 
+to_view :: (array: *FixedArray) -> [] array.T
+{
+  res: [] array.T;
+  res.data = array.data;
+  res.count = array.count;
+  return res;
+}
+
 operator [] :: (array: *FixedArray, i: s64) -> array.T
 {
   assert(i < array.count);
