@@ -194,6 +194,13 @@ Smoothstep :: (t: float, min: float = 0, max: float = 1) -> float
   return t * t * (3.0 - 2.0 * t);
 }
 
+Snap01 :: (t: float, margin: float) -> float
+{
+  if (t < margin) t = 0.0;
+  if (t > (1.0 - margin)) t = 1.0;
+  return t;
+}
+
 EasingType :: enum u32
 {
   IN_SINE;

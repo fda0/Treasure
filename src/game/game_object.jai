@@ -147,11 +147,9 @@ OBJ_Sync :: struct
 
 OBJ_AnimationState :: struct
 {
-  // @todo can is_walking and is_running be merged?
-  is_walking: float;
-  is_running: float;
-
+  is_walking: float; // 0=idle; 1=walking; 2=running
   walk_cycle: float;
+
   is_attacking: float;
   is_hit: float;
 

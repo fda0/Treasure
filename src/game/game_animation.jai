@@ -277,17 +277,15 @@ ANIMATION_AnimateObjects :: ()
         AS.walk_cycle += moved_cycle_delta;
         AS.walk_cycle = WrapFloat(AS.walk_cycle, 0, 100);
 
-        is_walking_sign := Smoothstep(moved_distance, .00001*TICK_RATE, .00002*TICK_RATE)*2.0 - 1.0;
-        AS.is_walking += is_walking_sign * G.dt * 10.0;
-        AS.is_walking = clamp(AS.is_walking, 0.0, 1.0);
-
-        is_running_sign := Smoothstep(moved_distance, .0002*TICK_RATE, .00022*TICK_RATE)*2.0 - 1.0;
-        AS.is_running += is_running_sign * G.dt * 10.0;
-        AS.is_running = clamp(AS.is_running, 0.0, 1.0);
+        target_is_walking := 0.0;
+        if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
+        if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
+        is_walking_t := clamp(G.dt * 10.0, 0, 1);
+        AS.is_walking = lerp(AS.is_walking, target_is_walking, is_walking_t);
+        AS.is_walking = Snap01(AS.is_walking, 0.001);
 
         if (obj.s.key == G.client.player_key) {
-          log("moved_distance: %; is_walking_sign: %; AS.is_walking %", moved_distance, is_walking_sign, AS.is_walking);
-          log("is_running_sign: %; AS.is_running %", is_running_sign, AS.is_running);
+          log("moved_distance: %; AS.is_walking %", moved_distance, AS.is_walking);
         }
 
         AS.tracks[0].weight = 1.0;
@@ -295,15 +293,13 @@ ANIMATION_AnimateObjects :: ()
         AS.tracks[0].t += G.dt;
         AS.tracks[0].t = WrapTime(model.skeleton, AS.tracks[0].type, AS.tracks[0].t);
 
-        AS.tracks[1].weight = AS.is_walking;
+        AS.tracks[1].weight = clamp(AS.is_walking, 0, 1);
         AS.tracks[1].type = .WALK;
-        walk_anim := AnimationFromType(model.skeleton, AS.tracks[1].type);
-        AS.tracks[1].t = (walk_anim.t_max - walk_anim.t_min) * WrapFloat(AS.walk_cycle, 0, 1) + walk_anim.t_min;
+        AS.tracks[1].t = Time01ToAnimT(model.skeleton, AS.tracks[1].type, WrapFloat(AS.walk_cycle, 0, 1));
 
-        AS.tracks[2].weight = AS.is_running;
+        AS.tracks[2].weight = clamp(AS.is_walking - 1.0, 0, 1);
         AS.tracks[2].type = .RUN;
-        run_anim := AnimationFromType(model.skeleton, AS.tracks[2].type);
-        AS.tracks[2].t = (run_anim.t_max - run_anim.t_min) * WrapFloat(AS.walk_cycle * WALK_TO_RUN, 0, 1) + run_anim.t_min;
+        AS.tracks[2].t = Time01ToAnimT(model.skeleton, AS.tracks[2].type, WrapFloat(AS.walk_cycle * WALK_TO_RUN, 0, 1));
 
         #if 0 {
           // Movement calculations
@@ -594,15 +590,20 @@ AnimationFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
   return *skeleton.animations[RecordFromType(skeleton, type).animation_index];
 }
 
-WrapTime :: (skeleton: Skeleton, anim_index: s32, time: float) -> float
+WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, t: float) -> float
 {
+  anim_index := skeleton.animation_records[type].animation_index;
   anim := skeleton.animations[anim_index];
-  time = WrapFloat(time, anim.t_min, anim.t_max);
-  return time;
+  result := WrapFloat(t, anim.t_min, anim.t_max);
+  return result;
 }
-WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, time: float) -> float
+
+Time01ToAnimT :: (skeleton: Skeleton, type: ANIMATION_Type, t: float) -> float
 {
-  return WrapTime(skeleton, skeleton.animation_records[type].animation_index, time);
+  anim_index := skeleton.animation_records[type].animation_index;
+  anim := skeleton.animations[anim_index];
+  result := (anim.t_max - anim.t_min) * t + anim.t_min;
+  return result;
 }
 
 WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
