@@ -57,7 +57,7 @@ SIM_AdvanceByTick :: ()
 
         sleeper.s.team = team;
 
-        sleeper.s.state_machine = .{
+        sleeper.s.activity = .{
           wants_to_attack = true,
           target = OBJ_FindNearestToObj(sleeper, .NETWORK,
             .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).s.key,
@@ -90,13 +90,13 @@ SIM_AdvanceByTick :: ()
   // Advance state machine
   for *obj: context.R.obj.network_objects
   {
-    SIM_ProcessStateMachine(obj);
+    SIM_ProcessActivity(obj);
   }
 
   for *turret: context.R.obj.network_objects
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
-    state_machine := *turret.s.state_machine;
+    activity := *turret.s.activity;
 
     valid_enemy_test := OBJ_TestParams.{
       require_flags = .TARGETABLE,
@@ -105,7 +105,7 @@ SIM_AdvanceByTick :: ()
       common2 = .ARE_ENEMIES,
     };
 
-    attack_target := OBJ_Get(.NETWORK, state_machine.target);
+    attack_target := OBJ_Get(.NETWORK, activity.target);
     nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, valid_enemy_test);
 
     SHOOT_RANGE :: 4.0;
@@ -125,29 +125,29 @@ SIM_AdvanceByTick :: ()
       if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
     }
 
-    state_machine.target = attack_target.s.key;
-    state_machine.is_attacking = !OBJ_IsNil(attack_target);
+    activity.target = attack_target.s.key;
+    activity.is_attacking = !OBJ_IsNil(attack_target);
 
     attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
-    if OBJ_IsNil(OBJ_Get(.NETWORK, state_machine.last_projectile))
+    if OBJ_IsNil(OBJ_Get(.NETWORK, activity.last_projectile))
     {
       additional_delta := TICK_FLOAT_STEP * 100.0;
       // delta is applied only if turret is on cooldown
-      additional_delta = min(additional_delta, -state_machine.attack_t);
+      additional_delta = min(additional_delta, -activity.attack_t);
       additional_delta = max(additional_delta, 0.0);
       attack_t_delta += additional_delta;
     }
 
-    state_machine.attack_t += attack_t_delta;
-    state_machine.visual_attack_t += attack_t_delta;
+    activity.attack_t += attack_t_delta;
+    activity.visual_attack_t += attack_t_delta;
 
-    if state_machine.is_attacking
+    if activity.is_attacking
     {
       attack_damage := 16.0;
 
-      while state_machine.attack_t >= turret.s.attack_landed_t
+      while activity.attack_t >= turret.s.attack_landed_t
       {
-        state_machine.attack_t -= turret.s.attack_cooldown_t;
+        activity.attack_t -= turret.s.attack_cooldown_t;
         // attack_target.s.hp -= attack_damage;
 
         projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
@@ -156,9 +156,9 @@ SIM_AdvanceByTick :: ()
           projectile.s.model = ModelKey("Potion");
           projectile.s.p.xy = turret.s.p.xy;
           projectile.s.p.z = 4.1;
-          projectile.s.state_machine.target = attack_target.s.key;
+          projectile.s.activity.target = attack_target.s.key;
 
-          turret.s.state_machine.last_projectile = projectile.s.key;
+          turret.s.activity.last_projectile = projectile.s.key;
         }
 
         OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
@@ -166,17 +166,17 @@ SIM_AdvanceByTick :: ()
     }
     else
     {
-      state_machine.attack_t = min(state_machine.attack_t, 0.0);
-      state_machine.target = .{};
+      activity.attack_t = min(activity.attack_t, 0.0);
+      activity.target = .{};
     }
   }
 
   for *projectile: context.R.obj.network_objects
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
-    state_machine := *projectile.s.state_machine;
+    activity := *projectile.s.activity;
 
-    target := OBJ_Get(.NETWORK, state_machine.target);
+    target := OBJ_Get(.NETWORK, activity.target);
     if OBJ_IsNil(target)
     {
       OBJ_Delete(projectile);
@@ -267,11 +267,11 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
   if OBJ_IsNil(obj) return;
 
   obj.s.desired_dp = .{};
-  state_machine := *obj.s.state_machine;
+  activity := *obj.s.activity;
 
   if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
   {
-    state_machine.* = .{};
+    activity.* = .{};
     return;
   }
 
@@ -293,85 +293,85 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
   // ATTACK yes/no
   if input.type == .ATTACK
   {
-    state_machine.wants_to_attack = true;
+    activity.wants_to_attack = true;
 
-    if state_machine.target != input.target_object
+    if activity.target != input.target_object
     {
-      state_machine.is_attacking = false;
-      state_machine.attack_t = min(state_machine.attack_t, 0.0);
+      activity.is_attacking = false;
+      activity.attack_t = min(activity.attack_t, 0.0);
     }
-    state_machine.target = input.target_object;
+    activity.target = input.target_object;
   }
   if input.type != .ATTACK
   {
-    state_machine.wants_to_attack = false;
-    state_machine.is_attacking = false;
-    state_machine.target = .{};
+    activity.wants_to_attack = false;
+    activity.is_attacking = false;
+    activity.target = .{};
   }
 
   // PATHING yes/no
   pathing_direction: V2;
   if input.type == .PATHING
   {
-    state_machine.is_walking = true;
-    state_machine.walking_to = input.world_p.xy;
+    activity.is_walking = true;
+    activity.walking_to = input.world_p.xy;
   }
   if input.type != .PATHING
   {
-    state_machine.is_walking = false;
-    state_machine.walking_to = .{};
+    activity.is_walking = false;
+    activity.walking_to = .{};
   }
 }
 
-SIM_ProcessStateMachine :: (obj: *Object)
+SIM_ProcessActivity :: (obj: *Object)
 {
   if OBJ_IsNil(obj) return;
   if !OBJ_HasAnyFlag(obj, .HAS_ACTIVITY) return;
-  state_machine := *obj.s.state_machine;
+  activity := *obj.s.activity;
 
   // Find attack target (and invalidate if needed)
   target := OBJ_GetNil();
-  if state_machine.wants_to_attack || state_machine.is_attacking
+  if activity.wants_to_attack || activity.is_attacking
   {
-    state_machine.is_walking = false;
+    activity.is_walking = false;
 
-    target = OBJ_Get(.NETWORK, state_machine.target);
+    target = OBJ_Get(.NETWORK, activity.target);
     target_is_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
     if !target_is_valid_enemy
     {
       target = OBJ_GetNil();
-      state_machine.target = .{};
-      state_machine.is_attacking = false;
+      activity.target = .{};
+      activity.is_attacking = false;
     }
   }
 
   // Check if attack is in range; if not start moving
   attack_is_out_of_range := true;
-  if !OBJ_IsNil(target) && state_machine.wants_to_attack
+  if !OBJ_IsNil(target) && activity.wants_to_attack
   {
     obj_to_target := target.s.p.xy - obj.s.p.xy;
     distance_to_target := length(obj_to_target);
     attack_is_out_of_range = distance_to_target > MELEE_ATTACK_DISTANCE;
 
-    state_machine.is_walking = !state_machine.is_attacking && attack_is_out_of_range;
-    if state_machine.is_walking
+    activity.is_walking = !activity.is_attacking && attack_is_out_of_range;
+    if activity.is_walking
     {
-      state_machine.walking_to = target.s.p.xy;
+      activity.walking_to = target.s.p.xy;
     }
 
     if !attack_is_out_of_range
     {
-      state_machine.is_attacking = true;
+      activity.is_attacking = true;
     }
   }
 
-  assert(!(state_machine.is_attacking && state_machine.is_walking));
+  assert(!(activity.is_attacking && activity.is_walking));
 
   // Find pathing direction
   pathing_direction: V2;
-  if state_machine.is_walking
+  if activity.is_walking
   {
-    obj_to_destination := state_machine.walking_to - obj.s.p.xy;
+    obj_to_destination := activity.walking_to - obj.s.p.xy;
     distance := length(obj_to_destination);
     if distance >= MINIMUM_MOVE_START_DISTANCE then pathing_direction = obj_to_destination;
 
@@ -385,36 +385,36 @@ SIM_ProcessStateMachine :: (obj: *Object)
 
   // Advance attack timers
   attack_t_delta := TICK_FLOAT_STEP * obj.s.attack_speed;
-  state_machine.attack_t += attack_t_delta;
+  activity.attack_t += attack_t_delta;
 
   // advance visual_attack_t
-  if state_machine.is_attacking
+  if activity.is_attacking
   {
-    state_machine.visual_attack_t += attack_t_delta;
+    activity.visual_attack_t += attack_t_delta;
   }
   else
   {
-    if state_machine.visual_attack_t != 0.0
+    if activity.visual_attack_t != 0.0
     {
-      wrapped := WrapFloat(obj.s.attack_cooldown_t, state_machine.visual_attack_t, 0.0);
+      wrapped := WrapFloat(obj.s.attack_cooldown_t, activity.visual_attack_t, 0.0);
       dir := ifx wrapped >= obj.s.attack_landed_t then 1.0 else -1.0;
-      state_machine.visual_attack_t += dir * attack_t_delta;
+      activity.visual_attack_t += dir * attack_t_delta;
 
-      wrapped2 := WrapFloat(state_machine.visual_attack_t, 0.0, obj.s.attack_cooldown_t);
+      wrapped2 := WrapFloat(activity.visual_attack_t, 0.0, obj.s.attack_cooldown_t);
       dir2 := ifx wrapped2 >= obj.s.attack_landed_t then 1.0 else -1.0;
 
-      if (dir != dir2) state_machine.visual_attack_t = 0.0;
+      if (dir != dir2) activity.visual_attack_t = 0.0;
     }
   }
 
-  if state_machine.is_attacking
+  if activity.is_attacking
   {
     obj.s.rotation = DirectionXYToRotationZ(target.s.p - obj.s.p);
 
     attack_damage := 10.0;
-    while state_machine.attack_t >= obj.s.attack_landed_t
+    while activity.attack_t >= obj.s.attack_landed_t
     {
-      state_machine.attack_t -= obj.s.attack_cooldown_t;
+      activity.attack_t -= obj.s.attack_cooldown_t;
       target.s.hp -= attack_damage;
 
       OBJ_PlayAnimation(target, .HIT);
@@ -425,15 +425,15 @@ SIM_ProcessStateMachine :: (obj: *Object)
       stop_attacking |= !OBJ_Test(target, .{common = .IS_ALIVE});
       if stop_attacking
       {
-        state_machine.is_attacking = false;
+        activity.is_attacking = false;
         break;
       }
     }
 
   }
-  if !state_machine.is_attacking
+  if !activity.is_attacking
   {
-    state_machine.attack_t = min(state_machine.attack_t, 0.0);
+    activity.attack_t = min(activity.attack_t, 0.0);
   }
 }
 

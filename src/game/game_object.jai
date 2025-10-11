@@ -89,7 +89,7 @@ OBJ_Team :: enum u8
 }
 BOTH_TEAMS :: OBJ_Team.[.BLUE, .RED];
 
-OBJ_StateMachine :: struct
+OBJ_ActivityState :: struct
 {
   is_walking: bool;
   wants_to_attack: bool;
@@ -128,7 +128,7 @@ OBJ_Sync :: struct
   attack_cooldown_t := 1.0;
 
   // game state
-  state_machine: OBJ_StateMachine;
+  activity: OBJ_ActivityState;
   animation_requests: Queue(3, ANIMATION_Request);
   sound_requests: Queue(3, AUDIO_Request);
 
@@ -152,7 +152,6 @@ OBJ_AnimationState :: struct
 
   is_attacking: float;
   is_hit: float;
-
 
   tracks: [10] ANIMATION_Track;
 }

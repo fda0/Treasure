@@ -182,13 +182,13 @@ ANIMATION_AnimateObjects :: ()
 
   for *obj: context.R.obj.all_objects
   {
-    state_machine := *obj.s.state_machine;
+    activity := *obj.s.activity;
     animate_rotation := OBJ_HasAnyFlag(obj, .ANIMATE_ROTATION);
     animate_position := OBJ_HasAnyFlag(obj, .ANIMATE_POSITION);
 
     if OBJ_HasAnyFlag(obj, .IS_TURRET)
     {
-      t := WrapFloat(state_machine.attack_t, 0.0, obj.s.attack_cooldown_t);
+      t := WrapFloat(activity.attack_t, 0.0, obj.s.attack_cooldown_t);
       max_t := min(1.25, obj.s.attack_cooldown_t);
       t = min(t, max_t) / max_t;
 
@@ -196,7 +196,7 @@ ANIMATION_AnimateObjects :: ()
       rot_t := EasingInOut(t, obj.s.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
       obj.l.animated_p.xy = obj.s.p.xy;
-      if state_machine.is_attacking || state_machine.attack_t < 0.0
+      if activity.is_attacking || activity.attack_t < 0.0
       {
         obj.l.animated_p.z = pos_t * 1.0;
         obj.l.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
@@ -263,7 +263,7 @@ ANIMATION_AnimateObjects :: ()
 
     if OBJ_HasAnyFlag(obj, .ANIMATE_TRACKS)
     {
-      AS := *obj.l.animation_state;
+      as := *obj.l.animation_state;
       model := GetModel(obj.s.model);
       if model.is_skinned
       {
@@ -274,32 +274,46 @@ ANIMATION_AnimateObjects :: ()
         moved_distance := length(obj.s.moved_dp);
         moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo this is nonsense; this has to be multiplied by dt actually
 
-        AS.walk_cycle += moved_cycle_delta;
-        AS.walk_cycle = WrapFloat(AS.walk_cycle, 0, 100);
+        as.walk_cycle += moved_cycle_delta;
+        as.walk_cycle = WrapFloat(as.walk_cycle, 0, 100);
 
         target_is_walking := 0.0;
         if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
         if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
         is_walking_t := clamp(G.dt * 10.0, 0, 1);
-        AS.is_walking = lerp(AS.is_walking, target_is_walking, is_walking_t);
-        AS.is_walking = Snap01(AS.is_walking, 0.001);
+        as.is_walking = lerp(as.is_walking, target_is_walking, is_walking_t);
+        as.is_walking = Snap01(as.is_walking, 0.001);
+
+        as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+        as.is_attacking = clamp(as.is_attacking, 0, 1);
 
         if (obj.s.key == G.client.player_key) {
-          log("moved_distance: %; AS.is_walking %", moved_distance, AS.is_walking);
+          log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
-        AS.tracks[0].weight = 1.0;
-        AS.tracks[0].type = .IDLE;
-        AS.tracks[0].t += G.dt;
-        AS.tracks[0].t = WrapTime(model.skeleton, AS.tracks[0].type, AS.tracks[0].t);
+        as.tracks[0].weight = 1.0;
+        as.tracks[0].type = .IDLE;
+        as.tracks[0].t += G.dt;
+        as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].type, as.tracks[0].t);
 
-        AS.tracks[1].weight = clamp(AS.is_walking, 0, 1);
-        AS.tracks[1].type = .WALK;
-        AS.tracks[1].t = Time01ToAnimT(model.skeleton, AS.tracks[1].type, WrapFloat(AS.walk_cycle, 0, 1));
+        as.tracks[1].weight = clamp(as.is_walking, 0, 1);
+        as.tracks[1].type = .WALK;
+        as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].type, WrapFloat(as.walk_cycle, 0, 1));
 
-        AS.tracks[2].weight = clamp(AS.is_walking - 1.0, 0, 1);
-        AS.tracks[2].type = .RUN;
-        AS.tracks[2].t = Time01ToAnimT(model.skeleton, AS.tracks[2].type, WrapFloat(AS.walk_cycle * WALK_TO_RUN, 0, 1));
+        as.tracks[2].weight = clamp(as.is_walking - 1.0, 0, 1);
+        as.tracks[2].type = .RUN;
+        as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].type, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
+
+        as.tracks[3].weight = as.is_attacking;
+        as.tracks[3].type = .PUNCH;
+        as.tracks[3].t = activity.attack_t / obj.s.attack_cooldown_t;
+        as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
+        as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].type, as.tracks[3].t);
+
+        as.tracks[4].weight = clamp(as.is_attacking * 2.0, 0, 1);
+        as.tracks[4].type = .PUNCH_HANDS;
+        as.tracks[4].t = as.tracks[3].t;
+
 
         #if 0 {
           // Movement calculations
@@ -313,21 +327,21 @@ ANIMATION_AnimateObjects :: ()
           }
 
           // Attack calculations
-          if !state_machine.is_attacking
+          if !activity.is_attacking
           {
             obj.l.animation_attack_hide_cooldown = true;
           }
-          if state_machine.is_attacking && state_machine.attack_t >= 0.0
+          if activity.is_attacking && activity.attack_t >= 0.0
           {
             obj.l.animation_attack_hide_cooldown = false;
           }
 
-          is_punching := state_machine.is_attacking && !obj.l.animation_attack_hide_cooldown;
+          is_punching := activity.is_attacking && !obj.l.animation_attack_hide_cooldown;
           AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
           AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
-          attack_normalized_t := WrapFloat(state_machine.attack_t, 0.0, obj.s.attack_cooldown_t);
+          attack_normalized_t := WrapFloat(activity.attack_t, 0.0, obj.s.attack_cooldown_t);
           attack_normalized_t /= obj.s.attack_cooldown_t;
-          use_jab_animation := WrapFloat(state_machine.visual_attack_t, 0.0, obj.s.attack_cooldown_t*2) > obj.s.attack_cooldown_t;
+          use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, obj.s.attack_cooldown_t*2) > obj.s.attack_cooldown_t;
 
           // Fill animation tracks
           all_joints_are_masked := false;
