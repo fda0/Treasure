@@ -229,7 +229,7 @@ ANIMATION_AnimateObjects :: ()
       q0 := obj.l.animated_rot;
       q1 := obj.s.rotation;
 
-      w1 := min(1.0, G.dt * ROTATION_SPEED);
+      w1 := min(1.0, DeltaTime() * ROTATION_SPEED);
       w0 := 1.0 - w1;
 
       if dot(q0, q1) < 0.0
@@ -247,7 +247,7 @@ ANIMATION_AnimateObjects :: ()
       POSITION_SPEED :: 10.0;
 
       delta := obj.s.p - obj.l.animated_p;
-      move_by := delta * (G.dt * POSITION_SPEED);
+      move_by := delta * (DeltaTime() * POSITION_SPEED);
       obj.l.animated_p += move_by;
 
       for *obj.l.animated_p.component
@@ -280,20 +280,20 @@ ANIMATION_AnimateObjects :: ()
         target_is_walking := 0.0;
         if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
         if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
-        is_walking_t := clamp(G.dt * 10.0, 0, 1);
+        is_walking_t := clamp(DeltaTime() * 10.0, 0, 1);
         as.is_walking = lerp(as.is_walking, target_is_walking, is_walking_t);
         as.is_walking = Snap01(as.is_walking, 0.001);
 
-        as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+        as.is_attacking += DeltaTime() * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
         as.is_attacking = clamp(as.is_attacking, 0, 1);
 
         if (obj.s.key == G.client.player_key) {
-          log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
+          // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
         as.tracks[0].weight = 1.0;
         as.tracks[0].type = .IDLE;
-        as.tracks[0].t += G.dt;
+        as.tracks[0].t += DeltaTime();
         as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].type, as.tracks[0].t);
 
         as.tracks[1].weight = clamp(as.is_walking, 0, 1);
@@ -324,7 +324,7 @@ ANIMATION_AnimateObjects :: ()
           {
 
             obj.l.animation_distance01 = WrapFloat(obj.l.animation_distance01 + distance01_delta, 0.0, 1.0);
-            AddClamp01(*obj.l.animation_moving_hot_t, (ifx moved_distance > 0 then G.dt else -G.dt) * 10);
+            AddClamp01(*obj.l.animation_moving_hot_t, (ifx moved_distance > 0 then DeltaTime() else -DeltaTime()) * 10);
 
             if obj.l.animation_moving_hot_t == 0
               obj.l.animation_distance01 = 0;
@@ -341,8 +341,8 @@ ANIMATION_AnimateObjects :: ()
           }
 
           is_punching := activity.is_attacking && !obj.l.animation_attack_hide_cooldown;
-          AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * obj.s.attack_speed);
-          AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * obj.s.attack_speed);
+          AddClamp01(*obj.l.animation_hands_punching_hot_t, (ifx is_punching then DeltaTime()*4 else -DeltaTime()*8) * obj.s.attack_speed);
+          AddClamp01(*obj.l.animation_full_punching_hot_t, (ifx is_punching then DeltaTime()*2 else -DeltaTime()*20) * obj.s.attack_speed);
           attack_normalized_t := WrapFloat(activity.attack_t, 0.0, obj.s.attack_cooldown_t);
           attack_normalized_t /= obj.s.attack_cooldown_t;
           use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, obj.s.attack_cooldown_t*2) > obj.s.attack_cooldown_t;
@@ -442,7 +442,7 @@ ANIMATION_AnimateObjects :: ()
             }
             else if anim_mode == .TIME
             {
-              it.t += G.dt;
+              it.t += DeltaTime();
               it.t = WrapTime(model.skeleton, it.type, it.t);
             }
             else if anim_mode == .MANUAL01

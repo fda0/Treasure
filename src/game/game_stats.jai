@@ -54,13 +54,13 @@ Post :: (type: STATS_CounterType, to_increment_and_set: s64 = 0)
   if c.on_peak_frame < c.accumulator
   {
     c.on_peak_frame = c.accumulator;
-    c.peak_frame_number = G.frame_number;
+    c.peak_frame_number = FrameNumber();
   }
 
   if LOG_STAT_COUNTERS
   {
     log("[FRAME %; STATS %] total: %; this_frame: %; on_peak_frame: % (on %)",
-      G.frame_number, label,
+      FrameNumber(), label,
       c.total_sum, c.accumulator, c.on_peak_frame, c.peak_frame_number,, logger = LOG_FileLogger);
   }
 

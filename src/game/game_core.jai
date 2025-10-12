@@ -4,10 +4,6 @@ GAME_State :: struct
 {
   // core game state
   in_shutdown: bool;
-  frame_number: s64;
-  tick_timestamp_accumulator: Timestamp;
-  dt: float; // frame delta time
-  at: float; // animation time
 
   // startup profiling
   time_launch: Apollo_Time;
@@ -80,35 +76,19 @@ GAME_ServerEnabled :: () -> bool { return G.server.enabled; }
 GAME_Init :: ()
 {
   PerfFunc();
+  InitFrameTimestamp();
 
-  G.client.enabled |= !G.server.enabled;
-  // TEST_run();
+  ASSET_InitPreGPU();
+  GPU_Init();
+  GPU_BATCH_Init();
+  ASSET_InitPostGPU();
+  ANIMATION_InitSkeletons();
+  FONT_Init();
+  UI_ClearRenderCounters();
+  HOT_RELOAD_InitWatcher();
 
-  if !G.headless
-  {
-    ASSET_InitPreGPU();
-    GPU_Init();
-    GPU_BATCH_Init();
-    ASSET_InitPostGPU();
-    ANIMATION_InitSkeletons();
-    FONT_Init();
-    UI_ClearRenderCounters();
-    HOT_RELOAD_InitWatcher();
-  }
-
-  if GAME_ClientEnabled() push_context CreateContextWithRole(.CLIENT)
-  {
-    context.R.frame_timestamp = GetTimestamp(.NOW);
-    CLIENT_Init();
-    OBJ_Init();
-  }
-
-  if GAME_ServerEnabled()
-  {
-    SERVER_Start();
-  }
-
-  NET_Init();
+  CLIENT_Init();
+  OBJ_Init();
 }
 
 GAME_Iterate :: ()
@@ -119,17 +99,9 @@ GAME_Iterate :: ()
   // Collect timing info
   if LaneIdx() == 0
   {
-    new_timestamp := GetTimestamp(.NOW);
-    delta_timestamp := min(new_timestamp - context.R.frame_timestamp, 100); // clamp dt to 100ms (10fps)
-    context.R.frame_timestamp = new_timestamp;
-
-    G.frame_number += 1;
-    G.tick_timestamp_accumulator += delta_timestamp;
-    G.dt = delta_timestamp * 0.001;
-    G.at = WrapFloat(G.at + G.dt, 0, 1000);
-
-    Post(.DELTA_TIMESTMAP_MS, xx delta_timestamp);
-    Post(.TEST_FRAME_NUMBER, G.frame_number);
+    AdvanceFrameTimestamp();
+    Post(.DELTA_TIMESTMAP_MS, xx DeltaTimestamp());
+    Post(.TEST_FRAME_NUMBER, FrameNumber());
   }
 
   // Mouse input things
@@ -190,8 +162,8 @@ GAME_Iterate :: ()
     {
       #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
       #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-      tick_count := G.tick_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-      G.tick_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+      tick_count := context.R.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      context.R.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
       for MakeRange(tick_count)
       {
@@ -358,7 +330,7 @@ GAME_CalculateCameraAndMouseThings :: ()
     if (KEY_Held(.LSHIFT) || KEY_Held(.RSHIFT)) move_dir.z -= 1;
     move_dir = normalize(move_dir);
     move_dir = Math.rotate(move_dir, RotationAroundAxis(-AxisV3(.Z)/* @todo why negation fixes things? */, G.camera_angles.z));
-    G.camera_p += move_dir * 12.0 * G.dt;
+    G.camera_p += move_dir * 12.0 * DeltaTime();
   }
   else
   {
@@ -386,11 +358,11 @@ GAME_CalculateCameraAndMouseThings :: ()
 
       dir_len := length(dir);
       if dir_len > 1.0 then dir /= dir_len;
-      G.camera_p.xy += dir * G.dt * 16.0;
+      G.camera_p.xy += dir * DeltaTime() * 16.0;
     }
 
     player := OBJ_Get(.NETWORK, G.client.player_key);
-    if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
+    if KEY_Held(.SPACE) || FrameNumber() < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.s.p.xy;
       G.camera_p.x -= 8.5;
@@ -448,7 +420,7 @@ GAME_CalculateCameraAndMouseThings :: ()
 GAME_UpdateOfflineObjects :: ()
 {
   // Move sun
-  sun_time := G.at*4.0;
+  sun_time := AnimTime()*4.0;
   sun_time = 6.0;
 
   sun_x := Sin(0.5 + sun_time * 0.03);

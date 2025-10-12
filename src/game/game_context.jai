@@ -11,7 +11,13 @@ Role :: enum
 
 RoleState :: struct
 {
+  frame_number: s64;
   frame_timestamp: Timestamp;
+  frame_timestamp_accumulator: Timestamp;
+  delta_timestamp: Timestamp;
+  dt: float;
+  at: float;
+
   obj: OBJ_State;
 }
 

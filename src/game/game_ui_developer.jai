@@ -145,7 +145,7 @@ UI_BuildDeveloperWindow :: ()
     if #complete category_mask == {
       case .stats;
       Layers(UI_MONO_TEXT);
-      CreateText(tprint("dt: %ms; fps: %", Round(G.dt*1000), Round(1.0 / G.dt)));
+      CreateText(tprint("dt: %ms; fps: %", Round(DeltaTime()*1000), Round(1.0 / DeltaTime())));
       CreateText(tprint("is_server: %, is_client: %", GAME_ServerEnabled(), GAME_ClientEnabled()));
 
       CreateText(tprint("Mouse: %", G.mouse));
@@ -193,7 +193,7 @@ UI_BuildDeveloperWindow :: ()
           }
           else
           {
-            c.graph_scale = lerp(c.graph_scale, target_graph_scale, min(1.0, G.dt * 2.0));
+            c.graph_scale = lerp(c.graph_scale, target_graph_scale, min(1.0, DeltaTime() * 2.0));
             c.graph_scale = min(c.graph_scale, target_graph_scale);
           }
         }

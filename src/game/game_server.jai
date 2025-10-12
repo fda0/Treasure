@@ -83,25 +83,18 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
   assert(context.role == .SERVER);
-  timestamp_accumulator: Timestamp;
+  InitFrameTimestamp();
 
   while true
   {
     PerfScope("Server iteration");
     SERVER_IterateReceive();
+    AdvanceFrameTimestamp();
 
-    simulation_tick_count: Timestamp;
-    {
-      now_timestamp := GetTimestamp(.NOW);
-      delta_timestamp := now_timestamp - context.R.frame_timestamp;
-      context.R.frame_timestamp = now_timestamp;
-      timestamp_accumulator += delta_timestamp;
-
-      #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-      #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-      simulation_tick_count = timestamp_accumulator / TICK_MILLISECONDS_STEP;
-      timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
-    }
+    #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+    #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+    simulation_tick_count := context.R.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+    context.R.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
 
     for MakeRange(simulation_tick_count)
     {

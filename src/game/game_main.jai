@@ -1,9 +1,22 @@
 main :: ()
 {
+  // Initialize client / server
   PLATFORM_PreInit();
-  GAME_Init();
+  G.client.enabled |= !G.server.enabled;
+
+  if GAME_ClientEnabled() push_context CreateContextWithRole(.CLIENT)
+  {
+    GAME_Init();
+  }
+  if GAME_ServerEnabled()
+  {
+    SERVER_Start();
+  }
+  NET_Init();
+
   PLATFORM_PostInit();
 
+  // Setup lane multithreading; Start client game loop.
   client_ctx := CreateContextWithRole(.CLIENT);
 
   threads: [4] Thread;

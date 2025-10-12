@@ -159,7 +159,7 @@ GetMaterial :: (key: MATERIAL_Key) -> *Material
 
   if !MaterialIsNil(asset)
   {
-    asset.stream.last_touched_frame = G.frame_number;
+    asset.stream.last_touched_frame = FrameNumber();
     if !(asset.stream.flags & .LOADED)  G.ast.tex_load_needed = true;
   }
 

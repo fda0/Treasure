@@ -7,6 +7,11 @@ TimeReference :: enum
   NOW; // new timestamp measurement
 }
 
+FrameNumber :: inline () -> s64 { return context.R.frame_number; }
+DeltaTime :: inline () -> float { return context.R.dt; }
+AnimTime :: inline () -> float { return context.R.at; }
+DeltaTimestamp :: inline () -> Timestamp { return context.R.delta_timestamp; }
+
 GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
   if #complete reference == {
@@ -46,6 +51,27 @@ FailTimestamp :: (max_on_fail: bool) -> Timestamp
 FailSeconds :: (max_on_fail: bool) -> float
 {
   return ifx max_on_fail then FLOAT32_MAX else 0.0;
+}
+
+AdvanceFrameTimestamp :: ()
+{
+  new_timestamp := GetTimestamp(.NOW);
+  context.R.delta_timestamp = min(new_timestamp - context.R.frame_timestamp, 200); // clamp dt to 200ms (5fps)
+  context.R.frame_timestamp = new_timestamp;
+
+  context.R.frame_number += 1;
+  context.R.frame_timestamp_accumulator += context.R.delta_timestamp;
+
+  context.R.dt = context.R.delta_timestamp * 0.001;
+  context.R.at = WrapFloat(context.R.at + context.R.dt, 0, 1000);
+}
+
+InitFrameTimestamp :: ()
+{
+  AdvanceFrameTimestamp();
+  AdvanceFrameTimestamp();
+  context.R.frame_number = 1;
+  context.R.frame_timestamp_accumulator = 0;
 }
 
 
