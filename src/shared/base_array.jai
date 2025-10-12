@@ -6,7 +6,7 @@ ArrayRange :: (first: *$T, last: *T) -> [] T
   res.count = cast(s64)last - cast(s64)first;
   return res;
 }
-Subarray :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
+ArrayMinMax :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
 {
   sub_max = clamp(sub_max, 0, array.count);
   sub_min = clamp(sub_min, 0, array.count);
@@ -15,6 +15,17 @@ Subarray :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
   res: [] T;
   res.count = sub_max - sub_min;
   res.data = array.data + sub_min;
+  return res;
+}
+Subarray :: (array: [] $T, offset: s64, count: s64) -> [] T
+{
+  offset = clamp(offset, 0, str.count);
+  count = min(count, str.count - offset);
+  count = max(count, 0);
+
+  res: [] T;
+  res.count = count;
+  res.data = str.data + offset;
   return res;
 }
 Skip :: (array: [] $T, distance: s64) -> [] T
@@ -70,7 +81,7 @@ array_add_many :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allo
   initial_count := array.count;
   new_count := initial_count + alloc_count;
   array_resize(array, new_count, initialize);
-  result := ArraySubarray(array.*, initial_count, new_count);
+  result := ArrayMinMax(array.*, initial_count, new_count);
   return result;
 }
 

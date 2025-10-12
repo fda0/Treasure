@@ -263,7 +263,7 @@ ANIMATION_AnimateObjects :: ()
 
     if OBJ_HasAnyFlag(obj, .ANIMATE_TRACKS)
     {
-      as := *obj.l.animation_state;
+      as := *obj.l.anim;
       model := GetModel(obj.s.model);
       if model.is_skinned
       {
@@ -272,7 +272,7 @@ ANIMATION_AnimateObjects :: ()
         RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
 
         moved_distance := length(obj.s.moved_dp);
-        moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo this is nonsense; this has to be multiplied by dt actually
+        moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
 
         as.walk_cycle += moved_cycle_delta;
         as.walk_cycle = WrapFloat(as.walk_cycle, 0, 100);
@@ -306,13 +306,17 @@ ANIMATION_AnimateObjects :: ()
 
         as.tracks[3].weight = as.is_attacking;
         as.tracks[3].type = .PUNCH;
-        as.tracks[3].t = activity.attack_t / obj.s.attack_cooldown_t;
+        as.tracks[3].t = activity.attack_t / obj.s.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
         as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
         as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].type, as.tracks[3].t);
 
-        as.tracks[4].weight = clamp(as.is_attacking * 2.0, 0, 1);
+        as.tracks[4].weight = sqrt(as.is_attacking);
         as.tracks[4].type = .PUNCH_HANDS;
         as.tracks[4].t = as.tracks[3].t;
+
+        as.tracks[5].type = .DEATH;
+        as.tracks[5].t = ElapsedSeconds(obj.s.death_time) * 1.0;
+        as.tracks[5].weight = ifx obj.s.death_time then min(1.0, as.tracks[5].t * 10.0) else 0.0;
 
 
         #if 0 {

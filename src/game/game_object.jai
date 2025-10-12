@@ -162,7 +162,7 @@ OBJ_Local :: struct
   animated_rot: Quat; // animates towards rotation
   animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
 
-  animation_state: OBJ_AnimationState;
+  anim: OBJ_AnimationState;
 
   // animation_distance01: float; // in range [0; 1]
   // animation_moving_hot_t: float; // 1 = moving; 0 = idling
@@ -622,8 +622,8 @@ OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *O
     obj.s.color = Color32_Grayf(1);
     obj.s.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
 
-    obj.s.max_hp = 100;
-    obj.s.hp = 80;
+    obj.s.max_hp = 40;
+    obj.s.hp = 40;
     obj.s.move_speed = 1.5;
 
     obj.s.team = team;
