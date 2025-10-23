@@ -1,21 +1,31 @@
 Timestamp :: #type,distinct u64; // @todo make this a signed type?
 Timestamp_MAX :: U64_MAX;
 
+TimeState :: struct
+{
+  frame_number: s64;
+  frame_timestamp: Timestamp;
+  frame_timestamp_accumulator: Timestamp;
+  delta_timestamp: Timestamp;
+  dt: float;
+  at: float;
+}
+
 TimeReference :: enum
 {
   FRAME; // timestamp taken at the start of the frame
   NOW; // new timestamp measurement
 }
 
-FrameNumber :: inline () -> s64 { return context.R.frame_number; }
-DeltaTime :: inline () -> float { return context.R.dt; }
-AnimTime :: inline () -> float { return context.R.at; }
-DeltaTimestamp :: inline () -> Timestamp { return context.R.delta_timestamp; }
+FrameNumber :: inline () -> s64 { return context.R.time.frame_number; }
+DeltaTime :: inline () -> float { return context.R.time.dt; }
+AnimTime :: inline () -> float { return context.R.time.at; }
+DeltaTimestamp :: inline () -> Timestamp { return context.R.time.delta_timestamp; }
 
 GetTimestamp :: (reference := TimeReference.FRAME) -> Timestamp
 {
   if #complete reference == {
-    case .FRAME; return context.R.frame_timestamp;
+    case .FRAME; return context.R.time.frame_timestamp;
     case .NOW; return xx SDL_GetTicks();
   }
 }
@@ -56,22 +66,22 @@ FailSeconds :: (max_on_fail: bool) -> float
 AdvanceFrameTimestamp :: ()
 {
   new_timestamp := GetTimestamp(.NOW);
-  context.R.delta_timestamp = min(new_timestamp - context.R.frame_timestamp, 200); // clamp dt to 200ms (5fps)
-  context.R.frame_timestamp = new_timestamp;
+  context.R.time.delta_timestamp = min(new_timestamp - context.R.time.frame_timestamp, 200); // clamp dt to 200ms (5fps)
+  context.R.time.frame_timestamp = new_timestamp;
 
-  context.R.frame_number += 1;
-  context.R.frame_timestamp_accumulator += context.R.delta_timestamp;
+  context.R.time.frame_number += 1;
+  context.R.time.frame_timestamp_accumulator += context.R.time.delta_timestamp;
 
-  context.R.dt = context.R.delta_timestamp * 0.001;
-  context.R.at = WrapFloat(context.R.at + context.R.dt, 0, 1000);
+  context.R.time.dt = context.R.time.delta_timestamp * 0.001;
+  context.R.time.at = WrapFloat(context.R.time.at + context.R.time.dt, 0, 1000);
 }
 
 InitFrameTimestamp :: ()
 {
   AdvanceFrameTimestamp();
   AdvanceFrameTimestamp();
-  context.R.frame_number = 1;
-  context.R.frame_timestamp_accumulator = 0;
+  context.R.time.frame_number = 1;
+  context.R.time.frame_timestamp_accumulator = 0;
 }
 
 

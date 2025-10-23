@@ -93,8 +93,8 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
 
     #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
     #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-    simulation_tick_count := context.R.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-    context.R.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
+    simulation_tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+    context.R.time.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
 
     for MakeRange(simulation_tick_count)
     {

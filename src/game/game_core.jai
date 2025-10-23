@@ -162,8 +162,8 @@ GAME_Iterate :: ()
     {
       #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
       #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-      tick_count := context.R.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-      context.R.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+      tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      context.R.time.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
       for MakeRange(tick_count)
       {
