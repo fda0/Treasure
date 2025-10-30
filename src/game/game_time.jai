@@ -92,19 +92,19 @@ Tick_MAX :: cast(Tick) S64_MAX;
 GetClientInputTick :: () -> Tick
 {
   assert(context.role == .CLIENT);
-  return G.client.input_tick;
+  return G.cl.input_tick;
 }
 
 GetClientPlaybackTick :: () -> Tick
 {
   assert(context.role == .CLIENT);
-  return G.client.playback_tick;
+  return G.cl.playback_tick;
 }
 
 GetServerTick :: () -> Tick
 {
   assert(context.role == .SERVER);
-  return G.server.tick;
+  return G.sv.tick;
 }
 
 
@@ -112,16 +112,16 @@ ClientTimestampOfServerTick :: (server_tick: Tick, max_on_fail: bool) -> Timesta
 {
   assert(context.role == .CLIENT);
 
-  if !IndexInBounds(G.client.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
-  return G.client.server_tick_to_client_timestamps[server_tick], true;
+  if !IndexInBounds(G.cl.server_tick_to_client_timestamps, server_tick) return FailTimestamp(max_on_fail), false;
+  return G.cl.server_tick_to_client_timestamps[server_tick], true;
 }
 
 ClientSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
 {
   assert(context.role == .CLIENT);
 
-  if !IndexInBounds(G.client.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
-  start_client_timestamp := G.client.server_tick_to_client_timestamps[start_server_tick];
+  if !IndexInBounds(G.cl.server_tick_to_client_timestamps, start_server_tick) return FailSeconds(max_on_fail), false;
+  start_client_timestamp := G.cl.server_tick_to_client_timestamps[start_server_tick];
   f, b := ElapsedSeconds(start_client_timestamp);
   return f, b;
 }
@@ -130,7 +130,7 @@ ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
 {
   assert(context.role == .SERVER);
 
-  current_server_tick := G.server.tick;
+  current_server_tick := G.sv.tick;
   if start_server_tick > current_server_tick return FailSeconds(max_on_fail), false;
 
   ticks_delta := current_server_tick - start_server_tick;

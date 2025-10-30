@@ -36,21 +36,23 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
-  for *obj: context.R.obj.all_objects
+  assert(context.role == .CLIENT);
+
+  for *obj: G.cl.all_objects
   {
-    if OBJ_HasAnyFlag(obj, .PLAY_SOUNDS)
+    if OBJ_HasAnyFlag(obj.o, .PLAY_SOUNDS)
     {
-      max_start := obj.l.audio_handled;
-      for obj.s.sound_requests
+      max_start := obj.audio_handled;
+      for obj.o.sound_requests
       {
         max_start = max(max_start, it.start);
-        if it.start > obj.l.audio_handled /*&&
+        if it.start > obj.audio_handled /*&&
            ElapsedTime(it.start, max_on_fail = true) < 300 // Dont play sounds older than 300ms.*/
         {
           AUDIO_PlaySound(it.type);
         }
       }
-      obj.l.audio_handled = max_start;
+      obj.audio_handled = max_start;
     }
   }
 }

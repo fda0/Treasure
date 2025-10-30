@@ -3,26 +3,8 @@ OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
 OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
 OBJ_MAX_COLLIDER_VERTS :: 4;
-OBJ_NIL :: Object.{};
 
-OBJ_State :: struct
-{
-  offline_objects: [OBJ_MAX_OFFLINE_OBJECTS] Object;
-  network_objects: [OBJ_MAX_NETWORK_OBJECTS] Object;
-  #place offline_objects;
-  all_objects: [OBJ_MAX_ALL_OBJECTS] Object = ---;
-
-  creation_serials: [OBJ_MAX_ALL_OBJECTS] u8;
-
-  // @todo table of *Object (used for OBJ_Key lookups) -> pointing into table below
-  // @todo table of Object; sorted by chunk; last chunk is "new objects chunk"
-  // @todo 2D array of chunks with slices into above table; [] Object
-
-  // special objects
-  sun: OBJ_Key;
-  pathing_marker: OBJ_Key;
-  pathing_marker_set: bool;
-};
+OBJ_NIL_MEMORY :: ObjectView.{};
 
 OBJ_Storage :: enum_flags u32
 {
@@ -30,7 +12,6 @@ OBJ_Storage :: enum_flags u32
   // A single object can have only one storage type.
   OFFLINE;
   NETWORK;
-
   ALL :: OFFLINE | NETWORK;
 };
 
@@ -104,7 +85,42 @@ OBJ_ActivityState :: struct
   last_projectile: OBJ_Key;
 }
 
-OBJ_Sync :: struct
+OBJ_AnimationState :: struct
+{
+  is_walking: float; // 0=idle; 1=walking; 2=running
+  walk_cycle: float;
+
+  is_attacking: float;
+  is_hit: float;
+
+  tracks: [10] ANIMATION_Track;
+}
+
+ObjectView :: struct
+{
+  o: Object;
+
+  from: *Object;
+  to: *Object;
+  t: float;
+
+  // Object data that's kept on client side only
+  animated_rot: Quat; // animates towards rotation
+  animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
+
+  anim: OBJ_AnimationState;
+
+  // animation_distance01: float; // in range [0; 1]
+  // animation_moving_hot_t: float; // 1 = moving; 0 = idling
+  // animation_hands_punching_hot_t: float;
+  // animation_full_punching_hot_t: float;
+  // animation_attack_hide_cooldown: bool;
+  // animation_requests_hot_t: [3] float;
+
+  audio_handled: Timestamp; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
+};
+
+Object :: struct
 {
   // Object data that's synced with the server
   key: OBJ_Key;
@@ -145,202 +161,7 @@ OBJ_Sync :: struct
   collider: OBJ_Collider;
 };
 
-OBJ_AnimationState :: struct
-{
-  is_walking: float; // 0=idle; 1=walking; 2=running
-  walk_cycle: float;
-
-  is_attacking: float;
-  is_hit: float;
-
-  tracks: [10] ANIMATION_Track;
-}
-
-OBJ_Local :: struct
-{
-  // Object data that's kept on client side only
-  animated_rot: Quat; // animates towards rotation
-  animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
-
-  anim: OBJ_AnimationState;
-
-  // animation_distance01: float; // in range [0; 1]
-  // animation_moving_hot_t: float; // 1 = moving; 0 = idling
-  // animation_hands_punching_hot_t: float;
-  // animation_full_punching_hot_t: float;
-  // animation_attack_hide_cooldown: bool;
-  // animation_requests_hot_t: [3] float;
-
-  audio_handled: Timestamp; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
-};
-
-Object :: struct
-{
-  s: OBJ_Sync;
-  l: OBJ_Local;
-};
-
-OBJ_Init :: ()
-{
-  // Sun
-  {
-    sun := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
-    sun.s.material = MaterialKey("tex.Leather011");
-    sun.s.height = 0.5;
-    sun.s.collider = OBJ_ColliderFromRect(.{.5, .5});
-    context.R.obj.sun = sun.s.key;
-  }
-
-  // Pathing marker
-  {
-    context.R.obj.pathing_marker = OBJ_Create(.OFFLINE, .ANIMATE_POSITION).s.key;
-  }
-
-  // Ground
-  {
-    r := 32;
-    d := 1.0;
-    grass := MaterialKey("tex.Grass004");
-    ground1 := MaterialKey("tex.Ground075");
-
-    for y: MakeRange(-r, r)
-    {
-      for x: MakeRange(-r, r)
-      {
-        tile := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS);
-        if !OBJ_IsNil(tile)
-        {
-          tile.s.p = .{x = d * x, y = d * y};
-          tile.s.collider = OBJ_ColliderFromRect(.{d, d});
-          tile.s.texture_texels_per_m = 1.0 / d;
-          tile.s.material = grass;
-          if x < -r+5 || x >r-5 then tile.s.material = ground1;
-          if y < -r+5 || y >r-5 then tile.s.material = ground1;
-          if abs(x+y) < 4 then tile.s.material = ground1;
-        }
-      }
-    }
-  }
-
-  // blocks thing
-  {
-    for wall: 0..3
-    {
-      len := 64;
-      for i: MakeRange(len)
-      {
-        d := 1.0;
-
-        x, y: float;
-        if wall == 0 y = d*i;
-        if wall == 1 {x = d*i; y = d * len;}
-        if wall == 2 {x = d * len; y = len - d*i;}
-        if wall == 3 x = len - d*i;
-        x -= (0.5*d*len);
-        y -= (0.5*d*len);
-
-        block := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS | .COLLIDE);
-        if !OBJ_IsNil(block)
-        {
-          block.s.p = V3.{x, y, 0};
-          block.s.collider = OBJ_ColliderFromRect(.{d,d});
-          block.s.height = d;
-          block.s.material = MaterialKey("tex.Clay002");
-          block.s.texture_texels_per_m = 1.0 / d;
-        }
-      }
-    }
-  }
-
-  // Add turrets
-  {
-    for team: BOTH_TEAMS
-    {
-      for tier: 0..2
-      {
-        if tier != 0 continue;
-
-        turret := OBJ_Create(.NETWORK,
-          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
-          team);
-
-        if !OBJ_IsNil(turret)
-        {
-          p := 6.0 + 10.0*tier;
-          if team == .RED then p = -p;
-          turret.s.p = .{-p,p,0};
-
-          dim := 0.4;
-          turret.s.collider = OBJ_ColliderFromRect(.{dim,dim});
-
-          turret.s.model = ModelKey("Plank");
-
-          turret.s.max_hp = 400;
-          turret.s.hp = 400;
-          turret.s.attack_speed = 2.5;
-          turret.s.attack_landed_t = 0.1;
-          turret.s.attack_cooldown_t = 5.0;
-        }
-      }
-    }
-  }
-
-  // Add trees
-  {
-    x_count := 4;
-    y_count := 4;
-
-    for y: MakeRange(y_count)
-    {
-      for x: MakeRange(x_count)
-      {
-        x_half_count := x_count/2;
-        y_half_count := y_count/2;
-
-        pos: V3;
-        if ((x^y)&1) pos.x = 4.70;
-        else         pos.y = 6.90;
-
-        pos.x += 7 + 4.0*(x % x_half_count);
-        pos.y += 5 + 2.4*(y % y_half_count);
-
-        pos.x *= ifx x < x_half_count then -1 else 1;
-        pos.y *= ifx y < y_half_count then -1 else 1;
-
-        tree := OBJ_Create(.OFFLINE, .DRAW_MODEL);
-        if !OBJ_IsNil(tree)
-        {
-          tree.s.p = pos;
-          tree.s.model = ModelKey("Tree");
-        }
-      }
-    }
-  }
-
-  {
-    hero := OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .RED);
-    if !OBJ_IsNil(hero)
-    {
-      hero.s.p.x = 3.0;
-      hero.s.p.y = 1.0;
-    }
-    hero = OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .RED);
-    if !OBJ_IsNil(hero)
-    {
-      hero.s.p.x = 3.2;
-      hero.s.p.y = 2.0;
-    }
-    hero = OBJ_CreateHero(.NETWORK, ModelKey("Dude"), .BLUE);
-    if !OBJ_IsNil(hero)
-    {
-      hero.s.p.x = 3.4;
-      hero.s.p.y = 3.0;
-    }
-  }
-}
-
-lerp :: (prev: OBJ_Sync, next: OBJ_Sync, t: float) -> OBJ_Sync
+lerp :: (prev: Object, next: Object, t: float) -> Object
 {
   res := prev;
   res.p = lerp(prev.p, next.p, t);
@@ -359,11 +180,11 @@ OBJ_KeyToColor :: (key: OBJ_Key) -> Color32
   return byte_array.data.(*Color32).*;
 }
 
-OBJ_EntropyFromObj :: (obj: *Object) -> Entropy
+OBJ_EntropyFromObj :: (obj: Object) -> Entropy
 {
   rng: Entropy;
-  rng.inc = obj.s.creation_time.(u64) | 1;
-  rng.state = obj.s.creation_time.(u64) ^ 0xdeadbeeffda01234;
+  rng.inc = obj.creation_time.(u64) | 1;
+  rng.state = obj.creation_time.(u64) ^ 0xdeadbeeffda01234;
   return rng;
 }
 
@@ -381,48 +202,24 @@ OBJ_ColorToKey :: (color: Color32, from_bgra := true) -> OBJ_Key
   return byte_array.data.(*OBJ_Key).*;
 }
 
-OBJ_Distance2DSquared :: (a: *Object, b: *Object) -> float { return distance_squared(a.s.p.xy, b.s.p.xy); }
-OBJ_Distance2D :: (a: *Object, b: *Object) -> float { return distance(a.s.p.xy, b.s.p.xy); }
+OBJ_Distance2DSquared :: (a: *Object, b: *Object) -> float { return distance_squared(a.p.xy, b.p.xy); }
+OBJ_Distance2D :: (a: *Object, b: *Object) -> float { return distance(a.p.xy, b.p.xy); }
 
-OBJ_GetNil :: () -> *Object { return *OBJ_NIL; }
-OBJ_IsNil :: (obj: *Object) -> bool { return obj == *OBJ_NIL; }
+OBJ_GetNil :: () -> *Object { return xx *OBJ_NIL_MEMORY; }
+OBJ_GetNilView :: () -> *ObjectView { return *OBJ_NIL_MEMORY; }
+OBJ_IsNil :: (obj: Object) -> bool { return *obj == xx *OBJ_NIL_MEMORY; }
+OBJ_IsNil :: (ov: ObjectView) -> bool { return *ov == *OBJ_NIL_MEMORY; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
-OBJ_Delete :: (obj: *Object)
-{
-  obj.* = .{};
-}
-
-OBJ_Get :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Object
-{
-  result := OBJ_GetNil();
-  key_index := OBJ_IndexOfKey(key);
-
-  index_in_valid_storage := false;
-  {
-    min: u32 = 0;
-    max: u32 = OBJ_MAX_OFFLINE_OBJECTS;
-    if (storage_mask & .OFFLINE)
-      index_in_valid_storage |= (key_index >= min && key_index < max);
-
-    min = max;
-    max += OBJ_MAX_NETWORK_OBJECTS;
-    if (storage_mask & .NETWORK)
-      index_in_valid_storage |= (key_index >= min && key_index < max);
-  }
-
-  if index_in_valid_storage
-  {
-    obj := *context.R.obj.all_objects[key_index];
-    if obj.s.key == key then result = obj;
-  }
-  return result;
-}
+OBJ_IsInit :: (obj: Object) -> bool { return obj.init; }
+OBJ_HasData :: (obj: Object) -> bool { return !!obj.flags; }
+OBJ_HasAnyFlag :: (obj: Object, flag: OBJ_Flags) -> bool { return !!(obj.flags & flag); }
+OBJ_HasAllFlags :: (obj: Object, flags: OBJ_Flags) -> bool { return (obj.flags & flags) == flags; }
 
 OBJ_TestParams :: struct
 {
   filter := DefaultFilter;
-  DefaultFilter :: (obj: *Object) -> bool { return true; }
+  DefaultFilter :: (obj: Object) -> bool { return true; }
 
   require_flags: OBJ_Flags;
   reject_flags: OBJ_Flags;
@@ -436,7 +233,7 @@ OBJ_TestParams :: struct
   }
 }
 
-OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
+OBJ_Test :: (obj: Object, using params: OBJ_TestParams) -> bool
 {
   if OBJ_IsNil(obj) return false;
   if OBJ_HasAnyFlag(obj, reject_flags) return false;
@@ -444,87 +241,26 @@ OBJ_Test :: (obj: *Object, using params: OBJ_TestParams) -> bool
 
   if common & .IS_ALIVE
   {
-    if !((obj.s.flags & .HAS_HP) && (obj.s.hp > 0.0)) return false;
+    if !((obj.flags & .HAS_HP) && (obj.hp > 0.0)) return false;
   }
   if common & .IS_ALIVE_OR_NO_HP
   {
-    if !(!(obj.s.flags & .HAS_HP) || (obj.s.hp > 0.0)) return false;
+    if !(!(obj.flags & .HAS_HP) || (obj.hp > 0.0)) return false;
   }
 
   if !filter(obj) return false;
   return true;
 }
 
-OBJ_Test2 :: (tested: *Object, reference: *Object, using params: OBJ_TestParams) -> bool
+OBJ_Test2 :: (tested: Object, reference: Object, using params: OBJ_TestParams) -> bool
 {
   if !OBJ_Test(tested, params) return false;
 
   if common2 & .ARE_ENEMIES
   {
-    if tested.s.team == reference.s.team return false;
+    if tested.team == reference.team return false;
   }
   return true;
-}
-
-OBJ_FindNearestToObj :: (obj: *Object, storage_mask: OBJ_Storage, params: OBJ_TestParams) -> *Object
-{
-  nearest := OBJ_GetNil();
-  nearest_distsq := FLOAT32_MAX;
-
-  test_for_nearest :: (candidate: *Object) #expand
-  {
-    if candidate == obj return;
-    if !OBJ_Test2(candidate, obj, params) return;
-
-    distsq := OBJ_Distance2DSquared(obj, candidate);
-    if distsq < nearest_distsq
-    {
-      nearest = candidate;
-      nearest_distsq = distsq;
-    }
-  }
-
-  if storage_mask & .OFFLINE
-    for *context.R.obj.offline_objects
-      test_for_nearest(it);
-
-  if storage_mask & .NETWORK
-    for *context.R.obj.network_objects
-      test_for_nearest(it);
-
-  return nearest;
-}
-
-OBJ_GetAny :: (key: OBJ_Key) -> *Object
-{
-  return OBJ_Get(.ALL, key);
-}
-
-OBJ_SyncIsInit :: (sync: OBJ_Sync) -> bool
-{
-  return sync.init;
-}
-
-OBJ_HasData :: (obj: Object) -> bool
-{
-  return !!obj.s.flags;
-}
-
-OBJ_HasAnyFlag :: (obj: Object, flag: OBJ_Flags) -> bool
-{
-  return !!(obj.s.flags & flag);
-}
-OBJ_HasAllFlags :: (obj: Object, flags: OBJ_Flags) -> bool
-{
-  return (obj.s.flags & flags) == flags;
-}
-
-OBJ_FromNetIndex :: (net_index: u32) -> *Object
-{
-  if net_index > context.R.obj.network_objects.count
-    return OBJ_GetNil();
-
-  return *context.R.obj.network_objects[net_index];
 }
 
 OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
@@ -533,100 +269,10 @@ OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
     start = GetTimestamp(),
     type = type,
   };
-  QueuePush(*obj.s.sound_requests, req);
+  QueuePush(*obj.sound_requests, req);
 }
 
 OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
-  QueuePush(*obj.s.animation_requests, .{GetServerTick(), type});
-}
-
-OBJ_Create :: (storage: OBJ_Storage, flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
-{
-  obj: *Object;
-  matched_storages := 0;
-
-  if storage & .OFFLINE
-  {
-    matched_storages += 1;
-    for *context.R.obj.offline_objects
-    {
-      if !OBJ_SyncIsInit(it.s)
-      {
-        obj = it;
-        break;
-      }
-    }
-  }
-  if storage & .NETWORK
-  {
-    matched_storages += 1;
-    for *context.R.obj.network_objects
-    {
-      if !OBJ_SyncIsInit(it.s)
-      {
-        obj = it;
-        break;
-      }
-    }
-  }
-
-  if matched_storages != 1
-  {
-    obj = null;
-    assert(matched_storages == 1, "Invalid OBJ_Storage (%) used in OBJ_Create", storage);
-  }
-  if !obj then return OBJ_GetNil();
-
-  // init object
-  Initialize(obj);
-
-  index := ((obj.(u64) - context.R.obj.all_objects.data.(u64)) / size_of(Object)).(u32);
-  context.R.obj.creation_serials[index] = max(context.R.obj.creation_serials[index] + 1, 1);
-  obj.s.key = OBJ_CreateKey(index, context.R.obj.creation_serials[index]);
-
-  obj.s.init = true;
-  obj.s.creation_time = GetTimestamp(.NOW);
-  obj.s.flags = flags;
-  obj.s.team = team;
-  return obj;
-}
-
-OBJ_CreateWall :: (p: V2, dim: V2, height: float) -> *Object
-{
-  obj := OBJ_Create(.OFFLINE, .DRAW_COLLIDERS | .COLLIDE);
-  if !OBJ_IsNil(obj)
-  {
-    obj.s.p = V3.{xy = p};
-    obj.s.collider = OBJ_ColliderFromRect(dim);
-    obj.s.material = MaterialKey("tex.Bricks071");
-    obj.s.texture_texels_per_m = 1;
-    obj.s.color = Color32_Grayf(1);
-    obj.s.height = height;
-  }
-  return obj;
-}
-
-OBJ_CreateHero :: (storage: OBJ_Storage, model: MODEL_Key, team: OBJ_Team) -> *Object
-{
-  obj := OBJ_Create(storage,
-    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
-
-  if !OBJ_IsNil(obj)
-  {
-    dim := 0.4;
-    obj.s.collider = OBJ_ColliderFromRect(.{dim,dim});
-    obj.s.height = dim;
-    obj.s.model = model;
-    obj.s.color = Color32_Grayf(1);
-    obj.s.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
-
-    obj.s.max_hp = 40;
-    obj.s.hp = 40;
-    obj.s.move_speed = 1.5;
-
-    obj.s.team = team;
-  }
-  return obj;
+  QueuePush(*obj.animation_requests, .{GetServerTick(), type});
 }

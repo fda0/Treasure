@@ -8,6 +8,9 @@ SERVER_State :: struct
 
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_User;
+
+  objects: [OBJ_MAX_NETWORK_OBJECTS] Object;
+  creation_serials: [OBJ_MAX_NETWORK_OBJECTS] u8;
 };
 
 SERVER_Start :: ()
@@ -15,22 +18,24 @@ SERVER_Start :: ()
   push_context CreateContextWithRole(.SERVER)
   {
     log("Launching as server");
-    OBJ_Init();
+    SV_InitObjects();
 
     if GAME_ClientEnabled()
     {
       local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
     }
 
-    G.server.thread.starting_context = context;
-    thread_init(*G.server.thread, SERVER_ThreadEntry);
-    thread_start(*G.server.thread);
+    G.sv.thread.starting_context = context;
+    thread_init(*G.sv.thread, SERVER_ThreadEntry);
+    thread_start(*G.sv.thread);
   }
 }
 
 SERVER_GetNextPlayerInput :: (user: *SERVER_User) -> PlayerInput
 {
   PerfFunc();
+  assert(context.role == .SERVER);
+
   top_delay: float;
   for user.received_inputs
   {
@@ -98,7 +103,7 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
 
     for MakeRange(simulation_tick_count)
     {
-      G.server.tick += 1;
+      G.sv.tick += 1;
       SIM_AdvanceByTick();
 
       if simulation_tick_count > 1
@@ -124,11 +129,11 @@ SERVER_IterateSend :: ()
   PerfFunc();
 
   client_count := 0;
-  for G.server.users if it.connection.type  client_count += 1;
+  for G.sv.users if it.connection.type  client_count += 1;
 
   // iterate over connected users
   player_number := 0;
-  for *user, user_index: G.server.users
+  for *user, user_index: G.sv.users
   {
     if !user.connection.type continue;
     player_number += 1;
@@ -147,16 +152,16 @@ SERVER_IterateSend :: ()
 
         model := model_keys[user_index % model_keys.count];
         team := (user_index % 2 + 1).(OBJ_Team);
-        player := OBJ_CreateHero(.NETWORK, model, team);
+        player := SV_CreateHero(model, team);
         if !OBJ_IsNil(player)
         {
-          player.s.p.y = -1.5 + user_index * 0.7;
+          player.p.y = -1.5 + user_index * 0.7;
           r := ifx user_index & 4 then 0.3 else 0.8;
           g := ifx user_index & 2 then 0.3 else 0.8;
           b := ifx user_index & 1 then 0.3 else 0.8;
-          player.s.color = Color32_RGBf(r, g, b);
+          player.color = Color32_RGBf(r, g, b);
         }
-        user.key = player.s.key;
+        user.key = player.key;
       }
 
       assign: PACKET_AssignPlayerKey;
@@ -219,7 +224,7 @@ SERVER_IterateSend :: ()
   }
 
   // iterate over network objects
-  for context.R.obj.network_objects
+  for G.sv.objects
   {
     packet: PACKET_Full;
 
@@ -227,7 +232,7 @@ SERVER_IterateSend :: ()
     {
       update: PACKET_ObjUpdate;
       update.net_index = xx it_index;
-      update.sync = it.s;
+      update.sync = it;
       PACKET_CopyType(*packet, update);
     }
     else
@@ -239,7 +244,7 @@ SERVER_IterateSend :: ()
 
     PACKET_FinalizeHeader(GetServerTick(), *packet);
 
-    for G.server.users
+    for G.sv.users
     {
       if !it.connection.type continue;
       NET_SendPacket(packet, it.connection, true);
@@ -249,7 +254,7 @@ SERVER_IterateSend :: ()
 
 SERVER_IterateTimeoutUsers :: ()
 {
-  for *G.server.users
+  for *G.sv.users
   {
     if it.connection.type != .NETWORK continue;
     if ElapsedSeconds(it.connection.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
@@ -277,11 +282,11 @@ SERVER_IterateReceive :: ()
   local_user := SERVER_FindLocalUser();
   if local_user
   {
-    player_id := PointerToIndex(G.server.users, local_user).(u16);
+    player_id := PointerToIndex(G.sv.users, local_user).(u16);
 
     while true
     {
-      packet, got_packet := QueuePop(*G.server.local_user_packets);
+      packet, got_packet := QueuePop(*G.sv.local_user_packets);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
@@ -310,7 +315,7 @@ SERVER_IterateReceive :: ()
     if user
     {
       user.connection.last_msg_timestamp = GetTimestamp(.FRAME);
-      player_id := PointerToIndex(G.server.users, user).(u16);
+      player_id := PointerToIndex(G.sv.users, user).(u16);
 
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
@@ -360,7 +365,7 @@ SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_Player
 SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
 {
   // @todo move to SV_ prefix?
-  for *G.server.users
+  for *G.sv.users
   {
     if NET_MatchConnection(it.connection, address, port)
     {
@@ -392,7 +397,7 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
     else if msg_type == .PlayerInput
     {
       in_net := PACKET_Consume(PACKET_PlayerInput, *msg);
-      user := *G.server.users[player_id];
+      user := *G.sv.users[player_id];
       SERVER_ReceiveUserPlayerInputs(user, *in_net, from_tick);
     }
     else
@@ -405,7 +410,7 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
 
 SERVER_FindLocalUser :: () -> *SERVER_User
 {
-  for *G.server.users
+  for *G.sv.users
   {
     if it.connection.type == .LOCAL_CLIENT
     {
@@ -419,7 +424,7 @@ SERVER_AddUser :: (type: NET_ConnectionType, address: *SDLNet_Address, port: u16
 {
   // @todo move to SV_ prefix?
   new_user_slot: *SERVER_User;
-  for *G.server.users
+  for *G.sv.users
   {
     if !it.connection.type
     {
@@ -439,4 +444,162 @@ SERVER_AddUser :: (type: NET_ConnectionType, address: *SDLNet_Address, port: u16
     }
   }
   return new_user_slot;
+}
+
+SV_InitObjects :: ()
+{
+  // Add turrets
+  {
+    for team: BOTH_TEAMS
+    {
+      for tier: 0..2
+      {
+        if tier != 0 continue;
+
+        turret := SV_CreateObject(
+          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
+          team);
+
+        if !OBJ_IsNil(turret)
+        {
+          p := 6.0 + 10.0*tier;
+          if team == .RED then p = -p;
+          turret.p = .{-p,p,0};
+
+          dim := 0.4;
+          turret.collider = OBJ_ColliderFromRect(.{dim,dim});
+
+          turret.model = ModelKey("Plank");
+
+          turret.max_hp = 400;
+          turret.hp = 400;
+          turret.attack_speed = 2.5;
+          turret.attack_landed_t = 0.1;
+          turret.attack_cooldown_t = 5.0;
+        }
+      }
+    }
+  }
+
+  {
+    hero := SV_CreateHero(ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.0;
+      hero.p.y = 1.0;
+    }
+    hero = SV_CreateHero(ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.2;
+      hero.p.y = 2.0;
+    }
+    hero = SV_CreateHero(ModelKey("Dude"), .BLUE);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.4;
+      hero.p.y = 3.0;
+    }
+  }
+}
+
+#scope_export;
+
+SV_GetObject :: (key: OBJ_Key) -> *Object
+{
+  assert(context.role == .SERVER);
+  result := OBJ_GetNil();
+  key_index := OBJ_IndexOfKey(key);
+
+  if key_index < G.sv.objects.count
+  {
+    obj := *G.sv.objects[key_index];
+    if (obj.key == key) result = obj;
+  }
+  return result;
+}
+
+SV_DeleteObject :: (obj: *Object)
+{
+  assert(context.role == .SERVER);
+  obj.* = .{};
+}
+
+SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
+{
+  assert(context.role == .SERVER);
+
+  obj: *Object;
+  index: u32;
+
+  for *G.sv.objects
+  {
+    if !OBJ_IsInit(it)
+    {
+      obj = it;
+      index = xx it_index;
+      break;
+    }
+  }
+
+  if (!obj) return OBJ_GetNil();
+
+  Initialize(obj);
+
+  G.sv.creation_serials[index] = max(G.sv.creation_serials[index] + 1, 1);
+  obj.key = OBJ_CreateKey(index, G.sv.creation_serials[index]);
+
+  obj.init = true;
+  obj.creation_time = GetTimestamp(.NOW);
+  obj.flags = flags;
+  obj.team = team;
+  return obj;
+}
+
+SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
+{
+  assert(context.role == .SERVER);
+
+  nearest := OBJ_GetNil();
+  nearest_distsq := FLOAT32_MAX;
+
+  for *candidate: G.sv.objects
+  {
+    if (candidate == obj) continue;
+    if !OBJ_Test2(candidate, obj, params) continue;
+
+    distsq := OBJ_Distance2DSquared(obj, candidate);
+    if distsq < nearest_distsq
+    {
+      nearest = candidate;
+      nearest_distsq = distsq;
+    }
+  }
+
+  return nearest;
+}
+
+SV_CreateHero :: (model: MODEL_Key, team: OBJ_Team) -> *Object
+{
+  obj := SV_CreateObject(
+    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
+
+  if !OBJ_IsNil(obj)
+  {
+    dim := 0.4;
+    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
+    obj.height = dim;
+    obj.model = model;
+    obj.color = Color32_Grayf(1);
+    obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
+
+    obj.max_hp = 40;
+    obj.hp = 40;
+    obj.move_speed = 1.5;
+
+    obj.team = team;
+  }
+  return obj;
 }

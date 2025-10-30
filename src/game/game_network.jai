@@ -112,7 +112,7 @@ NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: boo
   }
   else if dest.type == .LOCAL_SERVER || dest.type == .LOCAL_CLIENT
   {
-    packets := ifx dest.type == .LOCAL_SERVER then *G.server.local_user_packets else *G.client.local_server_packets;
+    packets := ifx dest.type == .LOCAL_SERVER then *G.sv.local_user_packets else *G.cl.local_server_packets;
     QueuePush(packets, packet);
   }
   else

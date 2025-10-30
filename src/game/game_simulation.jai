@@ -41,26 +41,24 @@ SIM_AdvanceByTick :: ()
 
     for team: BOTH_TEAMS
     {
-      sleeper := OBJ_Create(.NETWORK,
-        .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-        .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
+      sleeper := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION |
+         .ANIMATE_TRACKS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
       if !OBJ_IsNil(sleeper)
       {
-        sleeper.s.model = ModelKey("Zombie");
-        sleeper.s.hp = 60.0;
-        sleeper.s.max_hp = 60.0;
+        sleeper.model = ModelKey("Zombie");
+        sleeper.hp = 60.0;
+        sleeper.max_hp = 60.0;
         dim := 0.3;
-        sleeper.s.collider = OBJ_ColliderFromRect(.{dim,dim});
+        sleeper.collider = OBJ_ColliderFromRect(.{dim,dim});
 
         sign := ifx team == .RED then -1.0 else 1.0;
-        sleeper.s.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
+        sleeper.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
 
-        sleeper.s.team = team;
+        sleeper.team = team;
 
-        sleeper.s.activity = .{
+        sleeper.activity = .{
           wants_to_attack = true,
-          target = OBJ_FindNearestToObj(sleeper, .NETWORK,
-            .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).s.key,
+          target = SV_FindNearestToObject(sleeper, .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).key,
         };
 
         zxczxc := 10;
@@ -70,17 +68,17 @@ SIM_AdvanceByTick :: ()
   }
 
   // temporary - player health regen
-  for G.server.users
+  for G.sv.users
   {
-    player := OBJ_Get(.NETWORK, it.key);
+    player := SV_GetObject(it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
-    player.s.hp = min(player.s.hp + TICK_FLOAT_STEP * 20.0, player.s.max_hp);
+    player.hp = min(player.hp + TICK_FLOAT_STEP * 20.0, player.max_hp);
   }
 
   // transfer input to player objects
-  for *G.server.users
+  for *G.sv.users
   {
-    player := OBJ_Get(.NETWORK, it.key);
+    player := SV_GetObject(it.key);
     if OBJ_IsNil(player) continue;
 
     input := SERVER_GetNextPlayerInput(it);
@@ -88,15 +86,15 @@ SIM_AdvanceByTick :: ()
   }
 
   // Advance state machine
-  for *obj: context.R.obj.network_objects
+  for *obj: G.sv.objects
   {
     SIM_ProcessActivity(obj);
   }
 
-  for *turret: context.R.obj.network_objects
+  for *turret: G.sv.objects
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
-    activity := *turret.s.activity;
+    activity := *turret.activity;
 
     valid_enemy_test := OBJ_TestParams.{
       require_flags = .TARGETABLE,
@@ -105,8 +103,8 @@ SIM_AdvanceByTick :: ()
       common2 = .ARE_ENEMIES,
     };
 
-    attack_target := OBJ_Get(.NETWORK, activity.target);
-    nearest_target := OBJ_FindNearestToObj(turret, .NETWORK, valid_enemy_test);
+    attack_target := SV_GetObject(activity.target);
+    nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
 
     SHOOT_RANGE :: 4.0;
 
@@ -125,11 +123,11 @@ SIM_AdvanceByTick :: ()
       if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
     }
 
-    activity.target = attack_target.s.key;
+    activity.target = attack_target.key;
     activity.is_attacking = !OBJ_IsNil(attack_target);
 
-    attack_t_delta := TICK_FLOAT_STEP * turret.s.attack_speed;
-    if OBJ_IsNil(OBJ_Get(.NETWORK, activity.last_projectile))
+    attack_t_delta := TICK_FLOAT_STEP * turret.attack_speed;
+    if OBJ_IsNil(SV_GetObject(activity.last_projectile))
     {
       additional_delta := TICK_FLOAT_STEP * 100.0;
       // delta is applied only if turret is on cooldown
@@ -145,20 +143,20 @@ SIM_AdvanceByTick :: ()
     {
       attack_damage := 16.0;
 
-      while activity.attack_t >= turret.s.attack_landed_t
+      while activity.attack_t >= turret.attack_landed_t
       {
-        activity.attack_t -= turret.s.attack_cooldown_t;
-        // attack_target.s.hp -= attack_damage;
+        activity.attack_t -= turret.attack_cooldown_t;
+        // attack_target.hp -= attack_damage;
 
-        projectile := OBJ_Create(.NETWORK, .DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
+        projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
         {
-          projectile.s.model = ModelKey("Potion");
-          projectile.s.p.xy = turret.s.p.xy;
-          projectile.s.p.z = 4.1;
-          projectile.s.activity.target = attack_target.s.key;
+          projectile.model = ModelKey("Potion");
+          projectile.p.xy = turret.p.xy;
+          projectile.p.z = 4.1;
+          projectile.activity.target = attack_target.key;
 
-          turret.s.activity.last_projectile = projectile.s.key;
+          turret.activity.last_projectile = projectile.key;
         }
 
         OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
@@ -171,35 +169,35 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *projectile: context.R.obj.network_objects
+  for *projectile: G.sv.objects
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
-    activity := *projectile.s.activity;
+    activity := *projectile.activity;
 
-    target := OBJ_Get(.NETWORK, activity.target);
+    target := SV_GetObject(activity.target);
     if OBJ_IsNil(target)
     {
-      OBJ_Delete(projectile);
+      SV_DeleteObject(projectile);
     }
     else
     {
       apply_hit := false;
 
       // move projectile
-      target_p := target.s.p;
+      target_p := target.p;
       target_p.z = 1.0;
 
-      gap := target_p - projectile.s.p;
+      gap := target_p - projectile.p;
       gap_length := length(gap);
 
-      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSeconds(projectile.s.creation_time));
+      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSeconds(projectile.creation_time));
       fly_speed *= TICK_FLOAT_STEP;
 
       if gap_length > 0.0
       {
         direction := gap * (1.0 / gap_length);
         projectile_shift := direction * min(fly_speed, gap_length);
-        projectile.s.p += projectile_shift;
+        projectile.p += projectile_shift;
       }
       else apply_hit = true;
 
@@ -210,41 +208,41 @@ SIM_AdvanceByTick :: ()
       if apply_hit
       {
         attack_damage := 25.0;
-        target.s.hp -= attack_damage;
+        target.hp -= attack_damage;
         OBJ_PlaySound(target, .HIT);
-        OBJ_Delete(projectile);
+        SV_DeleteObject(projectile);
       }
     }
   }
 
-  for *obj: context.R.obj.network_objects
+  for *obj: G.sv.objects
   {
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
     {
-      obj.s.death_time = 0;
+      obj.death_time = 0;
     }
     else // IS_DEAD
     {
-      if !obj.s.death_time then obj.s.death_time = GetTimestamp();
+      if !obj.death_time then obj.death_time = GetTimestamp();
 
-      death_t := ElapsedSeconds(obj.s.death_time);
+      death_t := ElapsedSeconds(obj.death_time);
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
       {
-        obj.s.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
+        obj.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
       }
 
       if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
       {
-        obj.s.p = .{};
-        obj.s.hp = obj.s.max_hp;
-        obj.s.death_time = 0;
+        obj.p = .{};
+        obj.hp = obj.max_hp;
+        obj.death_time = 0;
       }
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
       {
-        OBJ_Delete(obj);
+        SV_DeleteObject(obj);
       }
 
     }
@@ -252,12 +250,12 @@ SIM_AdvanceByTick :: ()
 
   SIM_MoveAndCollideObjects();
 
-  for * obj: context.R.obj.all_objects
+  for *obj: G.sv.objects
   {
     if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
     {
-      if HasLength(obj.s.moved_dp)
-        obj.s.rotation = DirectionXYToRotationZ(obj.s.moved_dp);
+      if HasLength(obj.moved_dp)
+        obj.rotation = DirectionXYToRotationZ(obj.moved_dp);
     }
   }
 }
@@ -266,8 +264,8 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 {
   if OBJ_IsNil(obj) return;
 
-  obj.s.desired_dp = .{};
-  activity := *obj.s.activity;
+  obj.desired_dp = .{};
+  activity := *obj.activity;
 
   if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
   {
@@ -282,7 +280,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 
   if input.skills & .W
   {
-    obj.s.move_speed += 2.0;
+    obj.move_speed += 2.0;
   }
 
   if input.skills & .E
@@ -327,7 +325,7 @@ SIM_ProcessActivity :: (obj: *Object)
 {
   if OBJ_IsNil(obj) return;
   if !OBJ_HasAnyFlag(obj, .HAS_ACTIVITY) return;
-  activity := *obj.s.activity;
+  activity := *obj.activity;
 
   // Find attack target (and invalidate if needed)
   target := OBJ_GetNil();
@@ -335,7 +333,7 @@ SIM_ProcessActivity :: (obj: *Object)
   {
     activity.is_walking = false;
 
-    target = OBJ_Get(.NETWORK, activity.target);
+    target = SV_GetObject(activity.target);
     target_is_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
     if !target_is_valid_enemy
     {
@@ -349,14 +347,14 @@ SIM_ProcessActivity :: (obj: *Object)
   attack_is_out_of_range := true;
   if !OBJ_IsNil(target) && activity.wants_to_attack
   {
-    obj_to_target := target.s.p.xy - obj.s.p.xy;
+    obj_to_target := target.p.xy - obj.p.xy;
     distance_to_target := length(obj_to_target);
     attack_is_out_of_range = distance_to_target > MELEE_ATTACK_DISTANCE;
 
     activity.is_walking = !activity.is_attacking && attack_is_out_of_range;
     if activity.is_walking
     {
-      activity.walking_to = target.s.p.xy;
+      activity.walking_to = target.p.xy;
     }
 
     if !attack_is_out_of_range
@@ -371,20 +369,20 @@ SIM_ProcessActivity :: (obj: *Object)
   pathing_direction: V2;
   if activity.is_walking
   {
-    obj_to_destination := activity.walking_to - obj.s.p.xy;
+    obj_to_destination := activity.walking_to - obj.p.xy;
     distance := length(obj_to_destination);
     if distance >= MINIMUM_MOVE_START_DISTANCE then pathing_direction = obj_to_destination;
 
-    obj_speed := obj.s.move_speed * TICK_FLOAT_STEP;
-    obj.s.desired_dp = V3.{xy = normalize(pathing_direction) * obj_speed, z = 0};
+    obj_speed := obj.move_speed * TICK_FLOAT_STEP;
+    obj.desired_dp = V3.{xy = normalize(pathing_direction) * obj_speed, z = 0};
   }
   else
   {
-    obj.s.desired_dp = .{};
+    obj.desired_dp = .{};
   }
 
   // Advance attack timers
-  attack_t_delta := TICK_FLOAT_STEP * obj.s.attack_speed;
+  attack_t_delta := TICK_FLOAT_STEP * obj.attack_speed;
   activity.attack_t += attack_t_delta;
 
   // advance visual_attack_t
@@ -396,12 +394,12 @@ SIM_ProcessActivity :: (obj: *Object)
   {
     if activity.visual_attack_t != 0.0
     {
-      wrapped := WrapFloat(obj.s.attack_cooldown_t, activity.visual_attack_t, 0.0);
-      dir := ifx wrapped >= obj.s.attack_landed_t then 1.0 else -1.0;
+      wrapped := WrapFloat(obj.attack_cooldown_t, activity.visual_attack_t, 0.0);
+      dir := ifx wrapped >= obj.attack_landed_t then 1.0 else -1.0;
       activity.visual_attack_t += dir * attack_t_delta;
 
-      wrapped2 := WrapFloat(activity.visual_attack_t, 0.0, obj.s.attack_cooldown_t);
-      dir2 := ifx wrapped2 >= obj.s.attack_landed_t then 1.0 else -1.0;
+      wrapped2 := WrapFloat(activity.visual_attack_t, 0.0, obj.attack_cooldown_t);
+      dir2 := ifx wrapped2 >= obj.attack_landed_t then 1.0 else -1.0;
 
       if (dir != dir2) activity.visual_attack_t = 0.0;
     }
@@ -409,13 +407,13 @@ SIM_ProcessActivity :: (obj: *Object)
 
   if activity.is_attacking
   {
-    obj.s.rotation = DirectionXYToRotationZ(target.s.p - obj.s.p);
+    obj.rotation = DirectionXYToRotationZ(target.p - obj.p);
 
     attack_damage := 10.0;
-    while activity.attack_t >= obj.s.attack_landed_t
+    while activity.attack_t >= obj.attack_landed_t
     {
-      activity.attack_t -= obj.s.attack_cooldown_t;
-      target.s.hp -= attack_damage;
+      activity.attack_t -= obj.attack_cooldown_t;
+      target.hp -= attack_damage;
 
       OBJ_PlayAnimation(target, .HIT);
       OBJ_PlaySound(target, .HIT);
@@ -440,13 +438,13 @@ SIM_ProcessActivity :: (obj: *Object)
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
-  for * obj: context.R.obj.network_objects
+  for * obj: G.sv.objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
     // movement simulation
-    obj_dp := obj.s.desired_dp.xy;
-    obj_pos := obj.s.p.xy + obj_dp; // move obj
+    obj_dp := obj.desired_dp.xy;
+    obj_pos := obj.p.xy + obj_dp; // move obj
 
     // check collision
     for collision_iteration: 0..2 // support up to 3 overlapping wall collisions
@@ -454,20 +452,20 @@ SIM_MoveAndCollideObjects :: ()
       closest_obstacle_separation_dist := FLOAT32_MAX;
       closest_obstacle_wall_normal: V2;
 
-      obj_collider := obj.s.collider;
+      obj_collider := obj.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: context.R.obj.network_objects
+      for * obstacle: G.sv.objects
       {
         if obj == obstacle continue;
         if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
-        obstacle_pos := obstacle.s.p.xy;
+        obstacle_pos := obstacle.p.xy;
 
         // @todo temporary hacky perf. optimization. This should be based on obj vs collider bounding boxes.
         if distance_squared(obj_pos, obstacle_pos) >= square(1.0) continue;
 
-        obstacle_collider := obstacle.s.collider;
+        obstacle_collider := obstacle.collider;
         OBJ_OffsetCollider(*obstacle_collider, obstacle_pos);
 
         biggest_dist := -FLOAT32_MAX;
@@ -533,11 +531,11 @@ SIM_MoveAndCollideObjects :: ()
       }
     } // collision_iteration loop
 
-    prev_obj_pos := obj.s.p;
-    obj.s.p.x = obj_pos.x;
-    obj.s.p.y = obj_pos.y;
-    obj.s.moved_dp = obj.s.p - prev_obj_pos;
-    if length(obj.s.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
-      obj.s.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
+    prev_obj_pos := obj.p;
+    obj.p.x = obj_pos.x;
+    obj.p.y = obj_pos.y;
+    obj.moved_dp = obj.p - prev_obj_pos;
+    if length(obj.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
+      obj.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
   } // obj loop
 }

@@ -19,8 +19,8 @@ UI_BuildHUD :: ()
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Parent(hud);
 
-  player := OBJ_Get(.NETWORK, G.client.player_key);
-  hp_ratio := SafeDiv(player.s.hp, player.s.max_hp);
+  player := CL_GetObjectView(.NETWORK, G.cl.player_key);
+  hp_ratio := SafeDiv(player.o.hp, player.o.max_hp);
 
 
   {

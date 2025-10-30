@@ -2,7 +2,7 @@ main :: ()
 {
   // Initialize client / server
   PLATFORM_PreInit();
-  G.client.enabled |= !G.server.enabled;
+  G.cl.enabled |= !G.sv.enabled;
 
   if GAME_ClientEnabled() push_context CreateContextWithRole(.CLIENT)
   {

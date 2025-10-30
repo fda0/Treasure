@@ -16,17 +16,29 @@ CLIENT_State :: struct
   snaps_of_objs: [OBJ_MAX_NETWORK_OBJECTS] CLIENT_ObjSnapshots;
   next_playback_server_tick: Tick;
 
-  //
+  // Lookup table for: Server tick -> Client receive timestamp
+  server_tick_to_client_timestamps: [..] Timestamp;
+
+  // Object keys
   player_key: OBJ_Key;
   player_key_latest_tick: Tick;
 
-  // Lookup table for: Server tick -> Client receive timestamp
-  server_tick_to_client_timestamps: [..] Timestamp;
+  sun: OBJ_Key;
+  pathing_marker: OBJ_Key;
+  pathing_marker_set: bool;
+
+  // Objects
+  network_objects: [OBJ_MAX_NETWORK_OBJECTS] ObjectView;
+  offline_objects: [OBJ_MAX_OFFLINE_OBJECTS] ObjectView;
+  #place network_objects;
+  all_objects: [OBJ_MAX_ALL_OBJECTS] ObjectView = ---;
+
+  offline_creation_serials: [OBJ_MAX_OFFLINE_OBJECTS] u8;
 };
 
 CLIENT_ObjSnapshots :: struct
 {
-  tick_states: [NET_CLIENT_MAX_SNAPSHOTS] OBJ_Sync; // circle buf
+  tick_states: [NET_CLIENT_MAX_SNAPSHOTS] Object; // circle buf
   latest_server_tick: Tick;
   oldest_server_tick: Tick;
   recent_lerp_start_tick: Tick;
@@ -40,28 +52,28 @@ CLIENT_Init :: ()
   if GAME_ServerEnabled()
   {
     log("Client is starting local server connection");
-    G.client.server_connection.type = .LOCAL_SERVER;
+    G.cl.server_connection.type = .LOCAL_SERVER;
   }
   else
   {
     hostname := "localhost";
     Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
-    G.client.server_connection = .{
+    G.cl.server_connection = .{
       type = .NETWORK,
       address = SDLNet_ResolveHostname(temp_c_string(hostname)),
       port = NET_DEFAULT_SEVER_PORT,
     };
 
-    if G.client.server_connection.address
+    if G.cl.server_connection.address
     {
-      if SDLNet_WaitUntilResolved(G.client.server_connection.address, -1) < 0
+      if SDLNet_WaitUntilResolved(G.cl.server_connection.address, -1) < 0
       {
-        SDLNet_UnrefAddress(G.client.server_connection.address);
-        G.client.server_connection.address = null;
+        SDLNet_UnrefAddress(G.cl.server_connection.address);
+        G.cl.server_connection.address = null;
       }
     }
 
-    if !G.client.server_connection.address
+    if !G.cl.server_connection.address
     {
       G.net.err = true;
       Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
@@ -73,28 +85,28 @@ CLIENT_FlushPlayerInput :: ()
 {
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
-  G.client.input_tick += 1;
-  QueuePush(*G.client.input_queue, G.client.input);
+  G.cl.input_tick += 1;
+  QueuePush(*G.cl.input_queue, G.cl.input);
   // @todo clear skills queue once it exsits in Action
 }
 
-CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *OBJ_Sync
+CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *Object
 {
   state_index := tick % snaps.tick_states.count;
   return *snaps.tick_states[state_index];
 }
 
-CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
+CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
 {
   PerfFunc();
 
-  snaps := *G.client.snaps_of_objs[net_index];
+  snaps := *G.cl.snaps_of_objs[net_index];
 
   assert(tick <= snaps.latest_server_tick &&
          tick >= snaps.oldest_server_tick);
 
   exact_obj := CLIENT_ObjSyncAtTick(snaps, tick);
-  if OBJ_SyncIsInit(exact_obj) // exact object found
+  if OBJ_IsInit(exact_obj) // exact object found
     return exact_obj.*;
 
   // find nearest prev_id/next_id objects
@@ -103,13 +115,13 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
   while (prev_id > snaps.oldest_server_tick)
   {
     prev_id -= 1;
-    if (OBJ_SyncIsInit(CLIENT_ObjSyncAtTick(snaps, prev_id)))
+    if (OBJ_IsInit(CLIENT_ObjSyncAtTick(snaps, prev_id)))
       break;
   }
   while (next_id < snaps.latest_server_tick)
   {
     next_id += 1;
-    if (OBJ_SyncIsInit(CLIENT_ObjSyncAtTick(snaps, next_id)))
+    if (OBJ_IsInit(CLIENT_ObjSyncAtTick(snaps, next_id)))
       break;
   }
 
@@ -117,13 +129,13 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
   next := CLIENT_ObjSyncAtTick(snaps, next_id);
 
   // handle cases where we can't interpolate
-  if (!OBJ_SyncIsInit(prev) && !OBJ_SyncIsInit(next)) // disaster
+  if (!OBJ_IsInit(prev) && !OBJ_IsInit(next)) // disaster
     return exact_obj.*;
 
-  if (!OBJ_SyncIsInit(prev))
+  if (!OBJ_IsInit(prev))
     return next.*;
 
-  if (!OBJ_SyncIsInit(next))
+  if (!OBJ_IsInit(next))
     return prev.*;
 
   // lock lerp range; new packets in this range will be rejected
@@ -138,7 +150,7 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> OBJ_Sync
   return result;
 }
 
-CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new_value: OBJ_Sync) -> bool
+CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new_value: Object) -> bool
 {
   PerfFunc();
 
@@ -204,7 +216,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
       for MakeRange(minimum_server_tick, insert_at_tick)
       {
         obj := CLIENT_ObjSyncAtTick(snaps, it);
-        if OBJ_SyncIsInit(obj)
+        if OBJ_IsInit(obj)
         {
           snaps.oldest_server_tick = it;
           break;
@@ -244,18 +256,18 @@ CLIENT_IterateSend :: ()
   {
     ping: PACKET_Ping;
     packet := PACKET_Create(GetClientInputTick(), ping);
-    NET_SendPacket(packet, G.client.server_connection, false);
+    NET_SendPacket(packet, G.cl.server_connection, false);
   }
 
   {
     payload: PACKET_PlayerInput;
     for * payload.inputs
     {
-      it.* = QueuePeek(G.client.input_queue, it_index);
+      it.* = QueuePeek(G.cl.input_queue, it_index);
     }
 
     packet := PACKET_Create(GetClientInputTick(), payload);
-    NET_SendPacket(packet, G.client.server_connection, false);
+    NET_SendPacket(packet, G.cl.server_connection, false);
   }
 }
 
@@ -266,11 +278,11 @@ CLIENT_IterateReceive :: ()
   PerfFunc();
 
   // Receive and process local messages
-  if G.client.server_connection.type == .LOCAL_SERVER
+  if G.cl.server_connection.type == .LOCAL_SERVER
   {
     while true
     {
-      packet, got_packet := QueuePop(*G.client.local_server_packets);
+      packet, got_packet := QueuePop(*G.cl.local_server_packets);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
@@ -292,7 +304,7 @@ CLIENT_IterateReceive :: ()
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
     invalid_dgram := false;
-    if !NET_MatchConnection(*G.client.server_connection, dgram.addr, dgram.port)
+    if !NET_MatchConnection(*G.cl.server_connection, dgram.addr, dgram.port)
     {
       invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",
@@ -342,24 +354,24 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
         continue;
       }
 
-      if G.client.next_playback_server_tick > from_tick
+      if G.cl.next_playback_server_tick > from_tick
       {
         Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
-             msg_type, from_tick, G.client.next_playback_server_tick);
+             msg_type, from_tick, G.cl.next_playback_server_tick);
         continue;
       }
 
-      snap := *G.client.snaps_of_objs[update.net_index];
+      snap := *G.cl.snaps_of_objs[update.net_index];
       CLIENT_InsertSnapshot(snap, from_tick, update.sync);
     }
     else if msg_type == .AssignPlayerKey
     {
       assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
 
-      if G.client.player_key_latest_tick < from_tick
+      if G.cl.player_key_latest_tick < from_tick
       {
-        G.client.player_key = assign.player_key;
-        G.client.player_key_latest_tick = from_tick;
+        G.cl.player_key = assign.player_key;
+        G.cl.player_key_latest_tick = from_tick;
       }
     }
     else if msg_type == .WindowLayout
@@ -386,7 +398,7 @@ CLIENT_PlayTick :: ()
   smallest_latest_server_tick: Tick = Tick_MAX;
   biggest_oldest_server_tick: Tick;
 
-  for snap: G.client.snaps_of_objs
+  for snap: G.cl.snaps_of_objs
   {
     smallest_latest_server_tick = min(snap.latest_server_tick, smallest_latest_server_tick);
     biggest_oldest_server_tick = max(snap.oldest_server_tick, biggest_oldest_server_tick);
@@ -395,13 +407,173 @@ CLIENT_PlayTick :: ()
   // @todo a system for smooth playback that tries to minimize latency
   // Currently we are picking the latest possible server tick.
   // This gives us minimal latency; but the playback won't be smooth on bad connection.
-  G.client.next_playback_server_tick = smallest_latest_server_tick;
+  G.cl.next_playback_server_tick = smallest_latest_server_tick;
 
-  for net_index: MakeRange(OBJ_MAX_NETWORK_OBJECTS.(u32))
+  for *net_obj_view, net_index: G.cl.network_objects
   {
-    interpolated_sync := CLIENT_ReconstructObjectSyncAtTick(net_index, G.client.next_playback_server_tick);
-    net_obj := OBJ_FromNetIndex(net_index);
-    net_obj.s = interpolated_sync;
+    interpolated_sync := CLIENT_ReconstructObjectSyncAtTick(xx net_index, G.cl.next_playback_server_tick);
+    net_obj_view.o = interpolated_sync;
   }
-  G.client.next_playback_server_tick += 1;
+  G.cl.next_playback_server_tick += 1;
+}
+
+CL_GetObjectView :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *ObjectView
+{
+  key_index := OBJ_IndexOfKey(key);
+
+  index_in_valid_storage := false;
+  {
+    min: u32 = 0;
+    max: u32 = OBJ_MAX_NETWORK_OBJECTS;
+    if (storage_mask & .NETWORK)
+      index_in_valid_storage |= (key_index >= 0 && key_index < max);
+
+    min = max;
+    max += OBJ_MAX_OFFLINE_OBJECTS;
+    if (storage_mask & .OFFLINE)
+      index_in_valid_storage |= (key_index >= min && key_index < max);
+  }
+
+  result := OBJ_GetNilView();
+  if index_in_valid_storage
+  {
+    obj := *G.cl.all_objects[key_index];
+    if obj.o.key == key then result = obj;
+  }
+  return result;
+}
+
+CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *ObjectView
+{
+  obj: *ObjectView;
+  index: u32;
+
+  for *G.cl.offline_objects
+  {
+    if !OBJ_IsInit(it.o)
+    {
+      obj = it;
+      index = xx it_index;
+      break;
+    }
+  }
+
+  if (!obj) return OBJ_GetNilView();
+
+  Initialize(obj);
+
+  G.cl.offline_creation_serials[index] = max(G.cl.offline_creation_serials[index] + 1, 1);
+  index_in_all_objects := index + OBJ_MAX_NETWORK_OBJECTS;
+  obj.o.key = OBJ_CreateKey(index_in_all_objects, G.cl.offline_creation_serials[index]);
+
+  obj.o.init = true;
+  obj.o.creation_time = GetTimestamp(.NOW);
+  obj.o.flags = flags;
+  return obj;
+}
+
+CL_InitObjects :: ()
+{
+  // Sun
+  {
+    sun := CL_CreateOfflineObjectView(.DRAW_COLLIDERS);
+    sun.o.material = MaterialKey("tex.Leather011");
+    sun.o.height = 0.5;
+    sun.o.collider = OBJ_ColliderFromRect(.{.5, .5});
+    G.cl.sun = sun.o.key;
+  }
+
+  // Pathing marker
+  {
+    G.cl.pathing_marker = CL_CreateOfflineObjectView(.ANIMATE_POSITION).o.key;
+  }
+
+  // Ground
+  {
+    r := 32;
+    d := 1.0;
+    grass := MaterialKey("tex.Grass004");
+    ground1 := MaterialKey("tex.Ground075");
+
+    for y: MakeRange(-r, r)
+    {
+      for x: MakeRange(-r, r)
+      {
+        tile := CL_CreateOfflineObjectView(.DRAW_COLLIDERS);
+        if !OBJ_IsNil(tile)
+        {
+          tile.o.p = .{x = d * x, y = d * y};
+          tile.o.collider = OBJ_ColliderFromRect(.{d, d});
+          tile.o.texture_texels_per_m = 1.0 / d;
+          tile.o.material = grass;
+          if x < -r+5 || x >r-5 then tile.o.material = ground1;
+          if y < -r+5 || y >r-5 then tile.o.material = ground1;
+          if abs(x+y) < 4 then tile.o.material = ground1;
+        }
+      }
+    }
+  }
+
+  // blocks thing
+  {
+    for wall: 0..3
+    {
+      len := 64;
+      for i: MakeRange(len)
+      {
+        d := 1.0;
+
+        x, y: float;
+        if wall == 0 y = d*i;
+        if wall == 1 {x = d*i; y = d * len;}
+        if wall == 2 {x = d * len; y = len - d*i;}
+        if wall == 3 x = len - d*i;
+        x -= (0.5*d*len);
+        y -= (0.5*d*len);
+
+        block := CL_CreateOfflineObjectView(.DRAW_COLLIDERS | .COLLIDE);
+        if !OBJ_IsNil(block)
+        {
+          block.o.p = V3.{x, y, 0};
+          block.o.collider = OBJ_ColliderFromRect(.{d,d});
+          block.o.height = d;
+          block.o.material = MaterialKey("tex.Clay002");
+          block.o.texture_texels_per_m = 1.0 / d;
+        }
+      }
+    }
+  }
+
+  // Add trees
+  {
+    x_count := 4;
+    y_count := 4;
+
+    for y: MakeRange(y_count)
+    {
+      for x: MakeRange(x_count)
+      {
+        x_half_count := x_count/2;
+        y_half_count := y_count/2;
+
+        pos: V3;
+        if ((x^y)&1) pos.x = 4.70;
+        else         pos.y = 6.90;
+
+        pos.x += 7 + 4.0*(x % x_half_count);
+        pos.y += 5 + 2.4*(y % y_half_count);
+
+        pos.x *= ifx x < x_half_count then -1 else 1;
+        pos.y *= ifx y < y_half_count then -1 else 1;
+
+        tree := CL_CreateOfflineObjectView(.DRAW_MODEL);
+        if !OBJ_IsNil(tree)
+        {
+          tree.o.p = pos;
+          tree.o.model = ModelKey("Tree");
+        }
+      }
+    }
+  }
+
 }

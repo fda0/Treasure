@@ -19,8 +19,8 @@ GAME_State :: struct
   hr: HOT_RELOAD_State;
   font: FONT_State;
   net: NET_State;
-  client: CLIENT_State;
-  server: SERVER_State;
+  cl: CLIENT_State;
+  sv: SERVER_State;
   dev: DEV_State;
   stats: STATS_State;
   log: LOG_State;
@@ -70,8 +70,8 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
-GAME_ClientEnabled :: () -> bool { return G.client.enabled; }
-GAME_ServerEnabled :: () -> bool { return G.server.enabled; }
+GAME_ClientEnabled :: () -> bool { return G.cl.enabled; }
+GAME_ServerEnabled :: () -> bool { return G.sv.enabled; }
 
 GAME_Init :: ()
 {
@@ -88,7 +88,7 @@ GAME_Init :: ()
   HOT_RELOAD_InitWatcher();
 
   CLIENT_Init();
-  OBJ_Init();
+  CL_InitObjects();
 }
 
 GAME_Iterate :: ()
@@ -167,10 +167,10 @@ GAME_Iterate :: ()
 
       for MakeRange(tick_count)
       {
-        G.client.playback_tick += 1;
+        G.cl.playback_tick += 1;
         CLIENT_PlayTick();
       }
-      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.client.next_playback_server_tick);
+      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.cl.next_playback_server_tick);
     }
 
     CLIENT_IterateSend();
@@ -221,21 +221,21 @@ GAME_Iterate :: ()
   // Update marker object
   if LaneIdx() == 0 && !G.headless
   {
-    marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
+    marker := CL_GetObjectView(.OFFLINE, G.cl.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if G.client.input.type == .PATHING
+      if G.cl.input.type == .PATHING
       {
-        marker.s.flags |= .DRAW_MODEL;
-        marker.s.model = ModelKey("Flag");
-        marker.s.p = G.client.input.world_p;
-        marker.l.animated_p.xy = marker.s.p.xy;
-        context.R.obj.pathing_marker_set = true;
+        marker.o.flags |= .DRAW_MODEL;
+        marker.o.model = ModelKey("Flag");
+        marker.o.p = G.cl.input.world_p;
+        marker.animated_p.xy = marker.o.p.xy;
+        G.cl.pathing_marker_set = true;
       }
       else
       {
-        marker.s.p.z = -2.0;
-        context.R.obj.pathing_marker_set = false;
+        marker.o.p.z = -2.0;
+        G.cl.pathing_marker_set = false;
       }
     }
   }
@@ -361,10 +361,10 @@ GAME_CalculateCameraAndMouseThings :: ()
       G.camera_p.xy += dir * DeltaTime() * 16.0;
     }
 
-    player := OBJ_Get(.NETWORK, G.client.player_key);
+    player := CL_GetObjectView(.NETWORK, G.cl.player_key);
     if KEY_Held(.SPACE) || FrameNumber() < 10 // temp hack to center camera on player on startup
     {
-      G.camera_p.xy = player.s.p.xy;
+      G.camera_p.xy = player.o.p.xy;
       G.camera_p.x -= 8.5;
     }
   }
@@ -430,7 +430,7 @@ GAME_UpdateOfflineObjects :: ()
 
   sun_dist := towards_sun_dir * 40.0;
   G.sun_camera_p = G.camera_p + sun_dist;
-  OBJ_Get(.OFFLINE, context.R.obj.sun).s.p = G.sun_camera_p;
+  CL_GetObjectView(.OFFLINE, G.cl.sun).o.p = G.sun_camera_p;
 
   transl := TranslationMatrix(-G.sun_camera_p);
   rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -442,7 +442,7 @@ GAME_UpdateOfflineObjects :: ()
 
 GAME_CollectClientInput :: ()
 {
-  input := *G.client.input;
+  input := *G.cl.input;
   input.skills = 0;
 
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
@@ -456,34 +456,34 @@ GAME_CollectClientInput :: ()
 
   if G.world_mouse_valid
   {
-    self := OBJ_Get(.NETWORK, G.client.player_key);
-    hovered_obj := OBJ_Get(.ALL, G.hover_object);
-    hovers_enemy := OBJ_Test2(hovered_obj, self,
+    self := CL_GetObjectView(.NETWORK, G.cl.player_key);
+    hovered_obj := CL_GetObjectView(.ALL, G.hover_object);
+    hovers_enemy := OBJ_Test2(hovered_obj.o, self.o,
                               .{require_flags = .TARGETABLE,
                                 common = .IS_ALIVE,
                                 common2 = .ARE_ENEMIES});
 
-      if move_pressed && hovers_enemy
-      {
-        input.type = .ATTACK;
-        input.target_object = G.hover_object;
-        input.world_p = G.world_mouse;
-      }
-
-      if (move_pressed && !hovers_enemy) || (move_held && input.type == .PATHING)
-      {
-        input.type = .PATHING;
-        input.world_p = G.world_mouse;
-        input.target_object = .{};
-        if move_pressed
-        {
-          marker := OBJ_Get(.OFFLINE, context.R.obj.pathing_marker);
-          if !OBJ_IsNil(marker) marker.l.animated_p.z = 0.5;
-        }
-      }
+    if move_pressed && hovers_enemy
+    {
+      input.type = .ATTACK;
+      input.target_object = G.hover_object;
+      input.world_p = G.world_mouse;
     }
 
-    CLIENT_FlushPlayerInput();
+    if (move_pressed && !hovers_enemy) || (move_held && input.type == .PATHING)
+    {
+      input.type = .PATHING;
+      input.world_p = G.world_mouse;
+      input.target_object = .{};
+      if move_pressed
+      {
+        marker := CL_GetObjectView(.OFFLINE, G.cl.pathing_marker);
+        if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
+      }
+    }
+  }
+
+  CLIENT_FlushPlayerInput();
 }
 
 GAME_ParseCommandLineArguments :: (args: [] string)
@@ -518,8 +518,8 @@ GAME_ParseCommandLineArguments :: (args: [] string)
         case "-borderless"; G.window_borderless = true;
         case "-top";        G.window_on_top = true;
         case "-autolayout"; G.window_autolayout = true;
-        case "-server";     G.server.enabled = true;
-        case "-client";     G.client.enabled = true;
+        case "-server";     G.sv.enabled = true;
+        case "-client";     G.cl.enabled = true;
         case "-exit-on-dc"; G.server_exit_on_disconnect = true;
 
         case;

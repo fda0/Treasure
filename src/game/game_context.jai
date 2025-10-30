@@ -12,7 +12,6 @@ Role :: enum
 RoleState :: struct
 {
   time: TimeState;
-  obj: OBJ_State;
 }
 
 CreateContextWithRole :: (role: Role) -> (result: #Context)
@@ -20,8 +19,8 @@ CreateContextWithRole :: (role: Role) -> (result: #Context)
   ctx := context;
   ctx.role = role;
 
-  if      role == .SERVER  ctx.R = *G.client.role_state;
-  else if role == .CLIENT  ctx.R = *G.server.role_state;
+  if      role == .SERVER  ctx.R = *G.cl.role_state;
+  else if role == .CLIENT  ctx.R = *G.sv.role_state;
   else                             assert(false);
   return ctx;
 }

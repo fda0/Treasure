@@ -36,7 +36,7 @@ PACKET_ObjUpdate :: struct
 {
   PT := PACKET_Type.ObjUpdate;
   net_index: u32;
-  sync: OBJ_Sync;
+  sync: Object;
 };
 
 PACKET_ObjEmpty :: struct
