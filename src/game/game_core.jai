@@ -221,7 +221,7 @@ GAME_Iterate :: ()
   // Update marker object
   if LaneIdx() == 0 && !G.headless
   {
-    marker := CL_GetObjectView(.OFFLINE, G.cl.pathing_marker);
+    marker := CL_GetGhost(.OFFLINE, G.cl.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.cl.input.type == .PATHING
@@ -361,7 +361,7 @@ GAME_CalculateCameraAndMouseThings :: ()
       G.camera_p.xy += dir * DeltaTime() * 16.0;
     }
 
-    player := CL_GetObjectView(.NETWORK, G.cl.player_key);
+    player := CL_GetGhost(.NETWORK, G.cl.player_key);
     if KEY_Held(.SPACE) || FrameNumber() < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.o.p.xy;
@@ -430,7 +430,7 @@ GAME_UpdateOfflineObjects :: ()
 
   sun_dist := towards_sun_dir * 40.0;
   G.sun_camera_p = G.camera_p + sun_dist;
-  CL_GetObjectView(.OFFLINE, G.cl.sun).o.p = G.sun_camera_p;
+  CL_GetGhost(.OFFLINE, G.cl.sun).o.p = G.sun_camera_p;
 
   transl := TranslationMatrix(-G.sun_camera_p);
   rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -456,8 +456,8 @@ GAME_CollectClientInput :: ()
 
   if G.world_mouse_valid
   {
-    self := CL_GetObjectView(.NETWORK, G.cl.player_key);
-    hovered_obj := CL_GetObjectView(.ALL, G.hover_object);
+    self := CL_GetGhost(.NETWORK, G.cl.player_key);
+    hovered_obj := CL_GetGhost(.ALL, G.hover_object);
     hovers_enemy := OBJ_Test2(hovered_obj.o, self.o,
                               .{require_flags = .TARGETABLE,
                                 common = .IS_ALIVE,
@@ -477,7 +477,7 @@ GAME_CollectClientInput :: ()
       input.target_object = .{};
       if move_pressed
       {
-        marker := CL_GetObjectView(.OFFLINE, G.cl.pathing_marker);
+        marker := CL_GetGhost(.OFFLINE, G.cl.pathing_marker);
         if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
       }
     }

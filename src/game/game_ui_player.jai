@@ -19,7 +19,7 @@ UI_BuildHUD :: ()
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Parent(hud);
 
-  player := CL_GetObjectView(.NETWORK, G.cl.player_key);
+  player := CL_GetGhost(.NETWORK, G.cl.player_key);
   hp_ratio := SafeDiv(player.o.hp, player.o.max_hp);
 
 

@@ -110,12 +110,12 @@ SIM_AdvanceByTick :: ()
 
     if !OBJ_Test(attack_target, valid_enemy_test)
     {
-      attack_target = OBJ_GetNil();
+      attack_target = OBJ_NilObject();
     }
     if !OBJ_IsNil(attack_target)
     {
       dist_sq := OBJ_Distance2DSquared(turret, attack_target);
-      if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_GetNil();
+      if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_NilObject();
     }
     if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
     {
@@ -328,7 +328,7 @@ SIM_ProcessActivity :: (obj: *Object)
   activity := *obj.activity;
 
   // Find attack target (and invalidate if needed)
-  target := OBJ_GetNil();
+  target := OBJ_NilObject();
   if activity.wants_to_attack || activity.is_attacking
   {
     activity.is_walking = false;
@@ -337,7 +337,7 @@ SIM_ProcessActivity :: (obj: *Object)
     target_is_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
     if !target_is_valid_enemy
     {
-      target = OBJ_GetNil();
+      target = OBJ_NilObject();
       activity.target = .{};
       activity.is_attacking = false;
     }

@@ -509,7 +509,7 @@ SV_InitObjects :: ()
 SV_GetObject :: (key: OBJ_Key) -> *Object
 {
   assert(context.role == .SERVER);
-  result := OBJ_GetNil();
+  result := OBJ_NilObject();
   key_index := OBJ_IndexOfKey(key);
 
   if key_index < G.sv.objects.count
@@ -543,7 +543,7 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
     }
   }
 
-  if (!obj) return OBJ_GetNil();
+  if (!obj) return OBJ_NilObject();
 
   Initialize(obj);
 
@@ -561,7 +561,7 @@ SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
 {
   assert(context.role == .SERVER);
 
-  nearest := OBJ_GetNil();
+  nearest := OBJ_NilObject();
   nearest_distsq := FLOAT32_MAX;
 
   for *candidate: G.sv.objects

@@ -4,7 +4,7 @@ OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
 OBJ_MAX_COLLIDER_VERTS :: 4;
 
-OBJ_NIL_MEMORY :: ObjectView.{};
+OBJ_GHOST_NIL :: Ghost.{};
 
 OBJ_Storage :: enum_flags u32
 {
@@ -96,7 +96,7 @@ OBJ_AnimationState :: struct
   tracks: [10] ANIMATION_Track;
 }
 
-ObjectView :: struct
+Ghost :: struct
 {
   o: Object;
 
@@ -205,10 +205,10 @@ OBJ_ColorToKey :: (color: Color32, from_bgra := true) -> OBJ_Key
 OBJ_Distance2DSquared :: (a: *Object, b: *Object) -> float { return distance_squared(a.p.xy, b.p.xy); }
 OBJ_Distance2D :: (a: *Object, b: *Object) -> float { return distance(a.p.xy, b.p.xy); }
 
-OBJ_GetNil :: () -> *Object { return xx *OBJ_NIL_MEMORY; }
-OBJ_GetNilView :: () -> *ObjectView { return *OBJ_NIL_MEMORY; }
-OBJ_IsNil :: (obj: Object) -> bool { return *obj == xx *OBJ_NIL_MEMORY; }
-OBJ_IsNil :: (ov: ObjectView) -> bool { return *ov == *OBJ_NIL_MEMORY; }
+OBJ_NilObject :: () -> *Object { return xx *OBJ_GHOST_NIL; }
+OBJ_NilGhost :: () -> *Ghost { return *OBJ_GHOST_NIL; }
+OBJ_IsNil :: (obj: Object) -> bool { return *obj == xx *OBJ_GHOST_NIL; }
+OBJ_IsNil :: (ov: Ghost) -> bool { return *ov == *OBJ_GHOST_NIL; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
 OBJ_IsInit :: (obj: Object) -> bool { return obj.init; }

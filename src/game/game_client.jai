@@ -28,10 +28,10 @@ CLIENT_State :: struct
   pathing_marker_set: bool;
 
   // Objects
-  network_objects: [OBJ_MAX_NETWORK_OBJECTS] ObjectView;
-  offline_objects: [OBJ_MAX_OFFLINE_OBJECTS] ObjectView;
+  network_objects: [OBJ_MAX_NETWORK_OBJECTS] Ghost;
+  offline_objects: [OBJ_MAX_OFFLINE_OBJECTS] Ghost;
   #place network_objects;
-  all_objects: [OBJ_MAX_ALL_OBJECTS] ObjectView = ---;
+  all_objects: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
 
   offline_creation_serials: [OBJ_MAX_OFFLINE_OBJECTS] u8;
 };
@@ -417,7 +417,7 @@ CLIENT_PlayTick :: ()
   G.cl.next_playback_server_tick += 1;
 }
 
-CL_GetObjectView :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *ObjectView
+CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 {
   key_index := OBJ_IndexOfKey(key);
 
@@ -434,7 +434,7 @@ CL_GetObjectView :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *ObjectView
       index_in_valid_storage |= (key_index >= min && key_index < max);
   }
 
-  result := OBJ_GetNilView();
+  result := OBJ_NilGhost();
   if index_in_valid_storage
   {
     obj := *G.cl.all_objects[key_index];
@@ -443,9 +443,9 @@ CL_GetObjectView :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *ObjectView
   return result;
 }
 
-CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *ObjectView
+CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *Ghost
 {
-  obj: *ObjectView;
+  obj: *Ghost;
   index: u32;
 
   for *G.cl.offline_objects
@@ -458,7 +458,7 @@ CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *ObjectView
     }
   }
 
-  if (!obj) return OBJ_GetNilView();
+  if (!obj) return OBJ_NilGhost();
 
   Initialize(obj);
 
