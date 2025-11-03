@@ -1,18 +1,18 @@
-OBJ_MAX_NETWORK_OBJECTS :: 128;
-OBJ_MAX_OFFLINE_OBJECTS :: 4096 * 16;
-OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_NETWORK_OBJECTS + OBJ_MAX_OFFLINE_OBJECTS;
+OBJ_MAX_SHARED_OBJECTS :: 128;
+OBJ_MAX_LOCAL_OBJECTS :: 4096 * 16;
+OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS;
 OBJ_MAX_ANIMATIONS :: 4;
 OBJ_MAX_COLLIDER_VERTS :: 4;
 
 OBJ_GHOST_NIL :: Ghost.{};
 
-OBJ_Storage :: enum_flags u32
+OBJ_Storage :: enum_flags u8
 {
   // This enum is useful for filtering obj storage when doing queries.
   // A single object can have only one storage type.
-  OFFLINE;
-  NETWORK;
-  ALL :: OFFLINE | NETWORK;
+  LOCAL;
+  SHARED;
+  ALL :: LOCAL | SHARED;
 };
 
 OBJ_Key :: struct

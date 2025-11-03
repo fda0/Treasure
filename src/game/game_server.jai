@@ -9,8 +9,8 @@ SERVER_State :: struct
   tick: Tick;
   users: [NET_MAX_PLAYERS] SERVER_User;
 
-  objects: [OBJ_MAX_NETWORK_OBJECTS] Object;
-  creation_serials: [OBJ_MAX_NETWORK_OBJECTS] u8;
+  objects: [OBJ_MAX_SHARED_OBJECTS] Object;
+  creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
 };
 
 SERVER_Start :: ()

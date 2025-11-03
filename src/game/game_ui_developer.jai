@@ -150,7 +150,7 @@ UI_BuildDeveloperWindow :: ()
 
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
-      CreateText(tprint("Camera - Player: %", G.camera_p - CL_GetGhost(.NETWORK, G.cl.player_key).o.p));
+      CreateText(tprint("Camera - Player: %", G.camera_p - CL_GetGhost(.SHARED, G.cl.player_key).o.p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
 
       CreateText("more random data 1");

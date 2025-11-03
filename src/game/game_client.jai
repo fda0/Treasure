@@ -13,7 +13,7 @@ CLIENT_State :: struct
 
   // playback state received from the server
   playback_tick: Tick;
-  snaps_of_objs: [OBJ_MAX_NETWORK_OBJECTS] CLIENT_ObjSnapshots;
+  snaps_of_objs: [OBJ_MAX_SHARED_OBJECTS] CLIENT_ObjSnapshots;
   next_playback_server_tick: Tick;
 
   // Lookup table for: Server tick -> Client receive timestamp
@@ -28,12 +28,12 @@ CLIENT_State :: struct
   pathing_marker_set: bool;
 
   // Objects
-  network_objects: [OBJ_MAX_NETWORK_OBJECTS] Ghost;
-  offline_objects: [OBJ_MAX_OFFLINE_OBJECTS] Ghost;
-  #place network_objects;
+  shared_objects: [OBJ_MAX_SHARED_OBJECTS] Ghost;
+  local_objects: [OBJ_MAX_LOCAL_OBJECTS] Ghost;
+  #place shared_objects;
   all_objects: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
 
-  offline_creation_serials: [OBJ_MAX_OFFLINE_OBJECTS] u8;
+  local_objects_creation_serials: [OBJ_MAX_LOCAL_OBJECTS] u8;
 };
 
 CLIENT_ObjSnapshots :: struct
@@ -348,7 +348,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
         update.sync.init = true;
       }
 
-      if update.net_index >= OBJ_MAX_NETWORK_OBJECTS
+      if update.net_index >= OBJ_MAX_SHARED_OBJECTS
       {
         Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", msg_type, update.net_index);
         continue;
@@ -409,7 +409,7 @@ CLIENT_PlayTick :: ()
   // This gives us minimal latency; but the playback won't be smooth on bad connection.
   G.cl.next_playback_server_tick = smallest_latest_server_tick;
 
-  for *net_obj_view, net_index: G.cl.network_objects
+  for *net_obj_view, net_index: G.cl.shared_objects
   {
     interpolated_sync := CLIENT_ReconstructObjectSyncAtTick(xx net_index, G.cl.next_playback_server_tick);
     net_obj_view.o = interpolated_sync;
@@ -424,13 +424,13 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   index_in_valid_storage := false;
   {
     min: u32 = 0;
-    max: u32 = OBJ_MAX_NETWORK_OBJECTS;
-    if (storage_mask & .NETWORK)
+    max: u32 = OBJ_MAX_SHARED_OBJECTS;
+    if (storage_mask & .SHARED)
       index_in_valid_storage |= (key_index >= 0 && key_index < max);
 
     min = max;
-    max += OBJ_MAX_OFFLINE_OBJECTS;
-    if (storage_mask & .OFFLINE)
+    max += OBJ_MAX_LOCAL_OBJECTS;
+    if (storage_mask & .LOCAL)
       index_in_valid_storage |= (key_index >= min && key_index < max);
   }
 
@@ -443,12 +443,12 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   return result;
 }
 
-CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *Ghost
+CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 {
   obj: *Ghost;
   index: u32;
 
-  for *G.cl.offline_objects
+  for *G.cl.local_objects
   {
     if !OBJ_IsInit(it.o)
     {
@@ -458,34 +458,34 @@ CL_CreateOfflineObjectView :: (flags: OBJ_Flags) -> *Ghost
     }
   }
 
-  if (!obj) return OBJ_NilGhost();
+  if (!obj) return OBJ_NilObject();
 
   Initialize(obj);
 
-  G.cl.offline_creation_serials[index] = max(G.cl.offline_creation_serials[index] + 1, 1);
-  index_in_all_objects := index + OBJ_MAX_NETWORK_OBJECTS;
-  obj.o.key = OBJ_CreateKey(index_in_all_objects, G.cl.offline_creation_serials[index]);
+  G.cl.local_objects_creation_serials[index] = max(G.cl.local_objects_creation_serials[index] + 1, 1);
+  index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
+  obj.o.key = OBJ_CreateKey(index_in_all_objects, G.cl.local_objects_creation_serials[index]);
 
   obj.o.init = true;
   obj.o.creation_time = GetTimestamp(.NOW);
   obj.o.flags = flags;
-  return obj;
+  return *obj.o;
 }
 
 CL_InitObjects :: ()
 {
   // Sun
   {
-    sun := CL_CreateOfflineObjectView(.DRAW_COLLIDERS);
-    sun.o.material = MaterialKey("tex.Leather011");
-    sun.o.height = 0.5;
-    sun.o.collider = OBJ_ColliderFromRect(.{.5, .5});
-    G.cl.sun = sun.o.key;
+    sun := CL_CreateLocalObject(.DRAW_COLLIDERS);
+    sun.material = MaterialKey("tex.Leather011");
+    sun.height = 0.5;
+    sun.collider = OBJ_ColliderFromRect(.{.5, .5});
+    G.cl.sun = sun.key;
   }
 
   // Pathing marker
   {
-    G.cl.pathing_marker = CL_CreateOfflineObjectView(.ANIMATE_POSITION).o.key;
+    G.cl.pathing_marker = CL_CreateLocalObject(.ANIMATE_POSITION).key;
   }
 
   // Ground
@@ -499,16 +499,16 @@ CL_InitObjects :: ()
     {
       for x: MakeRange(-r, r)
       {
-        tile := CL_CreateOfflineObjectView(.DRAW_COLLIDERS);
+        tile := CL_CreateLocalObject(.DRAW_COLLIDERS);
         if !OBJ_IsNil(tile)
         {
-          tile.o.p = .{x = d * x, y = d * y};
-          tile.o.collider = OBJ_ColliderFromRect(.{d, d});
-          tile.o.texture_texels_per_m = 1.0 / d;
-          tile.o.material = grass;
-          if x < -r+5 || x >r-5 then tile.o.material = ground1;
-          if y < -r+5 || y >r-5 then tile.o.material = ground1;
-          if abs(x+y) < 4 then tile.o.material = ground1;
+          tile.p = .{x = d * x, y = d * y};
+          tile.collider = OBJ_ColliderFromRect(.{d, d});
+          tile.texture_texels_per_m = 1.0 / d;
+          tile.material = grass;
+          if x < -r+5 || x >r-5 then tile.material = ground1;
+          if y < -r+5 || y >r-5 then tile.material = ground1;
+          if abs(x+y) < 4 then tile.material = ground1;
         }
       }
     }
@@ -531,14 +531,14 @@ CL_InitObjects :: ()
         x -= (0.5*d*len);
         y -= (0.5*d*len);
 
-        block := CL_CreateOfflineObjectView(.DRAW_COLLIDERS | .COLLIDE);
+        block := CL_CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
         if !OBJ_IsNil(block)
         {
-          block.o.p = V3.{x, y, 0};
-          block.o.collider = OBJ_ColliderFromRect(.{d,d});
-          block.o.height = d;
-          block.o.material = MaterialKey("tex.Clay002");
-          block.o.texture_texels_per_m = 1.0 / d;
+          block.p = V3.{x, y, 0};
+          block.collider = OBJ_ColliderFromRect(.{d,d});
+          block.height = d;
+          block.material = MaterialKey("tex.Clay002");
+          block.texture_texels_per_m = 1.0 / d;
         }
       }
     }
@@ -566,11 +566,11 @@ CL_InitObjects :: ()
         pos.x *= ifx x < x_half_count then -1 else 1;
         pos.y *= ifx y < y_half_count then -1 else 1;
 
-        tree := CL_CreateOfflineObjectView(.DRAW_MODEL);
+        tree := CL_CreateLocalObject(.DRAW_MODEL);
         if !OBJ_IsNil(tree)
         {
-          tree.o.p = pos;
-          tree.o.model = ModelKey("Tree");
+          tree.p = pos;
+          tree.model = ModelKey("Tree");
         }
       }
     }
