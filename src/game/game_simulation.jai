@@ -25,7 +25,7 @@ PlayerInput :: struct
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
-  assert(GAME_ServerEnabled());
+  assert(context.role == .SERVER);
 
   if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 40.0
   {
@@ -68,7 +68,7 @@ SIM_AdvanceByTick :: ()
   }
 
   // temporary - player health regen
-  for G.sv.users
+  for SV_GetUsers()
   {
     player := SV_GetObject(it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
@@ -76,22 +76,22 @@ SIM_AdvanceByTick :: ()
   }
 
   // transfer input to player objects
-  for *G.sv.users
+  for *SV_GetUsers()
   {
     player := SV_GetObject(it.key);
     if OBJ_IsNil(player) continue;
 
-    input := SERVER_GetNextPlayerInput(it);
+    input := SV_GetNextPlayerInput(it);
     SIM_ApplyInputsToObject(player, input);
   }
 
   // Advance state machine
-  for *obj: G.sv.objects
+  for *obj: SV_GetObjects()
   {
     SIM_ProcessActivity(obj);
   }
 
-  for *turret: G.sv.objects
+  for *turret: SV_GetObjects()
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
     activity := *turret.activity;
@@ -169,7 +169,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *projectile: G.sv.objects
+  for *projectile: SV_GetObjects()
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
     activity := *projectile.activity;
@@ -215,7 +215,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *obj: G.sv.objects
+  for *obj: SV_GetObjects()
   {
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
@@ -250,7 +250,7 @@ SIM_AdvanceByTick :: ()
 
   SIM_MoveAndCollideObjects();
 
-  for *obj: G.sv.objects
+  for *obj: SV_GetObjects()
   {
     if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
     {
@@ -438,7 +438,7 @@ SIM_ProcessActivity :: (obj: *Object)
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
-  for * obj: G.sv.objects
+  for * obj: SV_GetObjects()
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -455,7 +455,7 @@ SIM_MoveAndCollideObjects :: ()
       obj_collider := obj.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: G.sv.objects
+      for * obstacle: SV_GetObjects()
       {
         if obj == obstacle continue;
         if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;

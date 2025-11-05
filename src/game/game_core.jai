@@ -2,9 +2,6 @@ G: GAME_State; // Global GAME_State variable
 
 GAME_State :: struct
 {
-  // core game state
-  in_shutdown: bool;
-
   // startup profiling
   time_launch: Apollo_Time;
   time_init_sdl: Apollo_Time;
@@ -19,8 +16,7 @@ GAME_State :: struct
   hr: HOT_RELOAD_State;
   font: FONT_State;
   net: NET_State;
-  cl: CLIENT_State;
-  sv: SERVER_State;
+  cl: CL_State;
   dev: DEV_State;
   stats: STATS_State;
   log: LOG_State;
@@ -70,13 +66,9 @@ GAME_State :: struct
   sleepers_spawned_in_group_count := 0;
 }
 
-GAME_ClientEnabled :: () -> bool { return G.cl.enabled; }
-GAME_ServerEnabled :: () -> bool { return G.sv.enabled; }
-
 GAME_Init :: ()
 {
   PerfFunc();
-  InitFrameTimestamp();
 
   ASSET_InitPreGPU();
   GPU_Init();
@@ -87,7 +79,7 @@ GAME_Init :: ()
   UI_ClearRenderCounters();
   HOT_RELOAD_InitWatcher();
 
-  CLIENT_Init();
+  CL_Init();
   CL_InitObjects();
 }
 
@@ -99,9 +91,10 @@ GAME_Iterate :: ()
   // Collect timing info
   if LaneIdx() == 0
   {
-    AdvanceFrameTimestamp();
-    Post(.DELTA_TIMESTMAP_MS, xx DeltaTimestamp());
-    Post(.TEST_FRAME_NUMBER, FrameNumber());
+    // @todo_now
+    // AdvanceFrameTimestamp();
+    // Post(.DELTA_TIMESTMAP_MS, xx DeltaTimestamp());
+    // Post(.TEST_FRAME_NUMBER, FrameNumber());
   }
 
   // Mouse input things
@@ -157,23 +150,25 @@ GAME_Iterate :: ()
   // Client network / playback
   if LaneIdx() == 0
   {
-    CLIENT_IterateReceive();
+    CL_IterateReceive();
 
     {
-      #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-      #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-      tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-      context.R.time.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+      // @todo_now
+      tick_count := 0;
+      // #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+      // #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+      // tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      // context.R.time.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
       for MakeRange(tick_count)
       {
         G.cl.playback_tick += 1;
-        CLIENT_PlayTick();
+        CL_PlayTick();
       }
-      Post(.NEXT_PLAYBACK_SERVER_TICK, xx G.cl.next_playback_server_tick);
+      Post(.NEXT_PLAYBACK_SV_TICK, xx G.cl.next_playback_server_tick);
     }
 
-    CLIENT_IterateSend();
+    CL_IterateSend();
   }
 
   LaneSync();
@@ -483,7 +478,7 @@ GAME_CollectClientInput :: ()
     }
   }
 
-  CLIENT_FlushPlayerInput();
+  CL_FlushPlayerInput();
 }
 
 GAME_ParseCommandLineArguments :: (args: [] string)
@@ -518,9 +513,9 @@ GAME_ParseCommandLineArguments :: (args: [] string)
         case "-borderless"; G.window_borderless = true;
         case "-top";        G.window_on_top = true;
         case "-autolayout"; G.window_autolayout = true;
-        case "-server";     G.sv.enabled = true;
-        case "-client";     G.cl.enabled = true;
-        case "-exit-on-dc"; G.server_exit_on_disconnect = true;
+        case "-server";     GLOBAL.is_server = true;
+        case "-client";     GLOBAL.is_client = true;
+        case "-exit-on-dc"; GLOBAL.server_exit_on_disconnect = true;
 
         case;
         log_error("Invalid command line argument %s.\n", arg);

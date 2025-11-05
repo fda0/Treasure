@@ -1,37 +1,49 @@
-SERVER_State :: struct
+SV_State :: struct
 {
-  enabled: bool;
-  role_state: RoleState;
-
   thread: Thread;
-  local_user_packets: NET_LocalPackets;
 
   tick: Tick;
-  users: [NET_MAX_PLAYERS] SERVER_User;
+  users: [NET_MAX_PLAYERS] SV_User;
 
   objects: [OBJ_MAX_SHARED_OBJECTS] Object;
   creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
 };
 
-SERVER_Start :: ()
+SV_Start :: ()
 {
   push_context CreateContextWithRole(.SERVER)
   {
     log("Launching as server");
     SV_InitObjects();
 
-    if GAME_ClientEnabled()
+    if GLOBAL.is_client
     {
-      local_user := SERVER_AddUser(.LOCAL_CLIENT, null, 0);
+      local_user := SV_FindEmptyUserSlot();
+      if local_user
+      {
+        Initialize(local_user);
+        local_user.connection.type = .LOCAL;
+        local_user.connection.local_packets = *GLOBAL.local_user_packets;
+      }
     }
 
-    G.sv.thread.starting_context = context;
-    thread_init(*G.sv.thread, SERVER_ThreadEntry);
-    thread_start(*G.sv.thread);
+    SV.thread.starting_context = context;
+    thread_init(*SV.thread, SV_ThreadEntry);
+    thread_start(*SV.thread);
   }
 }
 
-SERVER_GetNextPlayerInput :: (user: *SERVER_User) -> PlayerInput
+// @todo These getters are not my favorite thing in the world
+// but I want to prevent accessing SV_State by outside code.
+// At the same time I cannot express that I want to put game_simulation.jai on a whitelist.
+// One solution would be to put this code in module.
+// I tried doing that and it's more trouble than it's worth in this case.
+// Perhaps I should hack some metaprogramming checking in the future if this keeps happening.
+// IDK, I have these getters for now.
+SV_GetObjects :: inline () -> [] Object { return SV.objects; }
+SV_GetUsers :: inline () -> [] SV_User { return SV.users; }
+
+SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
 {
   PerfFunc();
   assert(context.role == .SERVER);
@@ -42,7 +54,7 @@ SERVER_GetNextPlayerInput :: (user: *SERVER_User) -> PlayerInput
     top_delay = max(it.delay_since_last_received_input, top_delay);
   }
 
-  Post(.SERVER_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
+  Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
 
   targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_inputs));
   remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_inputs) - 1;
@@ -67,7 +79,10 @@ SERVER_GetNextPlayerInput :: (user: *SERVER_User) -> PlayerInput
 }
 
 #scope_file;
-SERVER_User :: struct
+#load "game_simulation.jai";
+SV: SV_State;
+
+SV_User :: struct
 {
   connection: NET_Connection;
   key: OBJ_Key;
@@ -84,26 +99,27 @@ SERVER_User :: struct
   }
 };
 
-SERVER_ThreadEntry :: (thread: *Thread) -> s64
+SV_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
   assert(context.role == .SERVER);
-  InitFrameTimestamp();
 
   while true
   {
     PerfScope("Server iteration");
-    SERVER_IterateReceive();
-    AdvanceFrameTimestamp();
+    SV_IterateReceive();
 
-    #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-    #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-    simulation_tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-    context.R.time.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
+    // @todo_now
+    simulation_tick_count := 0;
+    // AdvanceFrameTimestamp();
+    // #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+    // #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+    // simulation_tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
+    // context.R.time.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
 
     for MakeRange(simulation_tick_count)
     {
-      G.sv.tick += 1;
+      SV.tick += 1;
       SIM_AdvanceByTick();
 
       if simulation_tick_count > 1
@@ -113,8 +129,8 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
       }
     }
 
-    SERVER_IterateTimeoutUsers();
-    SERVER_IterateSend();
+    SV_IterateTimeoutUsers();
+    SV_IterateSend();
 
     SDL_Delay(0); // @todo sleep on network
   }
@@ -122,18 +138,18 @@ SERVER_ThreadEntry :: (thread: *Thread) -> s64
   return 0;
 }
 
-SERVER_IterateSend :: ()
+SV_IterateSend :: ()
 {
-  if G.net.err return;
+  if NET_HasError() return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
   client_count := 0;
-  for G.sv.users if it.connection.type  client_count += 1;
+  for SV.users if it.connection.type  client_count += 1;
 
   // iterate over connected users
   player_number := 0;
-  for *user, user_index: G.sv.users
+  for *user, user_index: SV.users
   {
     if !user.connection.type continue;
     player_number += 1;
@@ -169,62 +185,10 @@ SERVER_IterateSend :: ()
       packet := PACKET_Create(GetServerTick(), assign);
       NET_SendPacket(*packet, user.connection, true);
     }
-
-    // calculate autolayout for clients
-    // @todo this doesn't have to be done on iterate send
-    if G.window_autolayout
-    {
-      window_count := 1 + client_count;
-
-      rows := 1;
-      cols := 1;
-      for 0..15
-      {
-        total_slots := rows * cols;
-        if total_slots >= window_count
-          break;
-
-        if rows > cols  cols += 1;
-        else            rows += 1;
-      }
-
-      #if 0 // @impl
-      {
-        win_x := G.init_window_px;
-        win_y := G.init_window_py;
-        win_w := G.init_window_width / cols;
-        win_h := G.init_window_height / rows;
-
-        // calc server window
-        GAME_AutoLayoutApply(client_count, win_x, win_y, win_w, win_h);
-
-        // calc client window
-        {
-          window_index := player_number;
-          x := window_index / rows;
-          y := window_index % rows;
-
-          head: PACKET_Header;
-          head.tick_id = G.tick_id;
-          head.kind = .WindowLayout;
-          NET_PayloadMemcpy(*head, sizeof(head));
-
-          body: NET_SendWindowLayout;
-          body.user_count = client_count;
-          body.px = win_x + x*win_w;
-          body.py = win_y + y*win_h;
-          body.w = win_w;
-          body.h = win_h;
-          NET_PayloadMemcpy(*body, sizeof(body));
-
-          NET_PacketSendAndResetPayload(user);
-        }
-      }
-    }
   }
 
   // iterate over network objects
-  for G.sv.objects
+  for SV.objects
   {
     packet: PACKET_Full;
 
@@ -244,7 +208,7 @@ SERVER_IterateSend :: ()
 
     PACKET_FinalizeHeader(GetServerTick(), *packet);
 
-    for G.sv.users
+    for SV.users
     {
       if !it.connection.type continue;
       NET_SendPacket(packet, it.connection, true);
@@ -252,46 +216,46 @@ SERVER_IterateSend :: ()
   }
 }
 
-SERVER_IterateTimeoutUsers :: ()
+SV_IterateTimeoutUsers :: ()
 {
-  for *G.sv.users
+  for *SV.users
   {
     if it.connection.type != .NETWORK continue;
     if ElapsedSeconds(it.connection.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
     {
       Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
 
-      if G.server_exit_on_disconnect
+      if GLOBAL.server_exit_on_disconnect
       {
         Nlog(LOG_Important, "Quitting server on client disconnect because -exit-on-dc argument was used.");
-        G.in_shutdown = true;
+        GLOBAL.in_shutdown = true;
       }
 
-      SERVER_RemoveUser(it);
+      SV_RemoveUser(it);
     }
   }
 }
 
-SERVER_IterateReceive :: ()
+SV_IterateReceive :: ()
 {
-  if G.net.err return;
+  if NET_HasError() return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
   // Receive and process local messages
-  local_user := SERVER_FindLocalUser();
+  local_user := SV_FindLocalUser();
   if local_user
   {
-    player_id := PointerToIndex(G.sv.users, local_user).(u16);
+    player_id := PointerToIndex(SV.users, local_user).(u16);
 
     while true
     {
-      packet, got_packet := QueuePop(*G.sv.local_user_packets);
+      packet, got_packet := QueuePop(local_user.connection.local_packets);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      SERVER_ReceivePayload(player_id, payload, from_tick);
+      SV_ReceivePayload(player_id, payload, from_tick);
     }
   }
 
@@ -299,34 +263,34 @@ SERVER_IterateReceive :: ()
   while true
   {
     dgram: *SDLNet_Datagram;
-    receive := SDLNet_ReceiveDatagram(G.net.socket, *dgram);
-    if !receive || !dgram break;
+    received := NET_ReceiveDatagram(*dgram);
+    if !received || !dgram break;
 
     Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
-    user := SERVER_FindUser(dgram.addr, dgram.port);
+    user := SV_FindUser(dgram.addr, dgram.port);
     if !user
     {
       Nlog(LOG_NetInfo, "saving user with port: %", dgram.port);
-      user = SERVER_AddUser(.NETWORK, dgram.addr, dgram.port);
+      user = SV_AddNetworkUser(dgram.addr, dgram.port);
     }
 
     if user
     {
       user.connection.last_msg_timestamp = GetTimestamp(.FRAME);
-      player_id := PointerToIndex(G.sv.users, user).(u16);
+      player_id := PointerToIndex(SV.users, user).(u16);
 
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
-      SERVER_ReceivePayload(player_id, payload, from_tick);
+      SV_ReceivePayload(player_id, payload, from_tick);
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_PlayerInput, client_tick: Tick)
+SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, client_tick: Tick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -351,7 +315,7 @@ SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_Player
   for new_inputs
   {
     now := GetTimestamp();
-    received := SERVER_User.ReceivedInput.{
+    received := SV_User.ReceivedInput.{
       it, ElapsedSeconds(player.latest_received_timestamp, now, false)
     };
     player.latest_received_timestamp = now;
@@ -362,10 +326,10 @@ SERVER_ReceiveUserPlayerInputs :: (player: *SERVER_User, net_msg: *PACKET_Player
   player.latest_client_tick = client_tick;
 }
 
-SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
+SV_FindUser :: (address: *SDLNet_Address, port: u16) -> *SV_User
 {
   // @todo move to SV_ prefix?
-  for *G.sv.users
+  for *SV.users
   {
     if NET_MatchConnection(it.connection, address, port)
     {
@@ -375,14 +339,14 @@ SERVER_FindUser :: (address: *SDLNet_Address, port: u16) -> *SERVER_User
   return null;
 }
 
-SERVER_RemoveUser :: (user: *SERVER_User)
+SV_RemoveUser :: (user: *SV_User)
 {
   assert(user.connection.type == .NETWORK);
   SDLNet_UnrefAddress(user.connection.address);
   user.* = .{};
 }
 
-SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
+SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
 {
   PerfFunc();
   msg := full_payload;
@@ -397,8 +361,8 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
     else if msg_type == .PlayerInput
     {
       in_net := PACKET_Consume(PACKET_PlayerInput, *msg);
-      user := *G.sv.users[player_id];
-      SERVER_ReceiveUserPlayerInputs(user, *in_net, from_tick);
+      user := *SV.users[player_id];
+      SV_ReceiveUserPlayerInputs(user, *in_net, from_tick);
     }
     else
     {
@@ -408,42 +372,40 @@ SERVER_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
   }
 }
 
-SERVER_FindLocalUser :: () -> *SERVER_User
+SV_FindLocalUser :: () -> *SV_User
 {
-  for *G.sv.users
-  {
-    if it.connection.type == .LOCAL_CLIENT
-    {
+  for *SV.users
+    if it.connection.type == .LOCAL
       return it;
-    }
-  }
+
   return null;
 }
 
-SERVER_AddUser :: (type: NET_ConnectionType, address: *SDLNet_Address, port: u16) -> *SERVER_User
+SV_FindEmptyUserSlot :: () -> *SV_User
 {
-  // @todo move to SV_ prefix?
-  new_user_slot: *SERVER_User;
-  for *G.sv.users
+  slot: *SV_User;
+  for *SV.users
   {
     if !it.connection.type
     {
-      new_user_slot = it;
+      slot = it;
       break;
     }
   }
+  return slot;
+}
 
-  if new_user_slot
+SV_AddNetworkUser :: (address: *SDLNet_Address, port: u16) -> *SV_User
+{
+  slot := SV_FindEmptyUserSlot();
+  if slot
   {
-    Initialize(new_user_slot);
-    new_user_slot.connection.type = type;
-    if type == .NETWORK
-    {
-      new_user_slot.connection.address = SDLNet_RefAddress(address);
-      new_user_slot.connection.port = port;
-    }
+    Initialize(slot);
+    slot.connection.type = .NETWORK;
+    slot.connection.address = SDLNet_RefAddress(address);
+    slot.connection.port = port;
   }
-  return new_user_slot;
+  return slot;
 }
 
 SV_InitObjects :: ()
@@ -512,9 +474,9 @@ SV_GetObject :: (key: OBJ_Key) -> *Object
   result := OBJ_NilObject();
   key_index := OBJ_IndexOfKey(key);
 
-  if key_index < G.sv.objects.count
+  if key_index < SV.objects.count
   {
-    obj := *G.sv.objects[key_index];
+    obj := *SV.objects[key_index];
     if (obj.key == key) result = obj;
   }
   return result;
@@ -533,7 +495,7 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
   obj: *Object;
   index: u32;
 
-  for *G.sv.objects
+  for *SV.objects
   {
     if !OBJ_IsInit(it)
     {
@@ -547,8 +509,8 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 
   Initialize(obj);
 
-  G.sv.creation_serials[index] = max(G.sv.creation_serials[index] + 1, 1);
-  obj.key = OBJ_CreateKey(index, G.sv.creation_serials[index]);
+  SV.creation_serials[index] = max(SV.creation_serials[index] + 1, 1);
+  obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
 
   obj.init = true;
   obj.creation_time = GetTimestamp(.NOW);
@@ -564,7 +526,7 @@ SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
   nearest := OBJ_NilObject();
   nearest_distsq := FLOAT32_MAX;
 
-  for *candidate: G.sv.objects
+  for *candidate: SV.objects
   {
     if (candidate == obj) continue;
     if !OBJ_Test2(candidate, obj, params) continue;

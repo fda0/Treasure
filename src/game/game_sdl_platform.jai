@@ -95,25 +95,25 @@ PLATFORM_PreIterate :: ()
     ev: SDL_Event;
     while SDL_PollEvent(*ev)
     {
-      if ev.type ==
+      if ev.type.(SDL_EventType) ==
       {
-        case xx SDL_EventType.QUIT;
-        G.in_shutdown = true;
+        case .QUIT;
+        GLOBAL.in_shutdown = true;
 
-        case xx SDL_EventType.WINDOW_RESIZED;
+        case .WINDOW_RESIZED;
         window := ev.window;
         G.window_dim = V2.{xx window.data1, xx window.data2};
         G.window_resized = true;
 
-        case xx SDL_EventType.KEY_DOWN;
-        if ev.key.key == SDLK_ESCAPE  G.in_shutdown = true;
+        case .KEY_DOWN;
+        if (ev.key.key == SDLK_ESCAPE) GLOBAL.in_shutdown = true;
 
-        case xx SDL_EventType.MOUSE_MOTION;
+        case .MOUSE_MOTION;
         motion := ev.motion;
         delta := V2.{motion.xrel, motion.yrel};
         G.mouse_delta += delta;
 
-        case xx SDL_EventType.MOUSE_WHEEL;
+        case .MOUSE_WHEEL;
         wheel := ev.wheel;
         delta := V2.{wheel.x, wheel.y};
         G.mouse_scroll += delta;

@@ -1,10 +1,6 @@
-CLIENT_State :: struct
+CL_State :: struct
 {
-  enabled: bool;
-  role_state: RoleState;
-
   server_connection: NET_Connection;
-  local_server_packets: NET_LocalPackets;
 
   // client inputs sent to the server
   input_tick: Tick;
@@ -13,7 +9,7 @@ CLIENT_State :: struct
 
   // playback state received from the server
   playback_tick: Tick;
-  snaps_of_objs: [OBJ_MAX_SHARED_OBJECTS] CLIENT_ObjSnapshots;
+  snaps_of_objs: [OBJ_MAX_SHARED_OBJECTS] CL_ObjSnapshots;
   next_playback_server_tick: Tick;
 
   // Lookup table for: Server tick -> Client receive timestamp
@@ -36,23 +32,24 @@ CLIENT_State :: struct
   local_objects_creation_serials: [OBJ_MAX_LOCAL_OBJECTS] u8;
 };
 
-CLIENT_ObjSnapshots :: struct
+CL_ObjSnapshots :: struct
 {
-  tick_states: [NET_CLIENT_MAX_SNAPSHOTS] Object; // circle buf
+  tick_states: [NET_CL_MAX_SNAPSHOTS] Object; // circle buf
   latest_server_tick: Tick;
   oldest_server_tick: Tick;
   recent_lerp_start_tick: Tick;
   recent_lerp_end_tick: Tick;
 };
 
-CLIENT_Init :: ()
+CL_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
 
-  if GAME_ServerEnabled()
+  if GLOBAL.is_server
   {
     log("Client is starting local server connection");
-    G.cl.server_connection.type = .LOCAL_SERVER;
+    G.cl.server_connection.type = .LOCAL;
+    G.cl.server_connection.local_packets = *GLOBAL.local_server_packets;
   }
   else
   {
@@ -81,7 +78,7 @@ CLIENT_Init :: ()
   }
 }
 
-CLIENT_FlushPlayerInput :: ()
+CL_FlushPlayerInput :: ()
 {
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
@@ -90,13 +87,13 @@ CLIENT_FlushPlayerInput :: ()
   // @todo clear skills queue once it exsits in Action
 }
 
-CLIENT_ObjSyncAtTick :: (snaps: *CLIENT_ObjSnapshots, tick: Tick) -> *Object
+CL_ObjSyncAtTick :: (snaps: *CL_ObjSnapshots, tick: Tick) -> *Object
 {
   state_index := tick % snaps.tick_states.count;
   return *snaps.tick_states[state_index];
 }
 
-CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
+CL_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
 {
   PerfFunc();
 
@@ -105,7 +102,7 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
   assert(tick <= snaps.latest_server_tick &&
          tick >= snaps.oldest_server_tick);
 
-  exact_obj := CLIENT_ObjSyncAtTick(snaps, tick);
+  exact_obj := CL_ObjSyncAtTick(snaps, tick);
   if OBJ_IsInit(exact_obj) // exact object found
     return exact_obj.*;
 
@@ -115,18 +112,18 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
   while (prev_id > snaps.oldest_server_tick)
   {
     prev_id -= 1;
-    if (OBJ_IsInit(CLIENT_ObjSyncAtTick(snaps, prev_id)))
+    if (OBJ_IsInit(CL_ObjSyncAtTick(snaps, prev_id)))
       break;
   }
   while (next_id < snaps.latest_server_tick)
   {
     next_id += 1;
-    if (OBJ_IsInit(CLIENT_ObjSyncAtTick(snaps, next_id)))
+    if (OBJ_IsInit(CL_ObjSyncAtTick(snaps, next_id)))
       break;
   }
 
-  prev := CLIENT_ObjSyncAtTick(snaps, prev_id);
-  next := CLIENT_ObjSyncAtTick(snaps, next_id);
+  prev := CL_ObjSyncAtTick(snaps, prev_id);
+  next := CL_ObjSyncAtTick(snaps, next_id);
 
   // handle cases where we can't interpolate
   if (!OBJ_IsInit(prev) && !OBJ_IsInit(next)) // disaster
@@ -150,13 +147,13 @@ CLIENT_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
   return result;
 }
 
-CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new_value: Object) -> bool
+CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: Tick, new_value: Object) -> bool
 {
   PerfFunc();
 
   // function returns true on error
-  #assert(snaps.tick_states.count == NET_CLIENT_MAX_SNAPSHOTS);
-  last_to_first_tick_offset := NET_CLIENT_MAX_SNAPSHOTS.(Tick) - 1;
+  #assert(snaps.tick_states.count == NET_CL_MAX_SNAPSHOTS);
+  last_to_first_tick_offset := NET_CL_MAX_SNAPSHOTS.(Tick) - 1;
 
   if (snaps.recent_lerp_start_tick != snaps.recent_lerp_end_tick &&
       insert_at_tick >= snaps.recent_lerp_start_tick &&
@@ -165,7 +162,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
     Nlog(LOG_NetClient,
         "Rejecting snapshot insert (in the middle, locked by lerp) - latest server tick: %; insert tick: %; diff: % (max: %)",
         snaps.latest_server_tick, insert_at_tick,
-        snaps.latest_server_tick - insert_at_tick, NET_CLIENT_MAX_SNAPSHOTS);
+        snaps.latest_server_tick - insert_at_tick, NET_CL_MAX_SNAPSHOTS);
     return true;
   }
 
@@ -182,7 +179,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
     Nlog(LOG_NetClient,
         "Rejecting snapshot insert (underflow) - latest server tick: %; insert tick: %; diff: % (max: %)",
         snaps.latest_server_tick, insert_at_tick,
-        insert_at_tick - snaps.latest_server_tick, NET_CLIENT_MAX_SNAPSHOTS);
+        insert_at_tick - snaps.latest_server_tick, NET_CL_MAX_SNAPSHOTS);
     return true;
   }
 
@@ -191,7 +188,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
     // tick is newer than latest_server_at_tick
     // zero-out the gap between newly inserted object and previous latest server tick
 
-    if delta_from_latest >= NET_CLIENT_MAX_SNAPSHOTS
+    if delta_from_latest >= NET_CL_MAX_SNAPSHOTS
     {
       // optimized branch
       // tick is much-newer than latest_server_at_tick
@@ -203,7 +200,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
       clearing_start := insert_at_tick - delta_from_latest + 1;
       for MakeRange(clearing_start, insert_at_tick)
       {
-        obj := CLIENT_ObjSyncAtTick(snaps, it);
+        obj := CL_ObjSyncAtTick(snaps, it);
         Initialize(obj);
       }
     }
@@ -215,7 +212,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
       // find new oldest
       for MakeRange(minimum_server_tick, insert_at_tick)
       {
-        obj := CLIENT_ObjSyncAtTick(snaps, it);
+        obj := CL_ObjSyncAtTick(snaps, it);
         if OBJ_IsInit(obj)
         {
           snaps.oldest_server_tick = it;
@@ -239,7 +236,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
 
   // insert object
   {
-    insert_at_obj := CLIENT_ObjSyncAtTick(snaps, insert_at_tick);
+    insert_at_obj := CL_ObjSyncAtTick(snaps, insert_at_tick);
     insert_at_obj.* = new_value;
   }
 
@@ -247,7 +244,7 @@ CLIENT_InsertSnapshot :: (snaps: *CLIENT_ObjSnapshots, insert_at_tick: Tick, new
   return false; // no error
 }
 
-CLIENT_IterateSend :: ()
+CL_IterateSend :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
@@ -271,23 +268,23 @@ CLIENT_IterateSend :: ()
   }
 }
 
-CLIENT_IterateReceive :: ()
+CL_IterateReceive :: ()
 {
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
   // Receive and process local messages
-  if G.cl.server_connection.type == .LOCAL_SERVER
+  if G.cl.server_connection.type == .LOCAL
   {
     while true
     {
-      packet, got_packet := QueuePop(*G.cl.local_server_packets);
+      packet, got_packet := QueuePop(G.cl.server_connection.local_packets);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      CLIENT_ReceivePayload(payload, from_tick);
+      CL_ReceivePayload(payload, from_tick);
     }
 
     return; // No need to check network anymore
@@ -315,14 +312,14 @@ CLIENT_IterateReceive :: ()
     {
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
-      CLIENT_ReceivePayload(payload, from_tick);
+      CL_ReceivePayload(payload, from_tick);
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
+CL_ReceivePayload :: (full_payload: string, from_tick: Tick)
 {
   PerfFunc();
   msg := full_payload;
@@ -362,7 +359,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
       }
 
       snap := *G.cl.snaps_of_objs[update.net_index];
-      CLIENT_InsertSnapshot(snap, from_tick, update.sync);
+      CL_InsertSnapshot(snap, from_tick, update.sync);
     }
     else if msg_type == .AssignPlayerKey
     {
@@ -390,7 +387,7 @@ CLIENT_ReceivePayload :: (full_payload: string, from_tick: Tick)
   }
 }
 
-CLIENT_PlayTick :: ()
+CL_PlayTick :: ()
 {
   PerfFunc();
   assert(context.role == .CLIENT);
@@ -411,7 +408,7 @@ CLIENT_PlayTick :: ()
 
   for *net_obj_view, net_index: G.cl.shared_objects
   {
-    interpolated_sync := CLIENT_ReconstructObjectSyncAtTick(xx net_index, G.cl.next_playback_server_tick);
+    interpolated_sync := CL_ReconstructObjectSyncAtTick(xx net_index, G.cl.next_playback_server_tick);
     net_obj_view.o = interpolated_sync;
   }
   G.cl.next_playback_server_tick += 1;

@@ -2,7 +2,7 @@
 // @todo this file should become more functional/pure network manager/layer
 
 NET_DEFAULT_SEVER_PORT :: 50523;
-NET_CLIENT_MAX_SNAPSHOTS :: TICK_RATE;
+NET_CL_MAX_SNAPSHOTS :: TICK_RATE;
 NET_MAX_PLAYER_INPUT_COUNT :: TICK_RATE/8;
 NET_MAX_PLAYERS :: 10;
 NET_MAX_PACKET_SIZE :: 1200;
@@ -33,7 +33,10 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   if net_category != LOG_NetPacket return;
   // @todo do something with net_category and logging in general
   // @todo add "NET_Label()" before every net log?, or do that for logs globally
-  log(ifx GAME_ServerEnabled() then "[SERVER]" else "[CLIENT]");
+  if (GLOBAL.is_server && GLOBAL.is_client) log("[SERVER+CLIENT]");
+  else if (GLOBAL.is_server) log("[SERVER]");
+  else if (GLOBAL.is_client) log("[CLIENT]");
+
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
@@ -43,21 +46,26 @@ NET_ConnectionType :: enum u8
 {
   EMPTY;
   NETWORK;
-  LOCAL_SERVER;
-  LOCAL_CLIENT;
+  LOCAL;
 }
 
 NET_Connection :: struct
 {
   type: NET_ConnectionType;
+  last_msg_timestamp: Timestamp;
+
+  // NETWORK
   address: *SDLNet_Address;
   port: u16;
-  last_msg_timestamp: Timestamp;
+
+  // LOCAL
+  local_packets: *NET_LocalPackets;
 };
 
 NET_Init :: ()
 {
-  port: u16 = xx ifx GAME_ServerEnabled() /* @todo thats bad */ then NET_DEFAULT_SEVER_PORT else 0;
+  port: u16;
+  if (GLOBAL.is_server) port = NET_DEFAULT_SEVER_PORT;
   G.net.socket = SDLNet_CreateDatagramSocket(null, port);
 
   if !G.net.socket
@@ -77,6 +85,11 @@ NET_Init :: ()
   }
 }
 
+NET_HasError :: () -> bool
+{
+  return G.net.err;
+}
+
 NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: float) -> bool
 {
   if ElapsedSeconds(last_accepted.*) < 0.008 return true;
@@ -87,6 +100,11 @@ NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: flo
 NET_ConnectionIsInactive :: (con: NET_Connection) -> bool
 {
   return con.type == .NETWORK && ElapsedSeconds(con.last_msg_timestamp) > NET_INACTIVE;
+}
+
+NET_ReceiveDatagram :: (dgram: **SDLNet_Datagram) -> bool
+{
+  return SDLNet_ReceiveDatagram(G.net.socket, dgram);
 }
 
 NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: bool)
@@ -110,15 +128,11 @@ NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: boo
         dest.port, ifx send_res then "success" else "fail");
     }
   }
-  else if dest.type == .LOCAL_SERVER || dest.type == .LOCAL_CLIENT
+  else if dest.type == .LOCAL
   {
-    packets := ifx dest.type == .LOCAL_SERVER then *G.sv.local_user_packets else *G.cl.local_server_packets;
-    QueuePush(packets, packet);
+    QueuePush(dest.local_packets, packet);
   }
-  else
-  {
-    assert(false);
-  }
+  else assert(false);
 }
 
 NET_MatchConnection :: (a: NET_Connection, b: NET_Connection) -> bool

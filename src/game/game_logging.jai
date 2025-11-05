@@ -22,7 +22,10 @@ LOG_FileFlush :: ()
   {
     if !G.log.file_opened
     {
-      file_path := tprint("Treasure_log_%.txt", ifx GAME_ServerEnabled() then "server" else "client");
+      server := ifx GLOBAL.is_server then "server" else "";
+      client := ifx GLOBAL.is_client then "client" else "";
+
+      file_path := tprint("Treasure_log_%%.txt", server, client);
       file, success := file_open(file_path, for_writing = true, keep_existing_content = true);
 
       G.log.file = file;

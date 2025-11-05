@@ -2,15 +2,15 @@ main :: ()
 {
   // Initialize client / server
   PLATFORM_PreInit();
-  G.cl.enabled |= !G.sv.enabled;
+  GLOBAL.is_client |= !GLOBAL.is_server;
 
-  if GAME_ClientEnabled() push_context CreateContextWithRole(.CLIENT)
+  if GLOBAL.is_client push_context CreateContextWithRole(.CLIENT)
   {
     GAME_Init();
   }
-  if GAME_ServerEnabled()
+  if GLOBAL.is_server
   {
-    SERVER_Start();
+    SV_Start();
   }
   NET_Init();
 
@@ -52,7 +52,7 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
   PerfThreadName(thread_name);
   LaneSync();
 
-  while !G.in_shutdown
+  while !GLOBAL.in_shutdown
   {
     if (LaneIdx() == 0) PLATFORM_PreIterate();
     GAME_Iterate();
@@ -63,6 +63,7 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 
 // Mostly all program includes
 #load "game_core.jai";
+#load "game_global.jai";
 #load "game_sdl_platform.jai";
 #load "game_context.jai";
 #load "game_text.jai";
@@ -81,7 +82,6 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_network.jai";
 #load "game_client.jai";
 #load "game_server.jai";
-#load "game_simulation.jai";
 #load "game_audio.jai";
 #load "game_gpu.jai";
 #load "game_gpu_batch.jai";

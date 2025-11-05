@@ -146,7 +146,7 @@ UI_BuildDeveloperWindow :: ()
       case .stats;
       Layers(UI_MONO_TEXT);
       CreateText(tprint("dt: %ms; fps: %", Round(DeltaTime()*1000), Round(1.0 / DeltaTime())));
-      CreateText(tprint("is_server: %, is_client: %", GAME_ServerEnabled(), GAME_ClientEnabled()));
+      CreateText(tprint("is_server: %, is_client: %", GLOBAL.is_server, GLOBAL.is_client));
 
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
@@ -260,7 +260,7 @@ UI_BuildDeveloperWindow :: ()
       for G.audio.actives
       {
         // @todo not related to dev_ui but add data driver way to tweak volume, pitch etc
-        CreateText(tprint("%, %ms / %ms", it.type, ElapsedTimestamp(it.start_time), it.duration));
+        CreateText(tprint("%, %ms / %ms", it.type, ElapsedSeconds(it.start_time)*1000, it.duration));
       }
       // @todo log recently finished sounds too
 

@@ -1,5 +1,4 @@
 #add_context role: Role;
-#add_context R: *RoleState;
 #add_context lane: LaneState;
 
 Role :: enum
@@ -9,19 +8,10 @@ Role :: enum
   CLIENT;
 }
 
-RoleState :: struct
-{
-  time: TimeState;
-}
-
 CreateContextWithRole :: (role: Role) -> (result: #Context)
 {
   ctx := context;
   ctx.role = role;
-
-  if      role == .SERVER  ctx.R = *G.cl.role_state;
-  else if role == .CLIENT  ctx.R = *G.sv.role_state;
-  else                             assert(false);
   return ctx;
 }
 

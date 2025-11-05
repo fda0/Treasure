@@ -1,6 +1,67 @@
 Timestamp :: #type,distinct u64; // @todo make this a signed type?
 Timestamp_MAX :: U64_MAX;
 
+FailTime :: (max_on_fail: bool) -> float
+{
+  return ifx max_on_fail then FLOAT32_MAX else 0;
+}
+
+Elapsed :: (start: Timestamp, finish: Timestamp, max_on_fail: bool) -> float
+{
+  if start > finish return FailTime(max_on_fail);
+
+  return 0.0;
+}
+
+
+// @todo_now
+AnimTime :: () -> float { return 1.0; }
+DeltaTime :: () -> float { return 1.0; }
+FrameNumber :: () -> s64 { return 1; }
+GetTimestamp :: (f := TimeReference.FRAME) -> Timestamp { t: Timestamp; return t; }
+
+TimeReference :: enum
+{
+  FRAME; // timestamp taken at the start of the frame
+  NOW; // new timestamp measurement
+}
+
+ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> float, bool
+{
+  return 0.0, false;
+}
+
+ElapsedSeconds :: (start: Timestamp, finish_reference := TimeReference.FRAME, max_on_fail := false) -> float, bool
+{
+  return 0.0, false;
+}
+ElapsedSeconds :: (start: Timestamp, finish: Timestamp, max_on_fail := false) -> float, bool
+{
+  return 0.0, false;
+}
+
+// Tick
+Tick :: #type,distinct s64;
+Tick_MAX :: cast(Tick) S64_MAX;
+
+
+GetClientInputTick :: () -> Tick
+{
+  return 0;
+}
+
+GetClientPlaybackTick :: () -> Tick
+{
+  return 0;
+}
+
+GetServerTick :: () -> Tick
+{
+  return 0;
+}
+
+#if 0 {
+
 TimeState :: struct
 {
   frame_number: s64;
@@ -9,12 +70,6 @@ TimeState :: struct
   delta_timestamp: Timestamp;
   dt: float;
   at: float;
-}
-
-TimeReference :: enum
-{
-  FRAME; // timestamp taken at the start of the frame
-  NOW; // new timestamp measurement
 }
 
 FrameNumber :: inline () -> s64 { return context.R.time.frame_number; }
@@ -85,9 +140,6 @@ InitFrameTimestamp :: ()
 }
 
 
-// Tick
-Tick :: #type,distinct s64;
-Tick_MAX :: cast(Tick) S64_MAX;
 
 GetClientInputTick :: () -> Tick
 {
@@ -167,3 +219,4 @@ ServerSecondsSinceServerTick :: (start_server_tick: Tick, max_on_fail: bool) -> 
 // {
 //   return TimeBetweenTicksS(start, GetTick(), max_on_fail);
 // }
+}

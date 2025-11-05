@@ -17,7 +17,7 @@ StringMinMax :: (str: string, sub_min: s64, sub_max: s64) -> string
 {
   sub_max = clamp(sub_max, 0, str.count);
   sub_min = clamp(sub_min, 0, str.count);
-  if sub_min > sub_max  Swap(*sub_min, *sub_max);
+  if (sub_min > sub_max) swap(*sub_min, *sub_max);
 
   res: string;
   res.count = sub_max - sub_min;

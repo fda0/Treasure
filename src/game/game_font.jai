@@ -4,7 +4,7 @@ FONT_ATLAS_LAYER_MAX_GLYPHS :: 4096;
 FONT_ATLAS_MARGIN :: 1;
 
 #scope_file
-#import "freetype-2.12.1";
+#import "freetype";
 #scope_export
 
 FONT_Glyph :: struct
