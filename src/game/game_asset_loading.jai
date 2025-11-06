@@ -47,7 +47,7 @@ ASSET_PostFrame :: ()
     LOAD_T_SPEED :: 10.0;
     using it.stream;
     if flags & .LOADED
-      loaded_t = min(1.0, loaded_t + DeltaTime() * LOAD_T_SPEED);
+      loaded_t = min(1.0, loaded_t + G.dt * LOAD_T_SPEED);
   }
 }
 
@@ -89,7 +89,7 @@ ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
 
     // Just load any texture that was used in the last 2 frames.
     // Do something smarter when texture eviction is added.
-    min_load_frame := max(1, FrameNumber() - 2);
+    min_load_frame := max(1, G.frame_number - 2);
     log("min_load_frame: %", min_load_frame);
 
     for *G.ast.materials

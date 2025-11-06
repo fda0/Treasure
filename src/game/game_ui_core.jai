@@ -47,7 +47,7 @@ UI_ProcessBoxRenderCommands :: ()
   debug_dump := false;
   if KEY_Pressed(.F3) then debug_dump = true;
 
-  if debug_dump then print("[UI render commands dump from frame: %]\n", FrameNumber());
+  if debug_dump then print("[UI render commands dump from frame: %]\n", G.frame_number);
 
   for cmd_: layout_state.render_commands
   {

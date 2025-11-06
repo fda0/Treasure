@@ -1,8 +1,13 @@
+#load "game_simulation.jai";
+SV: SV_State; // @private should be used only by game_server.jai and game_simulation.jai
 SV_State :: struct
 {
   thread: Thread;
 
-  tick: Tick;
+  iteration_timestamp: Timestamp;
+  timestamp_accumulator: Timestamp;
+  tick: ServerTick;
+
   users: [NET_MAX_PLAYERS] SV_User;
 
   objects: [OBJ_MAX_SHARED_OBJECTS] Object;
@@ -32,16 +37,6 @@ SV_Start :: ()
     thread_start(*SV.thread);
   }
 }
-
-// @todo These getters are not my favorite thing in the world
-// but I want to prevent accessing SV_State by outside code.
-// At the same time I cannot express that I want to put game_simulation.jai on a whitelist.
-// One solution would be to put this code in module.
-// I tried doing that and it's more trouble than it's worth in this case.
-// Perhaps I should hack some metaprogramming checking in the future if this keeps happening.
-// IDK, I have these getters for now.
-SV_GetObjects :: inline () -> [] Object { return SV.objects; }
-SV_GetUsers :: inline () -> [] SV_User { return SV.users; }
 
 SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
 {
@@ -79,9 +74,6 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
 }
 
 #scope_file;
-#load "game_simulation.jai";
-SV: SV_State;
-
 SV_User :: struct
 {
   connection: NET_Connection;
@@ -109,22 +101,25 @@ SV_ThreadEntry :: (thread: *Thread) -> s64
     PerfScope("Server iteration");
     SV_IterateReceive();
 
-    // @todo_now
-    simulation_tick_count := 0;
-    // AdvanceFrameTimestamp();
-    // #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-    // #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-    // simulation_tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-    // context.R.time.frame_timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
+    #assert(1000 % TICK_MILLISECONDS_STEP == 0);
+    #assert(1000 / TICK_MILLISECONDS_STEP == TICK_RATE);
+
+    now := TimeNow();
+    timestamp_delta := now - SV.iteration_timestamp;
+    SV.iteration_timestamp = now;
+
+    SV.timestamp_accumulator += timestamp_delta;
+    simulation_tick_count := SV.timestamp_accumulator / TICK_MILLISECONDS_STEP;
+    SV.timestamp_accumulator -= simulation_tick_count * TICK_MILLISECONDS_STEP;
 
     for MakeRange(simulation_tick_count)
     {
       SV.tick += 1;
       SIM_AdvanceByTick();
 
-      if simulation_tick_count > 1
+      if it >= 2
       {
-        log("Server is falling behind! Ticks clamped from % to 1. This avoids server death-spiral but causes simulation slowdown.", simulation_tick_count);
+        log("Server lag. Simulation ticks clamped from % to 2 to avoid death-spiral.", simulation_tick_count);
         break;
       }
     }

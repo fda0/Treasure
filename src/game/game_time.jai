@@ -1,24 +1,46 @@
-Timestamp :: #type,distinct u64; // @todo make this a signed type?
-Timestamp_MAX :: U64_MAX;
+Timestamp :: #type,distinct s64; // @todo make this a signed type?
+TimeNow :: () -> Timestamp { return xx SDL_GetTicks(); }
+
+Elapsed :: (start: Timestamp, finish: Timestamp, max_on_fail: bool) -> float
+{
+  delta := finish - start;
+  if delta < 0 return FailTime(max_on_fail);
+  return delta.(float) * 0.001;
+}
 
 FailTime :: (max_on_fail: bool) -> float
 {
   return ifx max_on_fail then FLOAT32_MAX else 0;
 }
 
-Elapsed :: (start: Timestamp, finish: Timestamp, max_on_fail: bool) -> float
+GAME_ElapsedToFrame :: (since: Timestamp, max_on_fail: bool) -> float
 {
-  if start > finish return FailTime(max_on_fail);
-
-  return 0.0;
+  return Elapsed(since, G.frame_timestamp, max_on_fail);
 }
 
+ServerTick :: #type,distinct u16;
+InputTick :: #type,distinct u16;
 
-// @todo_now
-AnimTime :: () -> float { return 1.0; }
-DeltaTime :: () -> float { return 1.0; }
-FrameNumber :: () -> s64 { return 1; }
-GetTimestamp :: (f := TimeReference.FRAME) -> Timestamp { t: Timestamp; return t; }
+TickDistance :: (from: ServerTick, to: ServerTick) -> s64
+{
+  // Calculates distance between ticks with wrapping consideration.
+  // Calculates unwrapped and wrapped scenario and picks one with smaller absolute distance.
+  f := from.(s64);
+  t := to.(s64);
+
+  d0 := t - f;
+  d1 := t + U16_MAX - f;
+
+  abs_d0 := ifx d0 >= 0 then d0 else -d0;
+  abs_d1 := ifx d1 >= 0 then d1 else -d1;
+
+  result := ifx abs_d1 > abs_d0 then abs_d0 else abs_d1;
+  return result;
+}
+
+//
+// SLOP
+//
 
 TimeReference :: enum
 {

@@ -3,7 +3,7 @@ CL_State :: struct
   server_connection: NET_Connection;
 
   // client inputs sent to the server
-  input_tick: Tick;
+  input_tick: InputTick;
   input: PlayerInput; // Accumulates inputs. Flushed to client.input_queue once in a while.
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 

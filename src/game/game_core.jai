@@ -1,5 +1,4 @@
-G: GAME_State; // Global GAME_State variable
-
+G: GAME_State;
 GAME_State :: struct
 {
   // startup profiling
@@ -8,6 +7,13 @@ GAME_State :: struct
   time_init_game: Apollo_Time;
   time_init_finished: Apollo_Time;
   time_finished_first_iterate: Apollo_Time;
+
+  // Time
+  frame_timestamp: Timestamp;
+  delta_timestamp: Timestamp;
+  dt: float;
+  at: float;
+  frame_number: s64;
 
   // component states
   gpu: GPU_State;
@@ -88,13 +94,17 @@ GAME_Iterate :: ()
   assert(context.role == .CLIENT);
   PerfFunc();
 
-  // Collect timing info
+  // Advance time
   if LaneIdx() == 0
   {
-    // @todo_now
-    // AdvanceFrameTimestamp();
-    // Post(.DELTA_TIMESTMAP_MS, xx DeltaTimestamp());
-    // Post(.TEST_FRAME_NUMBER, FrameNumber());
+    now := TimeNow();
+    G.delta_timestamp = now - G.frame_timestamp;
+    G.dt = G.delta_timestamp.(float) * 0.001;
+    G.at = WrapFloat(G.at + G.dt, 0.0, 1000.0);
+    G.frame_timestamp = now;
+
+    Post(.DELTA_TIMESTMAP_MS, xx G.delta_timestamp);
+    Post(.TEST_FRAME_NUMBER, G.frame_number);
   }
 
   // Mouse input things
@@ -325,7 +335,7 @@ GAME_CalculateCameraAndMouseThings :: ()
     if (KEY_Held(.LSHIFT) || KEY_Held(.RSHIFT)) move_dir.z -= 1;
     move_dir = normalize(move_dir);
     move_dir = Math.rotate(move_dir, RotationAroundAxis(-AxisV3(.Z)/* @todo why negation fixes things? */, G.camera_angles.z));
-    G.camera_p += move_dir * 12.0 * DeltaTime();
+    G.camera_p += move_dir * 12.0 * G.dt;
   }
   else
   {
@@ -353,11 +363,11 @@ GAME_CalculateCameraAndMouseThings :: ()
 
       dir_len := length(dir);
       if dir_len > 1.0 then dir /= dir_len;
-      G.camera_p.xy += dir * DeltaTime() * 16.0;
+      G.camera_p.xy += dir * G.dt * 16.0;
     }
 
     player := CL_GetGhost(.SHARED, G.cl.player_key);
-    if KEY_Held(.SPACE) || FrameNumber() < 10 // temp hack to center camera on player on startup
+    if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.o.p.xy;
       G.camera_p.x -= 8.5;
@@ -415,7 +425,7 @@ GAME_CalculateCameraAndMouseThings :: ()
 GAME_UpdateOfflineObjects :: ()
 {
   // Move sun
-  sun_time := AnimTime()*4.0;
+  sun_time := G.at*4.0;
   sun_time = 6.0;
 
   sun_x := Sin(0.5 + sun_time * 0.03);

@@ -68,7 +68,7 @@ SIM_AdvanceByTick :: ()
   }
 
   // temporary - player health regen
-  for SV_GetUsers()
+  for SV.users
   {
     player := SV_GetObject(it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
@@ -76,7 +76,7 @@ SIM_AdvanceByTick :: ()
   }
 
   // transfer input to player objects
-  for *SV_GetUsers()
+  for *SV.users
   {
     player := SV_GetObject(it.key);
     if OBJ_IsNil(player) continue;
@@ -86,12 +86,12 @@ SIM_AdvanceByTick :: ()
   }
 
   // Advance state machine
-  for *obj: SV_GetObjects()
+  for *obj: SV.objects
   {
     SIM_ProcessActivity(obj);
   }
 
-  for *turret: SV_GetObjects()
+  for *turret: SV.objects
   {
     if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
     activity := *turret.activity;
@@ -159,7 +159,7 @@ SIM_AdvanceByTick :: ()
           turret.activity.last_projectile = projectile.key;
         }
 
-        OBJ_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
+        SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
       }
     }
     else
@@ -169,7 +169,7 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  for *projectile: SV_GetObjects()
+  for *projectile: SV.objects
   {
     if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
     activity := *projectile.activity;
@@ -209,13 +209,13 @@ SIM_AdvanceByTick :: ()
       {
         attack_damage := 25.0;
         target.hp -= attack_damage;
-        OBJ_PlaySound(target, .HIT);
+        SIM_PlaySound(target, .HIT);
         SV_DeleteObject(projectile);
       }
     }
   }
 
-  for *obj: SV_GetObjects()
+  for *obj: SV.objects
   {
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
@@ -224,7 +224,7 @@ SIM_AdvanceByTick :: ()
     }
     else // IS_DEAD
     {
-      if !obj.death_time then obj.death_time = GetTimestamp();
+      if !obj.death_time then obj.death_time = SV.tick;
 
       death_t := ElapsedSeconds(obj.death_time);
 
@@ -250,7 +250,7 @@ SIM_AdvanceByTick :: ()
 
   SIM_MoveAndCollideObjects();
 
-  for *obj: SV_GetObjects()
+  for *obj: SV.objects
   {
     if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
     {
@@ -415,8 +415,8 @@ SIM_ProcessActivity :: (obj: *Object)
       activity.attack_t -= obj.attack_cooldown_t;
       target.hp -= attack_damage;
 
-      OBJ_PlayAnimation(target, .HIT);
-      OBJ_PlaySound(target, .HIT);
+      SIM_PlayAnimation(target, .HIT);
+      SIM_PlaySound(target, .HIT);
 
       stop_attacking := false;
       stop_attacking |= attack_is_out_of_range;
@@ -438,7 +438,7 @@ SIM_ProcessActivity :: (obj: *Object)
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
-  for * obj: SV_GetObjects()
+  for * obj: SV.objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
@@ -455,7 +455,7 @@ SIM_MoveAndCollideObjects :: ()
       obj_collider := obj.collider;
       OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-      for * obstacle: SV_GetObjects()
+      for * obstacle: SV.objects
       {
         if obj == obstacle continue;
         if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;
@@ -538,4 +538,14 @@ SIM_MoveAndCollideObjects :: ()
     if length(obj.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
       obj.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
   } // obj loop
+}
+
+
+SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
+{
+  QueuePush(*obj.sound_requests, .{SV.tick, type});
+}
+SIM_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
+{
+  QueuePush(*obj.animation_requests, .{SV.tick, type});
 }

@@ -106,8 +106,8 @@ WORLD_DrawObjects :: ()
       transform = transform * RotationMatrix(obj.animated_rot); // rotate first, translate second
 
       hover_color := C4.{1,1,1,1};
-      if obj.o.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(AnimTime()*1.5);
-      if obj.o.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(AnimTime()*3.0);
+      if obj.o.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
+      if obj.o.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
       WORLD_DrawModel(obj.o.model, transform, obj.anim.tracks,
                       C32_from_C4(hover_color), OBJ_KeyToColor(obj.o.key));

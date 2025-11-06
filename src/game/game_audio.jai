@@ -30,7 +30,7 @@ AUDIO_ActiveSound :: struct
 
 AUDIO_Request :: struct
 {
-  start: Timestamp = Timestamp_MAX; // @todo use type like ServerTick here; And add functions like TimeElapsedFromServerTick(tick)
+  tick: ServerTick;
   type: AUDIO_SoundType;
 }
 
@@ -38,21 +38,20 @@ AUDIO_PlayObjectSounds :: ()
 {
   assert(context.role == .CLIENT);
 
-  for *obj: G.cl.all_objects
+  for *ghost: G.cl.all_objects
   {
-    if OBJ_HasAnyFlag(obj.o, .PLAY_SOUNDS)
+    if OBJ_HasAnyFlag(ghost.o, .PLAY_SOUNDS)
     {
-      max_start := obj.audio_handled;
-      for obj.o.sound_requests
+      for sound: ghost.o.sound_requests
       {
-        max_start = max(max_start, it.start);
-        if it.start > obj.audio_handled /*&&
-           ElapsedTime(it.start, max_on_fail = true) < 300 // Dont play sounds older than 300ms.*/
+        dist_to_played := TickDistance(ghost.played_audio_tick, sound.tick);
+        dist_to_server := TickDistance(sound.tick, ghost.server_tick);
+        if dist_to_played > 0 && dist_to_server <= 0
         {
-          AUDIO_PlaySound(it.type);
+          AUDIO_PlaySound(sound.type);
         }
       }
-      obj.audio_handled = max_start;
+      ghost.played_audio_tick = ghost.server_tick;
     }
   }
 }

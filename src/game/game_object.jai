@@ -100,6 +100,7 @@ Ghost :: struct
 {
   o: Object;
 
+  server_tick: ServerTick;
   from: *Object;
   to: *Object;
   t: float;
@@ -117,7 +118,7 @@ Ghost :: struct
   // animation_attack_hide_cooldown: bool;
   // animation_requests_hot_t: [3] float;
 
-  audio_handled: Timestamp; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
+  played_audio_tick: ServerTick; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
 };
 
 Object :: struct
@@ -128,8 +129,8 @@ Object :: struct
   team: OBJ_Team;
   init: bool;
 
-  creation_time: Timestamp;
-  death_time: Timestamp;
+  creation_tick: ServerTick;
+  death_tick: ServerTick;
   p: V3; // XY center, Z at bottom
   desired_dp: V3; // move that Object wanted to make
   moved_dp: V3; // move that Object did after collision simulation
@@ -261,18 +262,4 @@ OBJ_Test2 :: (tested: Object, reference: Object, using params: OBJ_TestParams) -
     if tested.team == reference.team return false;
   }
   return true;
-}
-
-OBJ_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
-{
-  req := AUDIO_Request.{
-    start = GetTimestamp(),
-    type = type,
-  };
-  QueuePush(*obj.sound_requests, req);
-}
-
-OBJ_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
-{
-  QueuePush(*obj.animation_requests, .{GetServerTick(), type});
 }
