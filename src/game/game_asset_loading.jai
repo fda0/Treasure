@@ -434,7 +434,7 @@ ASSET_InitSkeletons :: ()
 
     skel.joint_names = NewArray(name_ranges.count, string);
     for *skel.joint_names
-      it.* = StringMinMax(PIE_LOAD_File(), name_ranges[it_index].min, name_ranges[it_index].max);
+      it.* = SubstrMinMax(PIE_LOAD_File(), name_ranges[it_index].min, name_ranges[it_index].max);
 
     // Animations
     pie_anims := PIE_LOAD_ListToArray(pie_skel.anims);

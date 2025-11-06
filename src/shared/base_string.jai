@@ -6,14 +6,14 @@ MatchFlags :: enum_flags u32
   SlashInsensitive;
 };
 
-StringRange :: (first: *u8, last: *u8) -> string
+StringFirstLast :: (first: *u8, last: *u8) -> string
 {
   res: string;
   res.data = first;
   res.count = cast(s64)last - cast(s64)first;
   return res;
 }
-StringMinMax :: (str: string, sub_min: s64, sub_max: s64) -> string
+SubstrMinMax :: (str: string, sub_min: s64, sub_max: s64) -> string
 {
   sub_max = clamp(sub_max, 0, str.count);
   sub_min = clamp(sub_min, 0, str.count);
@@ -114,6 +114,25 @@ Match :: (a: string, b: string, flags: MatchFlags = 0) -> bool
     }
   }
   return result;
+}
+
+ConsumeFront :: (str: *string, prefix: string, flags: MatchFlags = 0) -> bool
+{
+  if StartsWith(str.*, prefix, flags)
+  {
+    str.* = Skip(str.*, prefix.count);
+    return true;
+  }
+  return false;
+}
+ConsumeBack :: (str: *string, suffix: string, flags: MatchFlags = 0) -> bool
+{
+  if EndsWith(str.*, suffix, flags)
+  {
+    str.* = Chop(str.*, suffix.count);
+    return true;
+  }
+  return false;
 }
 
 DecodeUTF8 :: (str: string) -> codepoint:u32, byte_length:s64
