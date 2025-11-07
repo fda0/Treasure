@@ -180,26 +180,26 @@ ANIMATION_AnimateObjects :: ()
   PerfFunc();
   AssertThatScopeIsSingleThreaded();
 
-  for *objv: G.cl.all_objects
+  for *ghost: G.cl.all_objects
   {
-    activity := *objv.o.activity;
-    animate_rotation := OBJ_HasAnyFlag(objv.o, .ANIMATE_ROTATION);
-    animate_position := OBJ_HasAnyFlag(objv.o, .ANIMATE_POSITION);
+    activity := *ghost.o.activity;
+    animate_rotation := OBJ_HasAnyFlag(ghost.o, .ANIMATE_ROTATION);
+    animate_position := OBJ_HasAnyFlag(ghost.o, .ANIMATE_POSITION);
 
-    if OBJ_HasAnyFlag(objv.o, .IS_TURRET)
+    if OBJ_HasAnyFlag(ghost.o, .IS_TURRET)
     {
-      t := WrapFloat(activity.attack_t, 0.0, objv.o.attack_cooldown_t);
-      max_t := min(1.25, objv.o.attack_cooldown_t);
+      t := WrapFloat(activity.attack_t, 0.0, ghost.o.attack_cooldown_t);
+      max_t := min(1.25, ghost.o.attack_cooldown_t);
       t = min(t, max_t) / max_t;
 
-      pos_t := EasingInOut(t, objv.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
-      rot_t := EasingInOut(t, objv.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
+      pos_t := EasingInOut(t, ghost.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
+      rot_t := EasingInOut(t, ghost.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
-      objv.animated_p.xy = objv.o.p.xy;
+      ghost.animated_p.xy = ghost.o.p.xy;
       if activity.is_attacking || activity.attack_t < 0.0
       {
-        objv.animated_p.z = pos_t * 1.0;
-        objv.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
+        ghost.animated_p.z = pos_t * 1.0;
+        ghost.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
       }
       else
       {
@@ -208,16 +208,16 @@ ANIMATION_AnimateObjects :: ()
       }
     }
 
-    if OBJ_HasAnyFlag(objv.o, .TARGETED_PROJECTILE)
+    if OBJ_HasAnyFlag(ghost.o, .TARGETED_PROJECTILE)
     {
-      rng := OBJ_EntropyFromObj(objv.o);
+      rng := OBJ_EntropyFromObj(ghost.o);
       weight0 := RngF_01(*rng);
       weight1 := (1.0 - weight0)*0.5 + RngF_01(*rng)*0.5;
       offset0 := RngF_01(*rng);
       offset1 := RngF_01(*rng);
 
-      t := ElapsedSeconds(objv.o.creation_time);
-      objv.animated_rot =
+      t := ElapsedSinceServerTick(ghost, ghost.o.creation_tick);
+      ghost.animated_rot =
         RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
         RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
     }
@@ -226,8 +226,8 @@ ANIMATION_AnimateObjects :: ()
     {
       ROTATION_SPEED :: 16.0;
 
-      q0 := objv.animated_rot;
-      q1 := objv.o.rotation;
+      q0 := ghost.animated_rot;
+      q1 := ghost.o.rotation;
 
       w1 := min(1.0, G.dt * ROTATION_SPEED);
       w0 := 1.0 - w1;
@@ -235,43 +235,43 @@ ANIMATION_AnimateObjects :: ()
       if dot(q0, q1) < 0.0
         w1 = -w1;
 
-      objv.animated_rot = normalize(Mix(q0, q1, w0, w1));
+      ghost.animated_rot = normalize(Mix(q0, q1, w0, w1));
     }
-    else if !OBJ_HasAnyFlag(objv.o, .MANUAL_ROTATION)
+    else if !OBJ_HasAnyFlag(ghost.o, .MANUAL_ROTATION)
     {
-      objv.animated_rot = objv.o.rotation;
+      ghost.animated_rot = ghost.o.rotation;
     }
 
     if animate_position
     {
       POSITION_SPEED :: 10.0;
 
-      delta := objv.o.p - objv.animated_p;
+      delta := ghost.o.p - ghost.animated_p;
       move_by := delta * (G.dt * POSITION_SPEED);
-      objv.animated_p += move_by;
+      ghost.animated_p += move_by;
 
-      for *objv.animated_p.component
+      for *ghost.animated_p.component
       {
         if abs(delta.component[it_index]) < 0.01
-          it.* = objv.o.p.component[it_index];
+          it.* = ghost.o.p.component[it_index];
       }
     }
-    else if !OBJ_HasAnyFlag(objv.o, .MANUAL_POSITION)
+    else if !OBJ_HasAnyFlag(ghost.o, .MANUAL_POSITION)
     {
-      objv.animated_p = objv.o.p;
+      ghost.animated_p = ghost.o.p;
     }
 
-    if OBJ_HasAnyFlag(objv.o, .ANIMATE_TRACKS)
+    if OBJ_HasAnyFlag(ghost.o, .ANIMATE_TRACKS)
     {
-      as := *objv.anim;
-      model := GetModel(objv.o.model);
+      as := *ghost.anim;
+      model := GetModel(ghost.o.model);
       if model.is_skinned
       {
         WALK_T_SPEED :: 0.016;
         WALK_TO_RUN :: 0.2;
         RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
 
-        moved_distance := length(objv.o.moved_dp);
+        moved_distance := length(ghost.o.moved_dp);
         moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
 
         as.walk_cycle += moved_cycle_delta;
@@ -287,7 +287,7 @@ ANIMATION_AnimateObjects :: ()
         as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
         as.is_attacking = clamp(as.is_attacking, 0, 1);
 
-        if (objv.o.key == G.cl.player_key) {
+        if (ghost.o.key == G.cl.player_key) {
           // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
@@ -306,7 +306,7 @@ ANIMATION_AnimateObjects :: ()
 
         as.tracks[3].weight = as.is_attacking;
         as.tracks[3].type = .PUNCH;
-        as.tracks[3].t = activity.attack_t / objv.o.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
+        as.tracks[3].t = activity.attack_t / ghost.o.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
         as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
         as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].type, as.tracks[3].t);
 
@@ -315,41 +315,41 @@ ANIMATION_AnimateObjects :: ()
         as.tracks[4].t = as.tracks[3].t;
 
         as.tracks[5].type = .DEATH;
-        as.tracks[5].t = ElapsedSeconds(objv.o.death_time) * 1.0;
-        as.tracks[5].weight = ifx objv.o.death_time then min(1.0, as.tracks[5].t * 10.0) else 0.0;
+        as.tracks[5].t = ElapsedSinceServerTick(ghost, ghost.o.death_tick) * 1.0;
+        as.tracks[5].weight = ifx ghost.o.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
 
 
         #if 0 {
           // Movement calculations
           {
 
-            objv.animation_distance01 = WrapFloat(objv.animation_distance01 + distance01_delta, 0.0, 1.0);
-            AddClamp01(*objv.animation_moving_hot_t, (ifx moved_distance > 0 then G.dt else -G.dt) * 10);
+            ghost.animation_distance01 = WrapFloat(ghost.animation_distance01 + distance01_delta, 0.0, 1.0);
+            AddClamp01(*ghost.animation_moving_hot_t, (ifx moved_distance > 0 then G.dt else -G.dt) * 10);
 
-            if objv.animation_moving_hot_t == 0
-              objv.animation_distance01 = 0;
+            if ghost.animation_moving_hot_t == 0
+              ghost.animation_distance01 = 0;
           }
 
           // Attack calculations
           if !activity.is_attacking
           {
-            objv.animation_attack_hide_cooldown = true;
+            ghost.animation_attack_hide_cooldown = true;
           }
           if activity.is_attacking && activity.attack_t >= 0.0
           {
-            objv.animation_attack_hide_cooldown = false;
+            ghost.animation_attack_hide_cooldown = false;
           }
 
-          is_punching := activity.is_attacking && !objv.animation_attack_hide_cooldown;
-          AddClamp01(*objv.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * objv.o.attack_speed);
-          AddClamp01(*objv.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * objv.o.attack_speed);
-          attack_normalized_t := WrapFloat(activity.attack_t, 0.0, objv.o.attack_cooldown_t);
-          attack_normalized_t /= objv.o.attack_cooldown_t;
-          use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, objv.o.attack_cooldown_t*2) > objv.o.attack_cooldown_t;
+          is_punching := activity.is_attacking && !ghost.animation_attack_hide_cooldown;
+          AddClamp01(*ghost.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * ghost.o.attack_speed);
+          AddClamp01(*ghost.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * ghost.o.attack_speed);
+          attack_normalized_t := WrapFloat(activity.attack_t, 0.0, ghost.o.attack_cooldown_t);
+          attack_normalized_t /= ghost.o.attack_cooldown_t;
+          use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, ghost.o.attack_cooldown_t*2) > ghost.o.attack_cooldown_t;
 
           // Fill animation tracks
           all_joints_are_masked := false;
-          for < *objv.animation_tracks
+          for < *ghost.animation_tracks
           {
             if all_joints_are_masked
               it.weight = 0.0;
@@ -367,7 +367,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 1
             {
               anim_mode = .DISTANCE;
-              it.weight = objv.animation_moving_hot_t;
+              it.weight = ghost.animation_moving_hot_t;
               it.type = .WALK;
             }
             else if it_index == 2
@@ -381,19 +381,19 @@ ANIMATION_AnimateObjects :: ()
               anim_mode = .MANUAL01;
               it.type = ifx use_jab_animation then .JAB_HANDS else .PUNCH_HANDS;
               it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
-              it.weight = objv.animation_hands_punching_hot_t;
+              it.weight = ghost.animation_hands_punching_hot_t;
             }
             else if it_index == 4
             {
               anim_mode = .MANUAL01;
               it.type = ifx use_jab_animation then .JAB else .PUNCH;
               it.t = attack_normalized_t; // @todo pick anim.t_min & anim.t_max instead of 0.0 and 1.0; -> this is repeating pattern!
-              it.weight = objv.animation_full_punching_hot_t;
+              it.weight = ghost.animation_full_punching_hot_t;
             }
             else if it_index == 5
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(objv.o.animation_requests, 2);
+              p := QueuePeek(ghost.o.animation_requests, 2);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -402,7 +402,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 6
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(objv.o.animation_requests, 1);
+              p := QueuePeek(ghost.o.animation_requests, 1);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -411,7 +411,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 7
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(objv.o.animation_requests, 0);
+              p := QueuePeek(ghost.o.animation_requests, 0);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -419,10 +419,10 @@ ANIMATION_AnimateObjects :: ()
             }
             else if it_index == 8
             {
-              if objv.o.death_time
+              if ghost.o.death_time
               {
                 it.type = .DEATH;
-                it.t = ElapsedSeconds(objv.o.death_time) * 1.0;
+                it.t = ElapsedSeconds(ghost.o.death_time) * 1.0;
                 it.weight = min(1.0, it.t * 10.0);
               }
               else it.weight = 0.0;
@@ -437,7 +437,7 @@ ANIMATION_AnimateObjects :: ()
             if anim_mode == .DISTANCE
             {
               anim := AnimationFromType(model.skeleton, it.type);
-              dist_t := (anim.t_max - anim.t_min) * objv.animation_distance01 + anim.t_min;
+              dist_t := (anim.t_max - anim.t_min) * ghost.animation_distance01 + anim.t_min;
               it.t = WrapTime(model.skeleton, it.type, dist_t);
             }
             else if anim_mode == .TIME

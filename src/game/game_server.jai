@@ -12,6 +12,10 @@ SV_State :: struct
 
   objects: [OBJ_MAX_SHARED_OBJECTS] Object;
   creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
+
+  last_sleeper_group_spawn: ServerTick;
+  last_sleeper_spawn: ServerTick;
+  sleepers_spawned_in_group_count := 0;
 };
 
 SV_Start :: ()
@@ -82,7 +86,7 @@ SV_User :: struct
   received_inputs: Queue(NET_MAX_PLAYER_INPUT_COUNT, ReceivedInput);
   last_input: PlayerInput;
   latest_received_timestamp: Timestamp;
-  latest_client_tick: Tick;
+  latest_client_tick: InputTick;
 
   ReceivedInput :: struct
   {
@@ -177,7 +181,7 @@ SV_IterateSend :: ()
 
       assign: PACKET_AssignPlayerKey;
       assign.player_key = user.key;
-      packet := PACKET_Create(GetServerTick(), assign);
+      packet := PACKET_Create(SV.tick, assign);
       NET_SendPacket(*packet, user.connection, true);
     }
   }
@@ -201,7 +205,7 @@ SV_IterateSend :: ()
       PACKET_CopyType(*packet, update);
     }
 
-    PACKET_FinalizeHeader(GetServerTick(), *packet);
+    PACKET_FinalizeHeader(SV.tick, *packet);
 
     for SV.users
     {
@@ -216,7 +220,7 @@ SV_IterateTimeoutUsers :: ()
   for *SV.users
   {
     if it.connection.type != .NETWORK continue;
-    if ElapsedSeconds(it.connection.last_msg_timestamp, .FRAME) > NET_TIMEOUT_DISCONNECT
+    if Elapsed(SV.iteration_timestamp, it.connection.last_msg_timestamp) > NET_TIMEOUT_DISCONNECT
     {
       Nlog(LOG_NetInfo, "Timeout. Removing user #%", it_index);
 
@@ -250,7 +254,7 @@ SV_IterateReceive :: ()
 
       packet_str := PACKET_FullAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      SV_ReceivePayload(player_id, payload, from_tick);
+      SV_ReceivePayload(player_id, payload, from_tick.(InputTick));
     }
   }
 
@@ -273,19 +277,19 @@ SV_IterateReceive :: ()
 
     if user
     {
-      user.connection.last_msg_timestamp = GetTimestamp(.FRAME);
+      user.connection.last_msg_timestamp = SV.iteration_timestamp;
       player_id := PointerToIndex(SV.users, user).(u16);
 
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
-      SV_ReceivePayload(player_id, payload, from_tick);
+      SV_ReceivePayload(player_id, payload, from_tick.(InputTick));
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, client_tick: Tick)
+SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, client_tick: InputTick)
 {
   if player.latest_client_tick >= client_tick then return;
   PerfFunc();
@@ -300,21 +304,17 @@ SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, c
   if player.latest_client_tick >= start_tick
   {
     stale_ticks_count := player.latest_client_tick - start_tick + 1;
-
     new_inputs = Skip(new_inputs, xx stale_ticks_count);
-    start_tick += stale_ticks_count;
+    start_tick += xx stale_ticks_count;
   }
 
   if !new_inputs.count then return; // no new inputs
 
   for new_inputs
   {
-    now := GetTimestamp();
-    received := SV_User.ReceivedInput.{
-      it, ElapsedSeconds(player.latest_received_timestamp, now, false)
-    };
+    now := TimeNow();
+    received := SV_User.ReceivedInput.{it, Elapsed(now, player.latest_received_timestamp)};
     player.latest_received_timestamp = now;
-
     QueuePush(*player.received_inputs, received);
   }
 
@@ -341,7 +341,7 @@ SV_RemoveUser :: (user: *SV_User)
   user.* = .{};
 }
 
-SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: Tick)
+SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick)
 {
   PerfFunc();
   msg := full_payload;
@@ -508,7 +508,7 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
   obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
 
   obj.init = true;
-  obj.creation_time = GetTimestamp(.NOW);
+  obj.creation_tick = SV.tick;
   obj.flags = flags;
   obj.team = team;
   return obj;

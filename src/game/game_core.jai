@@ -66,10 +66,6 @@ GAME_State :: struct
   camera_angles: V3;
   camera_fov_y: float = 0.111;
   camera_transform: Mat4;
-
-  last_sleeper_group_spawn: Tick;
-  last_sleeper_spawn: Tick;
-  sleepers_spawned_in_group_count := 0;
 }
 
 GAME_Init :: ()
@@ -102,6 +98,7 @@ GAME_Iterate :: ()
     G.dt = G.delta_timestamp.(float) * 0.001;
     G.at = WrapFloat(G.at + G.dt, 0.0, 1000.0);
     G.frame_timestamp = now;
+    G.frame_number += 1;
 
     Post(.DELTA_TIMESTMAP_MS, xx G.delta_timestamp);
     Post(.TEST_FRAME_NUMBER, G.frame_number);

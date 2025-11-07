@@ -44,9 +44,9 @@ AUDIO_PlayObjectSounds :: ()
     {
       for sound: ghost.o.sound_requests
       {
-        dist_to_played := TickDistance(ghost.played_audio_tick, sound.tick);
-        dist_to_server := TickDistance(sound.tick, ghost.server_tick);
-        if dist_to_played > 0 && dist_to_server <= 0
+        was_played := sound.tick < ghost.played_audio_tick;
+        in_future := sound.tick > ghost.server_tick;
+        if !was_played && !in_future
         {
           AUDIO_PlaySound(sound.type);
         }
@@ -82,7 +82,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 
   active := AUDIO_ActiveSound.{
     type = sound_type,
-    start_time = GetTimestamp(),
+    start_time = TimeNow(),
     duration = xx (sound.data.count*1000 / duration_divisor),
     stream = stream,
   };

@@ -8,22 +8,20 @@ CL_State :: struct
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
   // playback state received from the server
-  playback_tick: Tick;
+  playback_tick: ServerTick;
   snaps_of_objs: [OBJ_MAX_SHARED_OBJECTS] CL_ObjSnapshots;
-  next_playback_server_tick: Tick;
-
-  // Lookup table for: Server tick -> Client receive timestamp
-  server_tick_to_client_timestamps: [..] Timestamp;
+  next_playback_server_tick: ServerTick;
 
   // Object keys
   player_key: OBJ_Key;
-  player_key_latest_tick: Tick;
+  player_key_latest_tick: ServerTick;
 
   sun: OBJ_Key;
   pathing_marker: OBJ_Key;
   pathing_marker_set: bool;
 
   // Objects
+  local_objects_tick: ServerTick = 1;
   shared_objects: [OBJ_MAX_SHARED_OBJECTS] Ghost;
   local_objects: [OBJ_MAX_LOCAL_OBJECTS] Ghost;
   #place shared_objects;
@@ -35,10 +33,10 @@ CL_State :: struct
 CL_ObjSnapshots :: struct
 {
   tick_states: [NET_CL_MAX_SNAPSHOTS] Object; // circle buf
-  latest_server_tick: Tick;
-  oldest_server_tick: Tick;
-  recent_lerp_start_tick: Tick;
-  recent_lerp_end_tick: Tick;
+  latest_server_tick: ServerTick;
+  oldest_server_tick: ServerTick;
+  recent_lerp_start_tick: ServerTick;
+  recent_lerp_end_tick: ServerTick;
 };
 
 CL_Init :: ()
@@ -87,13 +85,13 @@ CL_FlushPlayerInput :: ()
   // @todo clear skills queue once it exsits in Action
 }
 
-CL_ObjSyncAtTick :: (snaps: *CL_ObjSnapshots, tick: Tick) -> *Object
+CL_ObjSyncAtTick :: (snaps: *CL_ObjSnapshots, tick: ServerTick) -> *Object
 {
   state_index := tick % snaps.tick_states.count;
   return *snaps.tick_states[state_index];
 }
 
-CL_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
+CL_ReconstructObjectSyncAtTick :: (net_index: u32, tick: ServerTick) -> Object
 {
   PerfFunc();
 
@@ -147,13 +145,12 @@ CL_ReconstructObjectSyncAtTick :: (net_index: u32, tick: Tick) -> Object
   return result;
 }
 
-CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: Tick, new_value: Object) -> bool
+CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: ServerTick, new_value: Object) -> bool
 {
   PerfFunc();
 
   // function returns true on error
   #assert(snaps.tick_states.count == NET_CL_MAX_SNAPSHOTS);
-  last_to_first_tick_offset := NET_CL_MAX_SNAPSHOTS.(Tick) - 1;
 
   if (snaps.recent_lerp_start_tick != snaps.recent_lerp_end_tick &&
       insert_at_tick >= snaps.recent_lerp_start_tick &&
@@ -173,8 +170,14 @@ CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: Tick, new_value: 
     snaps.latest_server_tick = insert_at_tick;
   }
 
-  minimum_server_tick := max(snaps.latest_server_tick - last_to_first_tick_offset, cast(Tick) 0);
-  if (xx insert_at_tick < minimum_server_tick)
+  last_to_first_tick_offset := (NET_CL_MAX_SNAPSHOTS - 1).(ServerTick);
+  minimum_server_tick: ServerTick;
+  if snaps.latest_server_tick > last_to_first_tick_offset
+  {
+    minimum_server_tick = snaps.latest_server_tick - last_to_first_tick_offset;
+  }
+
+  if insert_at_tick < minimum_server_tick
   {
     Nlog(LOG_NetClient,
         "Rejecting snapshot insert (underflow) - latest server tick: %; insert tick: %; diff: % (max: %)",
@@ -197,7 +200,7 @@ CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: Tick, new_value: 
     }
     else
     {
-      clearing_start := insert_at_tick - delta_from_latest + 1;
+      clearing_start := (insert_at_tick - delta_from_latest + 1).(ServerTick);
       for MakeRange(clearing_start, insert_at_tick)
       {
         obj := CL_ObjSyncAtTick(snaps, it);
@@ -252,7 +255,7 @@ CL_IterateSend :: ()
 
   {
     ping: PACKET_Ping;
-    packet := PACKET_Create(GetClientInputTick(), ping);
+    packet := PACKET_Create(G.cl.input_tick, ping);
     NET_SendPacket(packet, G.cl.server_connection, false);
   }
 
@@ -263,7 +266,7 @@ CL_IterateSend :: ()
       it.* = QueuePeek(G.cl.input_queue, it_index);
     }
 
-    packet := PACKET_Create(GetClientInputTick(), payload);
+    packet := PACKET_Create(G.cl.input_tick, payload);
     NET_SendPacket(packet, G.cl.server_connection, false);
   }
 }
@@ -284,7 +287,7 @@ CL_IterateReceive :: ()
 
       packet_str := PACKET_FullAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      CL_ReceivePayload(payload, from_tick);
+      CL_ReceivePayload(payload, from_tick.(ServerTick));
     }
 
     return; // No need to check network anymore
@@ -312,14 +315,14 @@ CL_IterateReceive :: ()
     {
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
-      CL_ReceivePayload(payload, from_tick);
+      CL_ReceivePayload(payload, from_tick.(ServerTick));
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-CL_ReceivePayload :: (full_payload: string, from_tick: Tick)
+CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
 {
   PerfFunc();
   msg := full_payload;
@@ -392,8 +395,8 @@ CL_PlayTick :: ()
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  smallest_latest_server_tick: Tick = Tick_MAX;
-  biggest_oldest_server_tick: Tick;
+  smallest_latest_server_tick: ServerTick = ServerTick_MAX;
+  biggest_oldest_server_tick: ServerTick;
 
   for snap: G.cl.snaps_of_objs
   {
@@ -464,7 +467,7 @@ CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   obj.o.key = OBJ_CreateKey(index_in_all_objects, G.cl.local_objects_creation_serials[index]);
 
   obj.o.init = true;
-  obj.o.creation_time = GetTimestamp(.NOW);
+  obj.o.creation_tick = G.cl.local_objects_tick;
   obj.o.flags = flags;
   return *obj.o;
 }

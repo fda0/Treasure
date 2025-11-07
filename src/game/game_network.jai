@@ -92,14 +92,15 @@ NET_HasError :: () -> bool
 
 NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: float) -> bool
 {
-  if ElapsedSeconds(last_accepted.*) < 0.008 return true;
-  last_accepted.* = GetTimestamp(.FRAME);
+  now := TimeNow();
+  if Elapsed(now, last_accepted.*) < 0.008 return true;
+  last_accepted.* = now;
   return false;
 }
 
 NET_ConnectionIsInactive :: (con: NET_Connection) -> bool
 {
-  return con.type == .NETWORK && ElapsedSeconds(con.last_msg_timestamp) > NET_INACTIVE;
+  return con.type == .NETWORK && Elapsed(TimeNow(), con.last_msg_timestamp) > NET_INACTIVE;
 }
 
 NET_ReceiveDatagram :: (dgram: **SDLNet_Datagram) -> bool

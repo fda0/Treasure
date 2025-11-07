@@ -54,7 +54,7 @@ KEY_Update :: (key_code: KEY_Code, is_down: bool)
   if is_pressed   key.f |= PRESSED;
   if is_released  key.f |= RELEASED;
 
-  if is_pressed then key.held_start = GetTimestamp(.FRAME);
+  if is_pressed then key.held_start = G.frame_timestamp;
 }
 
 KEY_Consume  :: (key_codes: ..KEY_Code)
@@ -72,7 +72,7 @@ KEY_CheckMany :: (flags: KEY_Flags, key_codes: ..KEY_Code, held_for := 0.0) -> b
   {
     key := G.keys[it];
     if key.f & .CONSUMED continue;
-    test := (key.f & flags) && (ElapsedSeconds(key.held_start) >= held_for);
+    test := (key.f & flags) && (Elapsed(G.frame_timestamp, key.held_start) >= held_for);
     res |= test;
   }
   return res;

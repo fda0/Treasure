@@ -184,8 +184,8 @@ OBJ_KeyToColor :: (key: OBJ_Key) -> Color32
 OBJ_EntropyFromObj :: (obj: Object) -> Entropy
 {
   rng: Entropy;
-  rng.inc = obj.creation_time.(u64) | 1;
-  rng.state = obj.creation_time.(u64) ^ 0xdeadbeeffda01234;
+  rng.inc = obj.creation_tick.(u64) | 1;
+  rng.state = obj.creation_tick.(u64) ^ 0xdeadbeeffda01234;
   return rng;
 }
 

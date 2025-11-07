@@ -27,17 +27,17 @@ SIM_AdvanceByTick :: ()
   PerfFunc();
   assert(context.role == .SERVER);
 
-  if ServerSecondsSinceServerTick(G.last_sleeper_group_spawn, false) >= 40.0
+  if ElapsedSinceServerTick(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
   {
-    G.sleepers_spawned_in_group_count = 0;
-    G.last_sleeper_group_spawn = GetServerTick();
+    SV.sleepers_spawned_in_group_count = 0;
+    SV.last_sleeper_group_spawn = SV.tick;
   }
 
-  if G.sleepers_spawned_in_group_count < 5 &&
-     ServerSecondsSinceServerTick(G.last_sleeper_spawn, false) >= 0.5
+  if SV.sleepers_spawned_in_group_count < 5 &&
+     ElapsedSinceServerTick(SV.tick, SV.last_sleeper_spawn, false) >= 0.5
   {
-    G.last_sleeper_spawn = GetServerTick();
-    G.sleepers_spawned_in_group_count += 1;
+    SV.last_sleeper_spawn = SV.tick;
+    SV.sleepers_spawned_in_group_count += 1;
 
     for team: BOTH_TEAMS
     {
@@ -60,9 +60,6 @@ SIM_AdvanceByTick :: ()
           wants_to_attack = true,
           target = SV_FindNearestToObject(sleeper, .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).key,
         };
-
-        zxczxc := 10;
-        zxczxc+= 1;
       }
     }
   }
@@ -190,7 +187,7 @@ SIM_AdvanceByTick :: ()
       gap := target_p - projectile.p;
       gap_length := length(gap);
 
-      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSeconds(projectile.creation_time));
+      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSinceServerTick(SV.tick, projectile.creation_tick));
       fly_speed *= TICK_FLOAT_STEP;
 
       if gap_length > 0.0
@@ -220,13 +217,13 @@ SIM_AdvanceByTick :: ()
     if OBJ_IsNil(obj) continue;
     if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
     {
-      obj.death_time = 0;
+      obj.death_tick = 0;
     }
     else // IS_DEAD
     {
-      if !obj.death_time then obj.death_time = SV.tick;
+      if !obj.death_tick then obj.death_tick = SV.tick;
 
-      death_t := ElapsedSeconds(obj.death_time);
+      death_t := ElapsedSinceServerTick(SV.tick, obj.death_tick);
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
       {
@@ -237,7 +234,7 @@ SIM_AdvanceByTick :: ()
       {
         obj.p = .{};
         obj.hp = obj.max_hp;
-        obj.death_time = 0;
+        obj.death_tick = 0;
       }
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
