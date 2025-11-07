@@ -11,6 +11,7 @@ GAME_State :: struct
   // Time
   frame_timestamp: Timestamp;
   delta_timestamp: Timestamp;
+  timestamp_accumulator: Timestamp;
   dt: float;
   at: float;
   frame_number: s64;
@@ -95,9 +96,10 @@ GAME_Iterate :: ()
   {
     now := TimeNow();
     G.delta_timestamp = now - G.frame_timestamp;
+    G.frame_timestamp = now;
+    G.timestamp_accumulator += G.delta_timestamp;
     G.dt = G.delta_timestamp.(float) * 0.001;
     G.at = WrapFloat(G.at + G.dt, 0.0, 1000.0);
-    G.frame_timestamp = now;
     G.frame_number += 1;
 
     Post(.DELTA_TIMESTMAP_MS, xx G.delta_timestamp);
@@ -160,12 +162,10 @@ GAME_Iterate :: ()
     CL_IterateReceive();
 
     {
-      // @todo_now
-      tick_count := 0;
-      // #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
-      // #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
-      // tick_count := context.R.time.frame_timestamp_accumulator / TICK_MILLISECONDS_STEP;
-      // context.R.time.frame_timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
+      #assert((1000 % TICK_MILLISECONDS_STEP) == 0);
+      #assert((1000 / TICK_MILLISECONDS_STEP) == TICK_RATE);
+      tick_count := G.timestamp_accumulator / TICK_MILLISECONDS_STEP;
+      G.timestamp_accumulator -= tick_count * TICK_MILLISECONDS_STEP;
 
       for MakeRange(tick_count)
       {

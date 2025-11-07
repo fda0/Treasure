@@ -32,7 +32,7 @@ SV_Start :: ()
       {
         Initialize(local_user);
         local_user.connection.type = .LOCAL;
-        local_user.connection.local_packets = *GLOBAL.local_user_packets;
+        local_user.connection.local_packets = *GLOBAL.packets_for_local_user;
       }
     }
 
@@ -249,7 +249,7 @@ SV_IterateReceive :: ()
 
     while true
     {
-      packet, got_packet := QueuePop(local_user.connection.local_packets);
+      packet, got_packet := QueuePop(*GLOBAL.packets_for_local_server);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
@@ -361,7 +361,7 @@ SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick
     }
     else
     {
-      Nlog(LOG_NetPayload, "Unsupported payload header kind: %d", msg_type);
+      Nlog(LOG_NetPayload, "Unsupported payload header kind: %", msg_type);
       return;
     }
   }

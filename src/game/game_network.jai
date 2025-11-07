@@ -30,12 +30,12 @@ LOG_Important :: 8;
 
 Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, format_string: string, args: .. Any, loc := #caller_location, flags := Log_Flags.NONE, user_flags : u32 = 0, section : *Log_Section = null)
 {
-  if net_category != LOG_NetPacket return;
+  // if net_category != LOG_NetPacket return;
   // @todo do something with net_category and logging in general
   // @todo add "NET_Label()" before every net log?, or do that for logs globally
-  if (GLOBAL.is_server && GLOBAL.is_client) log("[SERVER+CLIENT]");
-  else if (GLOBAL.is_server) log("[SERVER]");
-  else if (GLOBAL.is_client) log("[CLIENT]");
+  if (GLOBAL.is_server && GLOBAL.is_client) log("[SERVER+CLIENT][%]", loc);
+  else if (GLOBAL.is_server) log("[SERVER][%]", loc);
+  else if (GLOBAL.is_client) log("[CLIENT][%]", loc);
 
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike

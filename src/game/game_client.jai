@@ -47,7 +47,7 @@ CL_Init :: ()
   {
     log("Client is starting local server connection");
     G.cl.server_connection.type = .LOCAL;
-    G.cl.server_connection.local_packets = *GLOBAL.local_server_packets;
+    G.cl.server_connection.local_packets = *GLOBAL.packets_for_local_server;
   }
   else
   {
@@ -91,7 +91,7 @@ CL_ObjSyncAtTick :: (snaps: *CL_ObjSnapshots, tick: ServerTick) -> *Object
   return *snaps.tick_states[state_index];
 }
 
-CL_ReconstructObjectSyncAtTick :: (net_index: u32, tick: ServerTick) -> Object
+CL_ReconstructObjectAtTick :: (net_index: u32, tick: ServerTick) -> Object
 {
   PerfFunc();
 
@@ -282,7 +282,7 @@ CL_IterateReceive :: ()
   {
     while true
     {
-      packet, got_packet := QueuePop(G.cl.server_connection.local_packets);
+      packet, got_packet := QueuePop(*GLOBAL.packets_for_local_user);
       if !got_packet break;
 
       packet_str := PACKET_FullAsString(packet);
@@ -409,10 +409,11 @@ CL_PlayTick :: ()
   // This gives us minimal latency; but the playback won't be smooth on bad connection.
   G.cl.next_playback_server_tick = smallest_latest_server_tick;
 
-  for *net_obj_view, net_index: G.cl.shared_objects
+  for *ghost, ghost_index: G.cl.shared_objects
   {
-    interpolated_sync := CL_ReconstructObjectSyncAtTick(xx net_index, G.cl.next_playback_server_tick);
-    net_obj_view.o = interpolated_sync;
+    interpolated_object := CL_ReconstructObjectAtTick(xx ghost_index, G.cl.next_playback_server_tick);
+    ghost.o = interpolated_object;
+    ghost.server_tick = G.cl.next_playback_server_tick;
   }
   G.cl.next_playback_server_tick += 1;
 }
