@@ -18,18 +18,16 @@ GAME_ElapsedToFrame :: (since: Timestamp, max_on_fail := false) -> float
   return Elapsed(G.frame_timestamp, since, max_on_fail);
 }
 
-ElapsedSinceServerTick :: (current: ServerTick, since: ServerTick, max_on_fail := false) -> float
+SecondsBetweenTicks :: (current: ServerTick, since: ServerTick, max_on_fail := false) -> float
 {
-  // @todo at least on the client side - this needs to be better
   if current < since return FailTime(max_on_fail);
   result := (current - since).(float) * TICK_FLOAT_STEP;
   return result;
 }
 
-ElapsedSinceServerTick :: (ref: Ghost, since: ServerTick, max_on_fail := false) -> float
+SecondBetweenGhostAndTick :: (ref: Ghost, since: ServerTick, max_on_fail := false) -> float
 {
-  // @todo at least on the client side - this needs to be better
-  return ElapsedSinceServerTick(ref.server_tick, since, max_on_fail);
+  return SecondsBetweenTicks(ref.server_tick, since, max_on_fail);
 }
 
 Tick :: #type,distinct u32;

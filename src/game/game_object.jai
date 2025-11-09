@@ -101,9 +101,10 @@ Ghost :: struct
   o: Object;
 
   server_tick: ServerTick;
-  // from: *Object;
-  // to: *Object;
-  // t: float;
+  from: Object;
+  to: Object;
+  t: float = 1.0;
+  t_speed: float = 1.0;
 
   // Object data that's kept on client side only
   animated_rot: Quat; // animates towards rotation

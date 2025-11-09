@@ -8,9 +8,7 @@ CL_State :: struct
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
   // playback state received from the server
-  playback_tick: ServerTick;
-  snaps_of_objs: [OBJ_MAX_SHARED_OBJECTS] CL_ObjSnapshots;
-  next_playback_server_tick: ServerTick;
+  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, CL_ObjectSnapshot);
 
   // Object keys
   player_key: OBJ_Key;
@@ -30,14 +28,11 @@ CL_State :: struct
   local_objects_creation_serials: [OBJ_MAX_LOCAL_OBJECTS] u8;
 };
 
-CL_ObjSnapshots :: struct
+CL_ObjectSnapshot :: struct
 {
-  tick_states: [NET_CL_MAX_SNAPSHOTS] Object; // circle buf
-  latest_server_tick: ServerTick;
-  oldest_server_tick: ServerTick;
-  recent_lerp_start_tick: ServerTick;
-  recent_lerp_end_tick: ServerTick;
-};
+  object: Object;
+  from_tick: ServerTick;
+}
 
 CL_Init :: ()
 {
@@ -83,168 +78,6 @@ CL_FlushPlayerInput :: ()
   G.cl.input_tick += 1;
   QueuePush(*G.cl.input_queue, G.cl.input);
   // @todo clear skills queue once it exsits in Action
-}
-
-CL_ObjSyncAtTick :: (snaps: *CL_ObjSnapshots, tick: ServerTick) -> *Object
-{
-  state_index := tick % snaps.tick_states.count;
-  return *snaps.tick_states[state_index];
-}
-
-CL_ReconstructObjectAtTick :: (net_index: u32, tick: ServerTick) -> Object
-{
-  PerfFunc();
-
-  snaps := *G.cl.snaps_of_objs[net_index];
-
-  assert(tick <= snaps.latest_server_tick &&
-         tick >= snaps.oldest_server_tick);
-
-  exact_obj := CL_ObjSyncAtTick(snaps, tick);
-  if OBJ_IsInit(exact_obj) // exact object found
-    return exact_obj.*;
-
-  // find nearest prev_id/next_id objects
-  prev_id := tick;
-  next_id := tick;
-  while (prev_id > snaps.oldest_server_tick)
-  {
-    prev_id -= 1;
-    if (OBJ_IsInit(CL_ObjSyncAtTick(snaps, prev_id)))
-      break;
-  }
-  while (next_id < snaps.latest_server_tick)
-  {
-    next_id += 1;
-    if (OBJ_IsInit(CL_ObjSyncAtTick(snaps, next_id)))
-      break;
-  }
-
-  prev := CL_ObjSyncAtTick(snaps, prev_id);
-  next := CL_ObjSyncAtTick(snaps, next_id);
-
-  // handle cases where we can't interpolate
-  if (!OBJ_IsInit(prev) && !OBJ_IsInit(next)) // disaster
-    return exact_obj.*;
-
-  if (!OBJ_IsInit(prev))
-    return next.*;
-
-  if (!OBJ_IsInit(next))
-    return prev.*;
-
-  // lock lerp range; new packets in this range will be rejected
-  snaps.recent_lerp_start_tick = prev_id;
-  snaps.recent_lerp_end_tick = next_id;
-
-  // do the interpolation
-  id_range := next_id - prev_id;
-  id_offset := tick - prev_id;
-  t := id_offset.(float) / id_range.(float);
-  result := lerp(prev, next, t);
-  return result;
-}
-
-CL_InsertSnapshot :: (snaps: *CL_ObjSnapshots, insert_at_tick: ServerTick, new_value: Object) -> bool
-{
-  PerfFunc();
-
-  // function returns true on error
-  #assert(snaps.tick_states.count == NET_CL_MAX_SNAPSHOTS);
-
-  if (snaps.recent_lerp_start_tick != snaps.recent_lerp_end_tick &&
-      insert_at_tick >= snaps.recent_lerp_start_tick &&
-      insert_at_tick <= snaps.recent_lerp_end_tick)
-  {
-    Nlog(LOG_NetClient,
-        "Rejecting snapshot insert (in the middle, locked by lerp) - latest server tick: %; insert tick: %; diff: % (max: %)",
-        snaps.latest_server_tick, insert_at_tick,
-        snaps.latest_server_tick - insert_at_tick, NET_CL_MAX_SNAPSHOTS);
-    return true;
-  }
-
-  delta_from_latest := insert_at_tick - snaps.latest_server_tick;
-  if delta_from_latest > 0
-  {
-    // save new latest server tick
-    snaps.latest_server_tick = insert_at_tick;
-  }
-
-  last_to_first_tick_offset := (NET_CL_MAX_SNAPSHOTS - 1).(ServerTick);
-  minimum_server_tick: ServerTick;
-  if snaps.latest_server_tick > last_to_first_tick_offset
-  {
-    minimum_server_tick = snaps.latest_server_tick - last_to_first_tick_offset;
-  }
-
-  if insert_at_tick < minimum_server_tick
-  {
-    Nlog(LOG_NetClient,
-        "Rejecting snapshot insert (underflow) - latest server tick: %; insert tick: %; diff: % (max: %)",
-        snaps.latest_server_tick, insert_at_tick,
-        insert_at_tick - snaps.latest_server_tick, NET_CL_MAX_SNAPSHOTS);
-    return true;
-  }
-
-  if delta_from_latest > 0
-  {
-    // tick is newer than latest_server_at_tick
-    // zero-out the gap between newly inserted object and previous latest server tick
-
-    if delta_from_latest >= NET_CL_MAX_SNAPSHOTS
-    {
-      // optimized branch
-      // tick is much-newer than latest_server_at_tick
-      // we can safely clear the whole circle buffer
-      ZeroArray(snaps.tick_states);
-    }
-    else
-    {
-      clearing_start := (insert_at_tick - delta_from_latest + 1).(ServerTick);
-      for MakeRange(clearing_start, insert_at_tick)
-      {
-        obj := CL_ObjSyncAtTick(snaps, it);
-        Initialize(obj);
-      }
-    }
-
-
-    // recalculate oldest_server_tick
-    if snaps.oldest_server_tick < minimum_server_tick
-    {
-      // find new oldest
-      for MakeRange(minimum_server_tick, insert_at_tick)
-      {
-        obj := CL_ObjSyncAtTick(snaps, it);
-        if OBJ_IsInit(obj)
-        {
-          snaps.oldest_server_tick = it;
-          break;
-        }
-      }
-
-      // failed to find oldest
-      if (snaps.oldest_server_tick < minimum_server_tick)
-      {
-        snaps.oldest_server_tick = insert_at_tick;
-      }
-    }
-  }
-
-  // update oldest if inserted obj is older than oldest
-  if (snaps.oldest_server_tick > insert_at_tick)
-  {
-    snaps.oldest_server_tick = insert_at_tick;
-  }
-
-  // insert object
-  {
-    insert_at_obj := CL_ObjSyncAtTick(snaps, insert_at_tick);
-    insert_at_obj.* = new_value;
-  }
-
-  assert(snaps.oldest_server_tick >= minimum_server_tick);
-  return false; // no error
 }
 
 CL_IterateSend :: ()
@@ -322,6 +155,32 @@ CL_IterateReceive :: ()
   }
 }
 
+CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
+{
+  if insert_shared_idx >= G.cl.shared_objects.count
+  {
+    Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
+      insert_shared_idx, G.cl.shared_objects.count);
+    return;
+  }
+
+  snaps := *G.cl.snapshots[insert_shared_idx];
+
+  latest_saved_tick := QueuePeekReverse(snaps).from_tick;
+  if latest_saved_tick >= from_tick
+  {
+    // @todo support this case?
+    Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx %; Tick out of order %. Latest saved tick: %",
+      insert_shared_idx, from_tick, latest_saved_tick);
+    return;
+  }
+
+  snapshot: CL_ObjectSnapshot;
+  snapshot.object = insert_obj;
+  snapshot.from_tick = from_tick;
+  QueuePush(snaps, snapshot);
+}
+
 CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
 {
   PerfFunc();
@@ -348,21 +207,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
         update.sync.init = true;
       }
 
-      if update.net_index >= OBJ_MAX_SHARED_OBJECTS
-      {
-        Nlog(LOG_NetPayload, "Rejecting payload(%) - net index overflow: %", msg_type, update.net_index);
-        continue;
-      }
-
-      if G.cl.next_playback_server_tick > from_tick
-      {
-        Nlog(LOG_NetPayload, "Rejecting payload(%) - head tick at: % < next playback tick: %",
-             msg_type, from_tick, G.cl.next_playback_server_tick);
-        continue;
-      }
-
-      snap := *G.cl.snaps_of_objs[update.net_index];
-      CL_InsertSnapshot(snap, from_tick, update.sync);
+      CL_InsertSnapshot(from_tick, update.sync, update.net_index);
     }
     else if msg_type == .AssignPlayerKey
     {
@@ -395,27 +240,44 @@ CL_PlayTick :: ()
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  smallest_latest_server_tick: ServerTick = ServerTick_MAX;
-  biggest_oldest_server_tick: ServerTick;
-
-  for snap: G.cl.snaps_of_objs
+  for *ghost, shared_index: G.cl.shared_objects
   {
-    smallest_latest_server_tick = min(snap.latest_server_tick, smallest_latest_server_tick);
-    biggest_oldest_server_tick = max(snap.oldest_server_tick, biggest_oldest_server_tick);
-  }
+    snaps := *G.cl.snapshots[shared_index];
 
-  // @todo a system for smooth playback that tries to minimize latency
-  // Currently we are picking the latest possible server tick.
-  // This gives us minimal latency; but the playback won't be smooth on bad connection.
-  G.cl.next_playback_server_tick = smallest_latest_server_tick;
+    ghost.t += G.dt * ghost.t_speed;
+    // @todo btw maybe snapshots should just live in ghost? IDK! maybe not, prob not? because i want to have local ghosts too
+    if ghost.t >= 1.0 && !QueueIsEmpty(snaps)
+    {
+      t_tick_advance_count := ghost.t.(ServerTick);
 
-  for *ghost, ghost_index: G.cl.shared_objects
-  {
-    interpolated_object := CL_ReconstructObjectAtTick(xx ghost_index, G.cl.next_playback_server_tick);
-    ghost.o = interpolated_object;
-    ghost.server_tick = G.cl.next_playback_server_tick;
+      snapshot: CL_ObjectSnapshot = ---;
+      snap_tick_advance_count: ServerTick;
+      while !QueueIsEmpty(snaps)
+      {
+        snapshot = QueuePop(snaps);
+        snap_tick_advance_count = snapshot.from_tick - ghost.server_tick;
+        if (snap_tick_advance_count >= t_tick_advance_count) break;
+      }
+
+      ghost.t = WrapFloat(ghost.t, 0.0, 1.0);
+      ghost.t_speed = TICK_RATE.(float) * (t_tick_advance_count.(float) / snap_tick_advance_count.(float));
+
+      if (ghost == CL_GetGhost(.SHARED, G.cl.player_key))
+      {
+        log("snaps.min=%; T_SPEED calc; % = % * (% / %) = % * %",
+          snaps.min,
+          ghost.t_speed, TICK_RATE.(float), t_tick_advance_count.(float), snap_tick_advance_count.(float),
+          TICK_RATE.(float), t_tick_advance_count.(float) / snap_tick_advance_count.(float));
+      }
+
+      // advance
+      ghost.from = ghost.to;
+      ghost.to = snapshot.object;
+      ghost.server_tick = snapshot.from_tick;
+    }
+
+    ghost.o = lerp(ghost.from, ghost.to, ghost.t);
   }
-  G.cl.next_playback_server_tick += 1;
 }
 
 CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost

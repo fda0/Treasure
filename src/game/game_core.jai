@@ -169,10 +169,8 @@ GAME_Iterate :: ()
 
       for MakeRange(tick_count)
       {
-        G.cl.playback_tick += 1;
-        CL_PlayTick();
+        CL_PlayTick(); // @todo delete G.timestamp_accumulator; CL_PlayTick needs to just use G.dt;
       }
-      Post(.NEXT_PLAYBACK_SV_TICK, xx G.cl.next_playback_server_tick);
     }
 
     CL_IterateSend();

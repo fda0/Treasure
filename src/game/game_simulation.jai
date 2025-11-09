@@ -1,4 +1,4 @@
-TICK_RATE :: 200;
+TICK_RATE :: 50;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
@@ -27,14 +27,14 @@ SIM_AdvanceByTick :: ()
   PerfFunc();
   assert(context.role == .SERVER);
 
-  if ElapsedSinceServerTick(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
+  if SecondsBetweenTicks(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
   {
     SV.sleepers_spawned_in_group_count = 0;
     SV.last_sleeper_group_spawn = SV.tick;
   }
 
   if SV.sleepers_spawned_in_group_count < 5 &&
-     ElapsedSinceServerTick(SV.tick, SV.last_sleeper_spawn, false) >= 0.5
+     SecondsBetweenTicks(SV.tick, SV.last_sleeper_spawn, false) >= 0.5
   {
     SV.last_sleeper_spawn = SV.tick;
     SV.sleepers_spawned_in_group_count += 1;
@@ -187,7 +187,7 @@ SIM_AdvanceByTick :: ()
       gap := target_p - projectile.p;
       gap_length := length(gap);
 
-      fly_speed := 1.0 + 5.0*min(1.0, ElapsedSinceServerTick(SV.tick, projectile.creation_tick));
+      fly_speed := 1.0 + 5.0*min(1.0, SecondsBetweenTicks(SV.tick, projectile.creation_tick));
       fly_speed *= TICK_FLOAT_STEP;
 
       if gap_length > 0.0
@@ -223,7 +223,7 @@ SIM_AdvanceByTick :: ()
     {
       if !obj.death_tick then obj.death_tick = SV.tick;
 
-      death_t := ElapsedSinceServerTick(SV.tick, obj.death_tick);
+      death_t := SecondsBetweenTicks(SV.tick, obj.death_tick);
 
       if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
       {

@@ -7,6 +7,7 @@ SV_State :: struct
   iteration_timestamp: Timestamp;
   timestamp_accumulator: Timestamp;
   tick: ServerTick;
+  last_broadcasted_tick: ServerTick;
 
   users: [NET_MAX_PLAYERS] SV_User;
 
@@ -140,8 +141,11 @@ SV_ThreadEntry :: (thread: *Thread) -> s64
 SV_IterateSend :: ()
 {
   if NET_HasError() return;
-  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
+  if SV.tick <= SV.last_broadcasted_tick return;
+  if NET_HackyRatelimitting(UniqueTimestamp(), 0.001) return;
+
   PerfFunc();
+  SV.last_broadcasted_tick = SV.tick;
 
   client_count := 0;
   for SV.users if it.connection.type  client_count += 1;

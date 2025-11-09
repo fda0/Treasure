@@ -93,7 +93,7 @@ NET_HasError :: () -> bool
 NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: float) -> bool
 {
   now := TimeNow();
-  if Elapsed(now, last_accepted.*) < 0.008 return true;
+  if Elapsed(now, last_accepted.*) < minimal_delay_seconds return true;
   last_accepted.* = now;
   return false;
 }

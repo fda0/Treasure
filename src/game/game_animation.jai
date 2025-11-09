@@ -216,7 +216,7 @@ ANIMATION_AnimateObjects :: ()
       offset0 := RngF_01(*rng);
       offset1 := RngF_01(*rng);
 
-      t := ElapsedSinceServerTick(ghost, ghost.o.creation_tick);
+      t := SecondBetweenGhostAndTick(ghost, ghost.o.creation_tick);
       ghost.animated_rot =
         RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
         RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
@@ -315,7 +315,7 @@ ANIMATION_AnimateObjects :: ()
         as.tracks[4].t = as.tracks[3].t;
 
         as.tracks[5].type = .DEATH;
-        as.tracks[5].t = ElapsedSinceServerTick(ghost, ghost.o.death_tick) * 1.0;
+        as.tracks[5].t = SecondBetweenGhostAndTick(ghost, ghost.o.death_tick) * 1.0;
         as.tracks[5].weight = ifx ghost.o.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
 
 
