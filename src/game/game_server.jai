@@ -1,5 +1,4 @@
 #load "game_simulation.jai";
-SV: SV_State; // @private should be used only by game_server.jai and game_simulation.jai
 SV_State :: struct
 {
   thread: Thread;
@@ -21,6 +20,7 @@ SV_State :: struct
 
 SV_Start :: ()
 {
+  INJECT("SV");
   push_context CreateContextWithRole(.SERVER)
   {
     log("Launching as server");
@@ -99,6 +99,7 @@ SV_User :: struct
 SV_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
+  INJECT("SV");
   assert(context.role == .SERVER);
 
   while true
@@ -140,6 +141,7 @@ SV_ThreadEntry :: (thread: *Thread) -> s64
 
 SV_IterateSend :: ()
 {
+  INJECT("SV");
   if NET_HasError() return;
   if SV.tick <= SV.last_broadcasted_tick return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.001) return;
@@ -221,6 +223,7 @@ SV_IterateSend :: ()
 
 SV_IterateTimeoutUsers :: ()
 {
+  INJECT("SV");
   for *SV.users
   {
     if it.connection.type != .NETWORK continue;
@@ -241,6 +244,7 @@ SV_IterateTimeoutUsers :: ()
 
 SV_IterateReceive :: ()
 {
+  INJECT("SV");
   if NET_HasError() return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
@@ -327,6 +331,7 @@ SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, c
 
 SV_FindUser :: (address: *SDLNet_Address, port: u16) -> *SV_User
 {
+  INJECT("SV");
   // @todo move to SV_ prefix?
   for *SV.users
   {
@@ -347,6 +352,7 @@ SV_RemoveUser :: (user: *SV_User)
 
 SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick)
 {
+  INJECT("SV");
   PerfFunc();
   msg := full_payload;
   while msg.count
@@ -373,6 +379,7 @@ SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick
 
 SV_FindLocalUser :: () -> *SV_User
 {
+  INJECT("SV");
   for *SV.users
     if it.connection.type == .LOCAL
       return it;
@@ -382,6 +389,7 @@ SV_FindLocalUser :: () -> *SV_User
 
 SV_FindEmptyUserSlot :: () -> *SV_User
 {
+  INJECT("SV");
   slot: *SV_User;
   for *SV.users
   {
@@ -469,6 +477,7 @@ SV_InitObjects :: ()
 
 SV_GetObject :: (key: OBJ_Key) -> *Object
 {
+  INJECT("SV");
   assert(context.role == .SERVER);
   result := OBJ_NilObject();
   key_index := OBJ_IndexOfKey(key);
@@ -489,6 +498,7 @@ SV_DeleteObject :: (obj: *Object)
 
 SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 {
+  INJECT("SV");
   assert(context.role == .SERVER);
 
   obj: *Object;
@@ -520,6 +530,7 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 
 SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
 {
+  INJECT("SV");
   assert(context.role == .SERVER);
 
   nearest := OBJ_NilObject();

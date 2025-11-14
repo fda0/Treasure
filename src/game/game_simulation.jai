@@ -1,4 +1,4 @@
-TICK_RATE :: 200;
+TICK_RATE :: 20;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
@@ -25,6 +25,7 @@ PlayerInput :: struct
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
+  INJECT("SV");
   assert(context.role == .SERVER);
 
   if SecondsBetweenTicks(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
@@ -435,6 +436,7 @@ SIM_ProcessActivity :: (obj: *Object)
 SIM_MoveAndCollideObjects :: ()
 {
   PerfFunc();
+  INJECT("SV");
   for * obj: SV.objects
   {
     if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
@@ -540,9 +542,11 @@ SIM_MoveAndCollideObjects :: ()
 
 SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
+  INJECT("SV");
   QueuePush(*obj.sound_requests, .{SV.tick, type});
 }
 SIM_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
+  INJECT("SV");
   QueuePush(*obj.animation_requests, .{SV.tick, type});
 }

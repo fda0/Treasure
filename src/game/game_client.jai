@@ -36,34 +36,35 @@ CL_ObjectSnapshot :: struct
 
 CL_Init :: ()
 {
+  INJECT("CL");
   Nlog(LOG_NetInfo, "Launching as client");
 
   if GLOBAL.is_server
   {
     log("Client is starting local server connection");
-    G.cl.server_connection.type = .LOCAL;
-    G.cl.server_connection.local_packets = *GLOBAL.packets_for_local_server;
+    CL.server_connection.type = .LOCAL;
+    CL.server_connection.local_packets = *GLOBAL.packets_for_local_server;
   }
   else
   {
     hostname := "localhost";
     Nlog(LOG_NetInfo, "Resolving server hostname '%s' ...", hostname);
-    G.cl.server_connection = .{
+    CL.server_connection = .{
       type = .NETWORK,
       address = SDLNet_ResolveHostname(temp_c_string(hostname)),
       port = NET_DEFAULT_SEVER_PORT,
     };
 
-    if G.cl.server_connection.address
+    if CL.server_connection.address
     {
-      if SDLNet_WaitUntilResolved(G.cl.server_connection.address, -1) < 0
+      if SDLNet_WaitUntilResolved(CL.server_connection.address, -1) < 0
       {
-        SDLNet_UnrefAddress(G.cl.server_connection.address);
-        G.cl.server_connection.address = null;
+        SDLNet_UnrefAddress(CL.server_connection.address);
+        CL.server_connection.address = null;
       }
     }
 
-    if !G.cl.server_connection.address
+    if !CL.server_connection.address
     {
       G.net.err = true;
       Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
@@ -73,45 +74,48 @@ CL_Init :: ()
 
 CL_FlushPlayerInput :: ()
 {
+  INJECT("CL");
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
-  G.cl.input_tick += 1;
-  QueuePush(*G.cl.input_queue, G.cl.input);
+  CL.input_tick += 1;
+  QueuePush(*CL.input_queue, CL.input);
   // @todo clear skills queue once it exsits in Action
 }
 
 CL_IterateSend :: ()
 {
+  INJECT("CL");
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
   PerfFunc();
 
   {
     ping: PACKET_Ping;
-    packet := PACKET_Create(G.cl.input_tick, ping);
-    NET_SendPacket(packet, G.cl.server_connection, false);
+    packet := PACKET_Create(CL.input_tick, ping);
+    NET_SendPacket(packet, CL.server_connection, false);
   }
 
   {
     payload: PACKET_PlayerInput;
     for * payload.inputs
     {
-      it.* = QueuePeek(G.cl.input_queue, it_index);
+      it.* = QueuePeek(CL.input_queue, it_index);
     }
 
-    packet := PACKET_Create(G.cl.input_tick, payload);
-    NET_SendPacket(packet, G.cl.server_connection, false);
+    packet := PACKET_Create(CL.input_tick, payload);
+    NET_SendPacket(packet, CL.server_connection, false);
   }
 }
 
 CL_IterateReceive :: ()
 {
+  INJECT("CL");
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
   // Receive and process local messages
-  if G.cl.server_connection.type == .LOCAL
+  if CL.server_connection.type == .LOCAL
   {
     while true
     {
@@ -137,7 +141,7 @@ CL_IterateReceive :: ()
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
     invalid_dgram := false;
-    if !NET_MatchConnection(*G.cl.server_connection, dgram.addr, dgram.port)
+    if !NET_MatchConnection(*CL.server_connection, dgram.addr, dgram.port)
     {
       invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",
@@ -157,14 +161,15 @@ CL_IterateReceive :: ()
 
 CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
-  if insert_shared_idx >= G.cl.shared_objects.count
+  INJECT("CL");
+  if insert_shared_idx >= CL.shared_objects.count
   {
     Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
-      insert_shared_idx, G.cl.shared_objects.count);
+      insert_shared_idx, CL.shared_objects.count);
     return;
   }
 
-  snaps := *G.cl.snapshots[insert_shared_idx];
+  snaps := *CL.snapshots[insert_shared_idx];
 
   latest_saved_tick := QueuePeekReverse(snaps).from_tick;
   if latest_saved_tick >= from_tick
@@ -183,6 +188,7 @@ CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_i
 
 CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
 {
+  INJECT("CL");
   PerfFunc();
   msg := full_payload;
   while msg.count
@@ -213,10 +219,10 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
     {
       assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
 
-      if G.cl.player_key_latest_tick < from_tick
+      if CL.player_key_latest_tick < from_tick
       {
-        G.cl.player_key = assign.player_key;
-        G.cl.player_key_latest_tick = from_tick;
+        CL.player_key = assign.player_key;
+        CL.player_key_latest_tick = from_tick;
       }
     }
     else if msg_type == .WindowLayout
@@ -235,53 +241,9 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
   }
 }
 
-CL_PlayTick :: ()
-{
-  PerfFunc();
-  assert(context.role == .CLIENT);
-
-  for *ghost, shared_index: G.cl.shared_objects
-  {
-    snaps := *G.cl.snapshots[shared_index];
-
-    ghost.t += G.dt * ghost.t_speed;
-    // @todo btw maybe snapshots should just live in ghost? IDK! maybe not, prob not? because i want to have local ghosts too
-    if ghost.t >= 1.0 && !QueueIsEmpty(snaps)
-    {
-      t_tick_advance_count := ghost.t.(ServerTick);
-
-      snapshot: CL_ObjectSnapshot = ---;
-      snap_tick_advance_count: ServerTick;
-      while !QueueIsEmpty(snaps)
-      {
-        snapshot = QueuePop(snaps);
-        snap_tick_advance_count = snapshot.from_tick - ghost.server_tick;
-        if (snap_tick_advance_count >= t_tick_advance_count) break;
-      }
-
-      ghost.t = WrapFloat(ghost.t, 0.0, 1.0);
-      ghost.t_speed = TICK_RATE.(float) * (t_tick_advance_count.(float) / snap_tick_advance_count.(float));
-
-      if (ghost == CL_GetGhost(.SHARED, G.cl.player_key))
-      {
-        log("snaps.min=%; T_SPEED calc; % = % * (% / %) = % * %",
-          snaps.min,
-          ghost.t_speed, TICK_RATE.(float), t_tick_advance_count.(float), snap_tick_advance_count.(float),
-          TICK_RATE.(float), t_tick_advance_count.(float) / snap_tick_advance_count.(float));
-      }
-
-      // advance
-      ghost.from = ghost.to;
-      ghost.to = snapshot.object;
-      ghost.server_tick = snapshot.from_tick;
-    }
-
-    ghost.o = lerp(ghost.from, ghost.to, ghost.t);
-  }
-}
-
 CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 {
+  INJECT("CL");
   key_index := OBJ_IndexOfKey(key);
 
   index_in_valid_storage := false;
@@ -300,7 +262,7 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   result := OBJ_NilGhost();
   if index_in_valid_storage
   {
-    obj := *G.cl.all_objects[key_index];
+    obj := *CL.all_objects[key_index];
     if obj.o.key == key then result = obj;
   }
   return result;
@@ -308,10 +270,11 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 
 CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 {
+  INJECT("CL");
   obj: *Ghost;
   index: u32;
 
-  for *G.cl.local_objects
+  for *CL.local_objects
   {
     if !OBJ_IsInit(it.o)
     {
@@ -325,30 +288,31 @@ CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 
   Initialize(obj);
 
-  G.cl.local_objects_creation_serials[index] = max(G.cl.local_objects_creation_serials[index] + 1, 1);
+  CL.local_objects_creation_serials[index] = max(CL.local_objects_creation_serials[index] + 1, 1);
   index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
-  obj.o.key = OBJ_CreateKey(index_in_all_objects, G.cl.local_objects_creation_serials[index]);
+  obj.o.key = OBJ_CreateKey(index_in_all_objects, CL.local_objects_creation_serials[index]);
 
   obj.o.init = true;
-  obj.o.creation_tick = G.cl.local_objects_tick;
+  obj.o.creation_tick = CL.local_objects_tick;
   obj.o.flags = flags;
   return *obj.o;
 }
 
 CL_InitObjects :: ()
 {
+  INJECT("CL");
   // Sun
   {
     sun := CL_CreateLocalObject(.DRAW_COLLIDERS);
     sun.material = MaterialKey("tex.Leather011");
     sun.height = 0.5;
     sun.collider = OBJ_ColliderFromRect(.{.5, .5});
-    G.cl.sun = sun.key;
+    CL.sun = sun.key;
   }
 
   // Pathing marker
   {
-    G.cl.pathing_marker = CL_CreateLocalObject(.ANIMATE_POSITION).key;
+    CL.pathing_marker = CL_CreateLocalObject(.ANIMATE_POSITION).key;
   }
 
   // Ground

@@ -9,6 +9,7 @@ GAP_SIZE  :: #run Rem(0.5);
 
 UI_BuildHUD :: ()
 {
+  INJECT("CL");
   hud := CreateBox(.{layout.size.min = Fit2(),
                      layout.padding = PaddingAll(GAP_SIZE),
                      layout.child_gap = GAP_SIZE,
@@ -19,7 +20,7 @@ UI_BuildHUD :: ()
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Parent(hud);
 
-  player := CL_GetGhost(.SHARED, G.cl.player_key);
+  player := CL_GetGhost(.SHARED, CL.player_key);
   hp_ratio := SafeDiv(player.o.hp, player.o.max_hp);
 
 

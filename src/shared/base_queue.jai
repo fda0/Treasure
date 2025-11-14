@@ -3,6 +3,7 @@ Queue :: struct($CAPACITY: s64, $T: Type, OVERWRITE_ON_OVERFLOW := true)
   min: u64;
   max: u64;
   buffer: [CAPACITY] T;
+  #assert(CAPACITY > 0);
 }
 
 for_expansion :: (q: Queue, body: Code, flags: For_Flags) #expand

@@ -177,10 +177,11 @@ ANIMATION_InitSkeletons :: ()
 
 ANIMATION_AnimateObjects :: ()
 {
+  INJECT("CL");
   PerfFunc();
   AssertThatScopeIsSingleThreaded();
 
-  for *ghost: G.cl.all_objects
+  for *ghost: CL.all_objects
   {
     activity := *ghost.o.activity;
     animate_rotation := OBJ_HasAnyFlag(ghost.o, .ANIMATE_ROTATION);
@@ -287,7 +288,7 @@ ANIMATION_AnimateObjects :: ()
         as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
         as.is_attacking = clamp(as.is_attacking, 0, 1);
 
-        if (ghost.o.key == G.cl.player_key) {
+        if (ghost.o.key == CL.player_key) {
           // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 

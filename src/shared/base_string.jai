@@ -82,6 +82,20 @@ EndsWith :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
   return Match(h, needle, flags);
 }
 
+ToLower :: (b: u8) -> u8
+{
+  if b >= #char "A" && b <= #char "Z"
+  {
+    dist := (#char "a" - #char "A").(u8);
+    b += dist;
+  }
+  return b;
+}
+ToForwardSlash :: (b: u8) -> u8
+{
+  return ifx b == #char "\\" then #char "/" else b;
+}
+
 Match :: (a: string, b: string, flags: MatchFlags = 0) -> bool
 {
   result := false;
@@ -97,14 +111,14 @@ Match :: (a: string, b: string, flags: MatchFlags = 0) -> bool
 
       match := (a.data[i] == b.data[i]);
 
-      // if (flags & .CaseInsensitive)
-      // {
-      //   match |= (ByteToLower(a.data[i]) == ByteToLower(b.data[i]));
-      // }
-      // if (flags & .SlashInsensitive)
-      // {
-      //   match |= (ByteToForwardSlash(a.data[i]) == ByteToForwardSlash(b.data[i]));
-      // }
+      if (flags & .CaseInsensitive)
+      {
+        match |= ToLower(a.data[i]) == ToLower(b.data[i]);
+      }
+      if (flags & .SlashInsensitive)
+      {
+        match |= ToForwardSlash(a.data[i]) == ToForwardSlash(b.data[i]);
+      }
 
       if !match
       {
@@ -114,6 +128,35 @@ Match :: (a: string, b: string, flags: MatchFlags = 0) -> bool
     }
   }
   return result;
+}
+
+Find :: (haystack: string, needle: string, flags: MatchFlags = 0) -> s64, bool
+{
+  flags |= .RightSideSloppy;
+
+  if flags & .FindLast
+  {
+    i := haystack.count - 1;
+    while i >= 0
+    {
+      h := Skip(haystack, i);
+      found := Match(h, needle, flags);
+      if found return i, true;
+      i -= 1;
+    }
+  }
+  else
+  {
+    i := 0;
+    while haystack.count > i
+    {
+      h := Skip(haystack, i);
+      found := Match(h, needle, flags);
+      if found return i, true;
+      i += 1;
+    }
+  }
+  return 0, false;
 }
 
 ConsumeFront :: (str: *string, prefix: string, flags: MatchFlags = 0) -> bool

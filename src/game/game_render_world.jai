@@ -90,10 +90,11 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
 
 WORLD_DrawObjects :: ()
 {
+  INJECT("CL");
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  for *ghost: G.cl.all_objects
+  for *ghost: CL.all_objects
   {
     draw_model := OBJ_HasAnyFlag(ghost.o, .DRAW_MODEL);
     draw_colliders := OBJ_HasAnyFlag(ghost.o, .DRAW_COLLIDERS);

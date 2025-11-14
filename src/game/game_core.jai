@@ -22,7 +22,6 @@ GAME_State :: struct
   hr: HOT_RELOAD_State;
   font: FONT_State;
   net: NET_State;
-  cl: CL_State;
   dev: DEV_State;
   stats: STATS_State;
   log: LOG_State;
@@ -87,6 +86,7 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
+  INJECT("CL");
   assert(context.role == .CLIENT);
   PerfFunc();
 
@@ -158,7 +158,7 @@ GAME_Iterate :: ()
   if LaneIdx() == 0
   {
     CL_IterateReceive();
-    CL_PlayTick();
+    GAME_PlayTick();
     CL_IterateSend();
   }
 
@@ -207,21 +207,21 @@ GAME_Iterate :: ()
   // Update marker object
   if LaneIdx() == 0 && !G.headless
   {
-    marker := CL_GetGhost(.LOCAL, G.cl.pathing_marker);
+    marker := CL_GetGhost(.LOCAL, CL.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if G.cl.input.type == .PATHING
+      if CL.input.type == .PATHING
       {
         marker.o.flags |= .DRAW_MODEL;
         marker.o.model = ModelKey("Flag");
-        marker.o.p = G.cl.input.world_p;
+        marker.o.p = CL.input.world_p;
         marker.animated_p.xy = marker.o.p.xy;
-        G.cl.pathing_marker_set = true;
+        CL.pathing_marker_set = true;
       }
       else
       {
         marker.o.p.z = -2.0;
-        G.cl.pathing_marker_set = false;
+        CL.pathing_marker_set = false;
       }
     }
   }
@@ -296,6 +296,7 @@ GAME_Iterate :: ()
 
 GAME_CalculateCameraAndMouseThings :: ()
 {
+  INJECT("CL");
   if G.dev.noclip
   {
     if KEY_Held(.MOUSE_LEFT)
@@ -347,7 +348,7 @@ GAME_CalculateCameraAndMouseThings :: ()
       G.camera_p.xy += dir * G.dt * 16.0;
     }
 
-    player := CL_GetGhost(.SHARED, G.cl.player_key);
+    player := CL_GetGhost(.SHARED, CL.player_key);
     if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.o.p.xy;
@@ -405,6 +406,7 @@ GAME_CalculateCameraAndMouseThings :: ()
 
 GAME_UpdateOfflineObjects :: ()
 {
+  INJECT("CL");
   // Move sun
   sun_time := G.at*4.0;
   sun_time = 6.0;
@@ -416,7 +418,7 @@ GAME_UpdateOfflineObjects :: ()
 
   sun_dist := towards_sun_dir * 40.0;
   G.sun_camera_p = G.camera_p + sun_dist;
-  CL_GetGhost(.LOCAL, G.cl.sun).o.p = G.sun_camera_p;
+  CL_GetGhost(.LOCAL, CL.sun).o.p = G.sun_camera_p;
 
   transl := TranslationMatrix(-G.sun_camera_p);
   rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -428,7 +430,9 @@ GAME_UpdateOfflineObjects :: ()
 
 GAME_CollectClientInput :: ()
 {
-  input := *G.cl.input;
+  INJECT("CL");
+
+  input := *CL.input;
   input.skills = 0;
 
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
@@ -442,7 +446,7 @@ GAME_CollectClientInput :: ()
 
   if G.world_mouse_valid
   {
-    self := CL_GetGhost(.SHARED, G.cl.player_key);
+    self := CL_GetGhost(.SHARED, CL.player_key);
     hovered_obj := CL_GetGhost(.ALL, G.hover_object);
     hovers_enemy := OBJ_Test2(hovered_obj.o, self.o,
                               .{require_flags = .TARGETABLE,
@@ -463,13 +467,59 @@ GAME_CollectClientInput :: ()
       input.target_object = .{};
       if move_pressed
       {
-        marker := CL_GetGhost(.LOCAL, G.cl.pathing_marker);
+        marker := CL_GetGhost(.LOCAL, CL.pathing_marker);
         if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
       }
     }
   }
 
   CL_FlushPlayerInput();
+}
+
+GAME_PlayTick :: ()
+{
+  INJECT("CL");
+  PerfFunc();
+  assert(context.role == .CLIENT);
+
+  for *ghost, shared_index: CL.shared_objects
+  {
+    snaps := *CL.snapshots[shared_index];
+
+    ghost.t += G.dt * ghost.t_speed;
+    // @todo btw maybe snapshots should just live in ghost? IDK! maybe not, prob not? because i want to have local ghosts too
+    if ghost.t >= 1.0 && !QueueIsEmpty(snaps)
+    {
+      t_tick_advance_count := ghost.t.(ServerTick);
+
+      snapshot: CL_ObjectSnapshot = ---;
+      snap_tick_advance_count: ServerTick;
+      while !QueueIsEmpty(snaps)
+      {
+        snapshot = QueuePop(snaps);
+        snap_tick_advance_count = snapshot.from_tick - ghost.server_tick;
+        if (snap_tick_advance_count >= t_tick_advance_count) break;
+      }
+
+      ghost.t = WrapFloat(ghost.t, 0.0, 1.0);
+      ghost.t_speed = TICK_RATE.(float) * (t_tick_advance_count.(float) / snap_tick_advance_count.(float));
+
+      if (ghost == CL_GetGhost(.SHARED, CL.player_key))
+      {
+        log("snaps.min=%; T_SPEED calc; % = % * (% / %) = % * %",
+          snaps.min,
+          ghost.t_speed, TICK_RATE.(float), t_tick_advance_count.(float), snap_tick_advance_count.(float),
+          TICK_RATE.(float), t_tick_advance_count.(float) / snap_tick_advance_count.(float));
+      }
+
+      // advance
+      ghost.from = ghost.to;
+      ghost.to = snapshot.object;
+      ghost.server_tick = snapshot.from_tick;
+    }
+
+    ghost.o = lerp(ghost.from, ghost.to, ghost.t);
+  }
 }
 
 GAME_ParseCommandLineArguments :: (args: [] string)

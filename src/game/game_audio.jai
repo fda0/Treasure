@@ -36,9 +36,10 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
+  INJECT("CL");
   assert(context.role == .CLIENT);
 
-  for *ghost: G.cl.all_objects
+  for *ghost: CL.all_objects
   {
     if OBJ_HasAnyFlag(ghost.o, .PLAY_SOUNDS)
     {
