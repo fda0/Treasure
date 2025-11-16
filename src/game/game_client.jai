@@ -20,12 +20,12 @@ CL_State :: struct
 
   // Objects
   local_objects_tick: ServerTick = 1;
-  shared_objects: [OBJ_MAX_SHARED_OBJECTS] Ghost;
-  local_objects: [OBJ_MAX_LOCAL_OBJECTS] Ghost;
-  #place shared_objects;
-  all_objects: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
-
   local_objects_creation_serials: [OBJ_MAX_LOCAL_OBJECTS] u8;
+
+  shared_ghosts: [OBJ_MAX_SHARED_OBJECTS] Ghost;
+  local_ghosts: [OBJ_MAX_LOCAL_OBJECTS] Ghost;
+  #place shared_ghosts;
+  all_ghosts: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
 };
 
 CL_ObjectSnapshot :: struct
@@ -162,10 +162,10 @@ CL_IterateReceive :: ()
 CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
   INJECT("CL");
-  if insert_shared_idx >= CL.shared_objects.count
+  if insert_shared_idx >= CL.shared_ghosts.count
   {
     Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
-      insert_shared_idx, CL.shared_objects.count);
+      insert_shared_idx, CL.shared_ghosts.count);
     return;
   }
 
@@ -262,7 +262,7 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   result := OBJ_NilGhost();
   if index_in_valid_storage
   {
-    obj := *CL.all_objects[key_index];
+    obj := *CL.all_ghosts[key_index];
     if obj.o.key == key then result = obj;
   }
   return result;
@@ -274,7 +274,7 @@ CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   obj: *Ghost;
   index: u32;
 
-  for *CL.local_objects
+  for *CL.local_ghosts
   {
     if !OBJ_IsInit(it.o)
     {

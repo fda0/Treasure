@@ -181,7 +181,7 @@ ANIMATION_AnimateObjects :: ()
   PerfFunc();
   AssertThatScopeIsSingleThreaded();
 
-  for *ghost: CL.all_objects
+  for *ghost: CL.all_ghosts
   {
     activity := *ghost.o.activity;
     animate_rotation := OBJ_HasAnyFlag(ghost.o, .ANIMATE_ROTATION);

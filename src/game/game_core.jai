@@ -482,7 +482,7 @@ GAME_PlayTick :: ()
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  for *ghost, shared_index: CL.shared_objects
+  for *ghost, shared_index: CL.shared_ghosts
   {
     snaps := *CL.snapshots[shared_index];
 

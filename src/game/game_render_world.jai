@@ -94,7 +94,7 @@ WORLD_DrawObjects :: ()
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  for *ghost: CL.all_objects
+  for *ghost: CL.all_ghosts
   {
     draw_model := OBJ_HasAnyFlag(ghost.o, .DRAW_MODEL);
     draw_colliders := OBJ_HasAnyFlag(ghost.o, .DRAW_COLLIDERS);
