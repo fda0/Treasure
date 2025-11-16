@@ -53,18 +53,15 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
   {
     top_delay = max(it.delay_since_last_received_input, top_delay);
   }
+  target_input_delay_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64) + 1, QueueCount(user.received_inputs));
 
-  Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
-
-  targeted_delay_in_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64), QueueCount(user.received_inputs));
-  remove_old_items_count := targeted_delay_in_count - QueueCount(user.received_inputs) - 1;
-  for MakeRange(remove_old_items_count)
+  inputs_to_drop_count := QueueCount(user.received_inputs) - target_input_delay_count;
+  for MakeRange(inputs_to_drop_count)
   {
-    log("remove_old_items_count = %; QueueCount(user.received_inputs): %, top_delay %; TICK_FLOAT_STEP %",
-        remove_old_items_count, QueueCount(user.received_inputs), top_delay, TICK_FLOAT_STEP);
-    // @todo merging
+    // @todo merge one-off data from dropped inputs
     QueuePop(*user.received_inputs);
   }
+  Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
 
   received_input, did_pop := QueuePop(*user.received_inputs);
 

@@ -90,7 +90,7 @@ ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
     // Just load any texture that was used in the last 2 frames.
     // Do something smarter when texture eviction is added.
     min_load_frame := max(1, G.frame_number - 2);
-    log("min_load_frame: %", min_load_frame);
+    log("Attempting to load an asset with min_load_frame: %", min_load_frame);
 
     for *G.ast.materials
     {
