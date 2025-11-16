@@ -504,10 +504,20 @@ GAME_PlayTick :: ()
       ghost.t = WrapFloat(ghost.t, 0.0, 1.0);
       ghost.t_speed = TICK_RATE.(float) * (t_tick_advance_count.(float) / snap_tick_advance_count.(float));
 
+
+      // @todo This is very temporary -- Will have to be replaced by a system that
+      // speeds up / slows down playback based on current QueueCount(snaps) & historical
+      // "top delay" - which correlated with network jitter / instability.
+      // Having bigger playback delay helps in unstable connections.
+      while QueueCount(snaps) > 0
+      {
+        QueuePop(snaps);
+      }
+
       if (ghost == CL_GetGhost(.SHARED, CL.player_key))
       {
-        log("snaps.min=%; T_SPEED calc; % = % * (% / %) = % * %",
-          snaps.min,
+        log("[player playback] snaps.min=%; snaps.count=%; T_SPEED calc; % = % * (% / %) = % * %",
+          snaps.min, QueueCount(snaps),
           ghost.t_speed, TICK_RATE.(float), t_tick_advance_count.(float), snap_tick_advance_count.(float),
           TICK_RATE.(float), t_tick_advance_count.(float) / snap_tick_advance_count.(float));
       }
