@@ -8,7 +8,7 @@ CL_State :: struct
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
   // playback state received from the server
-  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, CL_ObjectSnapshot);
+  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, OBJ_Snapshot);
 
   // Object keys
   player_key: OBJ_Key;
@@ -27,12 +27,6 @@ CL_State :: struct
   #place shared_ghosts;
   all_ghosts: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
 };
-
-CL_ObjectSnapshot :: struct
-{
-  object: Object;
-  from_tick: ServerTick;
-}
 
 CL_Init :: ()
 {
@@ -171,7 +165,7 @@ CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_i
 
   snaps := *CL.snapshots[insert_shared_idx];
 
-  latest_saved_tick := QueuePeekReverse(snaps).from_tick;
+  latest_saved_tick := QueuePeekReverse(snaps).tick;
   if latest_saved_tick >= from_tick
   {
     // @todo support this case?
@@ -180,9 +174,9 @@ CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_i
     return;
   }
 
-  snapshot: CL_ObjectSnapshot;
+  snapshot: OBJ_Snapshot;
   snapshot.object = insert_obj;
-  snapshot.from_tick = from_tick;
+  snapshot.tick = from_tick;
   QueuePush(snaps, snapshot);
 }
 

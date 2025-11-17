@@ -8,14 +8,21 @@ Queue :: struct($CAPACITY: s64, $T: Type, OVERWRITE_ON_OVERFLOW := true)
 
 for_expansion :: (q: Queue, body: Code, flags: For_Flags) #expand
 {
-  #assert(flags == 0); // @todo extend support
+  #assert((flags & ~.POINTER) == 0); // @todo extend support
+
   count := QueueCount(q);
   `it_index := 0;
   while true
   {
     if it_index >= count break;
-    `it := q.buffer[(q.min + it_index.(u64)) % q.CAPACITY];
     defer it_index += 1;
+
+    #if flags & .POINTER {
+      `it := *q.buffer[(q.min + it_index.(u64)) % q.CAPACITY];
+    } else  {
+      `it := q.buffer[(q.min + it_index.(u64)) % q.CAPACITY];
+    }
+
     #insert body;
   }
 }
@@ -78,7 +85,7 @@ QueuePush :: (q: *Queue, values: [] q.T)
 }
 QueuePush :: (q: *Queue, values: ..q.T) { QueuePush(q, values); }
 
-QueuePeekPointer :: (q: *Queue, depth := 0) -> *q.T
+QueuePeekPtr :: (q: *Queue, depth := 0) -> *q.T
 {
   if q.min == q.max return null;
 

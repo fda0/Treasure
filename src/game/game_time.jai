@@ -33,4 +33,6 @@ SecondBetweenGhostAndTick :: (ref: Ghost, since: ServerTick, max_on_fail := fals
 Tick :: #type,distinct u32;
 ServerTick :: #type,isa Tick;
 InputTick :: #type,isa Tick;
+ServerTick_ZERO :: cast(ServerTick) 0;
+ServerTick_ONE :: cast(ServerTick) 1;
 ServerTick_MAX :: cast(ServerTick) U32_MAX;

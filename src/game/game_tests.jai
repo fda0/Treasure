@@ -61,7 +61,7 @@ TEST_queue :: (high_minmax: bool)
   peeked := QueuePeek(q);
   assert(peeked == 33);
 
-  peeked_pointer := QueuePeekPointer(*q);
+  peeked_pointer := QueuePeekPtr(*q);
   assert(peeked_pointer.* == 33);
 }
 

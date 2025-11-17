@@ -96,15 +96,19 @@ OBJ_AnimationState :: struct
   tracks: [10] ANIMATION_Track;
 }
 
+OBJ_Snapshot :: struct
+{
+  object: Object;
+  tick: ServerTick;
+}
+
 Ghost :: struct
 {
-  o: Object;
+  at: OBJ_Snapshot;
+  from: OBJ_Snapshot;
+  dest: OBJ_Snapshot;
 
-  server_tick: ServerTick;
-  from: Object;
-  to: Object;
-  t: float = 1.0;
-  t_speed: float = 1.0;
+  tick_t: float = 1.0; // 0 = from_tick; 1 = to_tick
 
   // Object data that's kept on client side only
   animated_rot: Quat; // animates towards rotation
@@ -120,6 +124,10 @@ Ghost :: struct
   // animation_requests_hot_t: [3] float;
 
   played_audio_tick: ServerTick; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
+
+  #place at;
+  o: Object; // @todo remove
+  server_tick: ServerTick; // @todo remove
 };
 
 Object :: struct

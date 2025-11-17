@@ -482,53 +482,134 @@ GAME_PlayTick :: ()
   PerfFunc();
   assert(context.role == .CLIENT);
 
-  for *ghost, shared_index: CL.shared_ghosts
+  for *ghost, ghost_index: CL.shared_ghosts
   {
-    snaps := *CL.snapshots[shared_index];
+    snapshot_queue := *CL.snapshots[ghost_index];
 
-    ghost.t += G.dt * ghost.t_speed;
-    // @todo btw maybe snapshots should just live in ghost? IDK! maybe not, prob not? because i want to have local ghosts too
-    if ghost.t >= 1.0 && !QueueIsEmpty(snaps)
-    {
-      t_tick_advance_count := ghost.t.(ServerTick);
-
-      snapshot: CL_ObjectSnapshot = ---;
-      snap_tick_advance_count: ServerTick;
-      while !QueueIsEmpty(snaps)
-      {
-        snapshot = QueuePop(snaps);
-        snap_tick_advance_count = snapshot.from_tick - ghost.server_tick;
-        if (snap_tick_advance_count >= t_tick_advance_count) break;
-      }
-
-      ghost.t = WrapFloat(ghost.t, 0.0, 1.0);
-      ghost.t_speed = TICK_RATE.(float) * (t_tick_advance_count.(float) / snap_tick_advance_count.(float));
-
-
-      // @todo This is very temporary -- Will have to be replaced by a system that
-      // speeds up / slows down playback based on current QueueCount(snaps) & historical
-      // "top delay" - which correlated with network jitter / instability.
-      // Having bigger playback delay helps in unstable connections.
-      while QueueCount(snaps) > 0
-      {
-        QueuePop(snaps);
-      }
-
-      if (ghost == CL_GetGhost(.SHARED, CL.player_key))
-      {
-        log("[player playback] snaps.min=%; snaps.count=%; T_SPEED calc; % = % * (% / %) = % * %",
-          snaps.min, QueueCount(snaps),
-          ghost.t_speed, TICK_RATE.(float), t_tick_advance_count.(float), snap_tick_advance_count.(float),
-          TICK_RATE.(float), t_tick_advance_count.(float) / snap_tick_advance_count.(float));
-      }
-
-      // advance
-      ghost.from = ghost.to;
-      ghost.to = snapshot.object;
-      ghost.server_tick = snapshot.from_tick;
+    is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).o.key);
+    if is_player_index {
+      aaa := 123;
+      aaa += 1;
     }
 
-    ghost.o = lerp(ghost.from, ghost.to, ghost.t);
+    // Advance lerp_t and calculate new at_tick
+    ghost.tick_t += G.dt * TICK_RATE.(float);
+    at_tick_advance := ghost.tick_t.(ServerTick);
+    ghost.at.tick += at_tick_advance;
+    ghost.tick_t -= at_tick_advance.(float);
+
+    // @todo TEMP - hacky desync fix
+    if ghost.at.tick >= ghost.dest.tick
+    {
+      if is_player_index {
+        aaa := 123;
+        aaa += 1;
+      }
+
+      {
+        highest_tick := ServerTick_ZERO;
+        smallest_tick := ServerTick_MAX;
+        for snapshot_queue
+        {
+          smallest_tick = min(smallest_tick, it.tick);
+          highest_tick = max(highest_tick, it.tick);
+        }
+
+        if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
+        {
+          if is_player_index {
+            log("[RESET PLAYER PLAYBACK] old at: %, from: %, dest: %, tick_t: %; smallest: %, highest: %, new at: %",
+              ghost.at.tick, ghost.from.tick, ghost.dest.tick,
+              ghost.tick_t, smallest_tick, highest_tick, highest_tick - 1);
+          }
+
+          ghost.at.tick = xx (highest_tick - 1);
+          ghost.tick_t = 0.0;
+        }
+      }
+
+      // Calculate desired from/dest tick values.
+      desired_from_tick := ghost.at.tick;
+      desired_dest_tick := (desired_from_tick + 1).(ServerTick);
+
+      best_from := *ghost.from;
+      best_dest := *ghost.dest;
+
+      for * snapshot_queue
+      {
+        // - Pick FROM -
+        if it.tick > best_from.tick && it.tick <= desired_from_tick
+        {
+          // We are getting prefect hit or at least we are getting closer to it.
+          best_from = it;
+        }
+
+        // - Pick DEST-
+        if it.tick == desired_dest_tick
+        {
+          // Perfect case.
+          best_dest = it;
+        }
+
+        if best_dest.tick < desired_dest_tick
+        {
+          // If BEST is under desired_dest_tick -> pick IT if it's larger.
+          if it.tick > best_dest.tick
+          {
+            best_dest = it;
+          }
+        }
+        else if best_dest.tick > desired_dest_tick
+        {
+          // If BEST and IT are over desired_dest_tick -> pick IT if it's smaller.
+          if it.tick > desired_dest_tick
+          {
+            if it.tick < best_dest.tick
+            {
+              best_dest = it;
+            }
+          }
+        }
+      }
+
+      if best_from != *ghost.from || best_dest != *ghost.dest
+      {
+        // @todo check if dest is under desired_dest_tick -> this means we are extrapolating.
+        // If we are extraplating a lot we should stop and signal dropped connection to the user.
+        // Also what if the server was slow/client is too fast and we got ahead -> this case needs a fixup!
+
+        // Update lerp_speed and lerp_t.
+        tick_range := best_dest.tick.(s64) - best_from.tick.(s64);
+        if tick_range >= 1
+        {
+          if tick_range > 50 {
+            bbb := 1;
+            bbb += 1;
+          }
+
+          // Overwrite ghost from, dest
+          ghost.from = best_from.*;
+          ghost.dest = best_dest.*;
+        }
+      }
+
+      if is_player_index
+      {
+        log("[player playback] SQ.min=%; SQ.count=%; at: %, from: %, dest: %, tick_t: %",
+          snapshot_queue.min, QueueCount(snapshot_queue),
+          ghost.at.tick, ghost.from.tick, ghost.dest.tick,
+          ghost.tick_t);
+      }
+    }
+
+    snap_range := max(ghost.dest.tick - ghost.from.tick, 1);
+    snap_progress := ghost.at.tick - ghost.from.tick;
+    snap_t := snap_progress / snap_range;
+
+    tick_t := ghost.tick_t / snap_range;
+    lerp_t := snap_t + tick_t;
+
+    ghost.at.object = lerp(ghost.from.object, ghost.dest.object, lerp_t);
   }
 }
 
