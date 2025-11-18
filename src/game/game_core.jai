@@ -158,7 +158,7 @@ GAME_Iterate :: ()
   if LaneIdx() == 0
   {
     CL_IterateReceive();
-    GAME_PlayTick();
+    GAME_InterpolateGhosts();
     CL_IterateSend();
   }
 
@@ -476,7 +476,7 @@ GAME_CollectClientInput :: ()
   CL_FlushPlayerInput();
 }
 
-GAME_PlayTick :: ()
+GAME_InterpolateGhosts :: ()
 {
   INJECT("CL");
   PerfFunc();

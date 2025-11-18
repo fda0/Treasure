@@ -1,38 +1,39 @@
-INJECT :: (comp_name: string, $loc := #caller_location) #expand
+INJECT :: (component_name: string, $loc := #caller_location) #expand
 {
   #insert -> string {
     FORMAT_STR :: #string STR
-    comp := *COMPONENTS.%;
-    `% := *comp.c;
-STR;
-    return tprint(FORMAT_STR, comp_name, comp_name);
-  }
+    `C0 := *COMPS.C0.state;
 
-  // Validate that loc matches USED_BY_FILES list.
-  #run {
-    loc_file := loc.fully_pathed_filename;
-    slash_idx, slash_found := Find(loc_file, "/", .SlashInsensitive | .FindLast);
-    if (slash_found) slash_idx += 1;
-    loc_file = Skip(loc_file, slash_idx);
-
-    has_non_empty_files := false;
-    file_match_found := false;
-    for comp.USED_BY_FILES
-    {
-      if !it continue;
-      idx, found := Find(loc_file, it);
-      has_non_empty_files |= true;
-      file_match_found |= found;
+    #run {
+      file_name := FileNameFromLoc(loc);
+      allowed := IsFileAllowedByComponent(file_name, COMPS.C0);
+      assert(allowed,
+        "INJECT(\"%\") was rejected. '%' loc string doesn't contain any of: %",
+        component_name, file_name, COMPS.C0.USED_BY_FILES);
     }
+STR;
 
-    assert(has_non_empty_files == file_match_found,
-      "INJECT(\"%\") was rejected. '%' loc string doesn't contain any of: %", comp_name, loc_file, comp.USED_BY_FILES);
+    result := String.replace(FORMAT_STR, "C0", component_name);
+    return result;
   }
 }
 
+
+FileNameMatch :: (loc: Source_Code_Location, whitelist: ..string) -> bool
+{
+  result := true;
+  file_name := FileNameFromLoc(loc);
+  for whitelist
+  {
+    result &= Contains(file_name, it);
+  }
+  return result;
+}
+
+
 #scope_file;
-COMPONENTS: ComponentState;
-ComponentState :: struct
+COMPS: Components;
+Components :: struct
 {
   CL: Component(CL_State);
   SV: Component(SV_State, #run Files("server", "simulation"));
@@ -51,5 +52,27 @@ Files :: (files: ..string) -> [8] string
 
 Component :: struct($T: Type, $USED_BY_FILES: [8] string = .["","","","","","","",""])
 {
-  c: T;
+  state: T;
+}
+
+IsFileAllowedByComponent :: (file_name: string, comp: Component) -> bool
+{
+  has_non_empty_files := false;
+  file_match_found := false;
+  for comp.USED_BY_FILES
+  {
+    if !it continue;
+    has_non_empty_files |= true;
+    file_match_found |= Contains(file_name, it);
+  }
+  return has_non_empty_files == file_match_found;
+}
+
+FileNameFromLoc :: (loc: Source_Code_Location) -> string
+{
+  loc_file := loc.fully_pathed_filename;
+  slash_idx, slash_found := Find(loc_file, "/", .SlashInsensitive | .FindLast);
+  if (slash_found) slash_idx += 1;
+  loc_file = Skip(loc_file, slash_idx);
+  return loc_file;
 }

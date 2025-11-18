@@ -82,6 +82,16 @@ EndsWith :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
   return Match(h, needle, flags);
 }
 
+IsWhite :: (b: u8) -> bool
+{
+  res := false;
+  res |= b == #char " ";
+  res |= b == #char "\t";
+  res |= b == #char "\n";
+  res |= b == #char "\r";
+  return res;
+}
+
 ToLower :: (b: u8) -> u8
 {
   if b >= #char "A" && b <= #char "Z"
@@ -157,6 +167,25 @@ Find :: (haystack: string, needle: string, flags: MatchFlags = 0) -> s64, bool
     }
   }
   return 0, false;
+}
+
+Contains :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
+{
+  idx, found := Find(haystack, needle, flags);
+  return found;
+}
+
+StripWhite :: (str: string) -> string
+{
+  res := str;
+  while res.count > 0 && IsWhite(res.data[0]) {
+    res.data += 1;
+    res.count -= 1;
+  }
+  while res.count > 0 && IsWhite(res.data[res.count - 1]) {
+    res.count -= 1;
+  }
+  return res;
 }
 
 ConsumeFront :: (str: *string, prefix: string, flags: MatchFlags = 0) -> bool
