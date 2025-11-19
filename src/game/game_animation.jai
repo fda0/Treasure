@@ -1,3 +1,7 @@
+#scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
 Skeleton :: struct
 {
   root_transform: Mat4;
@@ -177,7 +181,6 @@ ANIMATION_InitSkeletons :: ()
 
 ANIMATION_AnimateObjects :: ()
 {
-  INJECT("CL");
   PerfFunc();
   AssertThatScopeIsSingleThreaded();
 

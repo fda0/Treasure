@@ -1,3 +1,7 @@
+#scope_file;
+using,only(SV) COMPS;
+#scope_export;
+
 TICK_RATE :: 100;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
@@ -546,6 +550,3 @@ SIM_PlayAnimation :: (obj: *Object, type: ANIMATION_Type)
 {
   QueuePush(*obj.animation_requests, .{SV.tick, type});
 }
-
-#scope_file;
-SV := #run Inject_SV();

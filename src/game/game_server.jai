@@ -1,4 +1,6 @@
-#load "game_simulation.jai";
+#scope_file;
+using,only(SV) COMPS;
+#scope_export;
 
 SV_Start :: ()
 {
@@ -75,15 +77,7 @@ SV_State :: struct
   sleepers_spawned_in_group_count := 0;
 };
 
-Inject_SV :: (loc := #caller_location) -> *SV_State
-{
-  assert(FileNameMatch(loc, "simulation"), "Inject_SV can be used only from select files");
-  return *SV;
-}
-
 #scope_file;
-SV: SV_State;
-
 SV_User :: struct
 {
   connection: NET_Connection;

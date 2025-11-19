@@ -1,3 +1,12 @@
+COMPS: ComponentState;
+GLOBAL: GLOBAL_State;
+
+ComponentState :: struct
+{
+  CL: CL_State;
+  SV: SV_State;
+}
+
 GLOBAL_State :: struct
 {
   in_shutdown: bool;
@@ -9,4 +18,3 @@ GLOBAL_State :: struct
   packets_for_local_user: NET_LocalPackets;
   packets_for_local_server: NET_LocalPackets;
 }
-GLOBAL: GLOBAL_State;

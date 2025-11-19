@@ -1,3 +1,7 @@
+#scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
 AUDIO_State :: struct
 {
   device: SDL_AudioDeviceID;
@@ -36,7 +40,6 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
-  INJECT("CL");
   assert(context.role == .CLIENT);
 
   for *ghost: CL.all_ghosts

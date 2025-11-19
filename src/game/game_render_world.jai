@@ -1,3 +1,7 @@
+#scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
 WORLD_Dir :: enum u32
 {
   E; // +X
@@ -90,7 +94,6 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
 
 WORLD_DrawObjects :: ()
 {
-  INJECT("CL");
   PerfFunc();
   assert(context.role == .CLIENT);
 

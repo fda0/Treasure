@@ -1,3 +1,7 @@
+#scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
 G: GAME_State;
 GAME_State :: struct
 {
@@ -86,7 +90,6 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
-  INJECT("CL");
   assert(context.role == .CLIENT);
   PerfFunc();
 
@@ -296,7 +299,6 @@ GAME_Iterate :: ()
 
 GAME_CalculateCameraAndMouseThings :: ()
 {
-  INJECT("CL");
   if G.dev.noclip
   {
     if KEY_Held(.MOUSE_LEFT)
@@ -406,7 +408,6 @@ GAME_CalculateCameraAndMouseThings :: ()
 
 GAME_UpdateOfflineObjects :: ()
 {
-  INJECT("CL");
   // Move sun
   sun_time := G.at*4.0;
   sun_time = 6.0;
@@ -430,7 +431,6 @@ GAME_UpdateOfflineObjects :: ()
 
 GAME_CollectClientInput :: ()
 {
-  INJECT("CL");
 
   input := *CL.input;
   input.skills = 0;
@@ -478,7 +478,6 @@ GAME_CollectClientInput :: ()
 
 GAME_InterpolateGhosts :: ()
 {
-  INJECT("CL");
   PerfFunc();
   assert(context.role == .CLIENT);
 

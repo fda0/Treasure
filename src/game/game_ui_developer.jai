@@ -1,4 +1,8 @@
 #scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
+#scope_file;
 using BOX;
 UI_RED1      :: #run C32_RGBi(0xcc, 0x24, 0x1d);
 UI_RED2      :: #run C32_RGBi(0xfb, 0x49, 0x34);
@@ -104,8 +108,6 @@ UI_DeveloperKeyShortcuts :: ()
 
 UI_BuildDeveloperWindow :: ()
 {
-  INJECT("CL");
-
   using G.dev;
   ArrayClear(atlas_boxes);
   atlas_clip_box = null;

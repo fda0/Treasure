@@ -1,4 +1,8 @@
 #scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
+#scope_file;
 using BOX;
 HUD_BG    :: #run C32_0xRGB(0x14_18_24);
 BUTTON_BG :: #run C32_0xRGB(0x1C_27_48);
@@ -9,7 +13,6 @@ GAP_SIZE  :: #run Rem(0.5);
 
 UI_BuildHUD :: ()
 {
-  INJECT("CL");
   hud := CreateBox(.{layout.size.min = Fit2(),
                      layout.padding = PaddingAll(GAP_SIZE),
                      layout.child_gap = GAP_SIZE,

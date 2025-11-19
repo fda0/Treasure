@@ -1,3 +1,7 @@
+#scope_file;
+using,only(CL) COMPS;
+#scope_export;
+
 CL_State :: struct
 {
   server_connection: NET_Connection;
@@ -30,7 +34,6 @@ CL_State :: struct
 
 CL_Init :: ()
 {
-  INJECT("CL");
   Nlog(LOG_NetInfo, "Launching as client");
 
   if GLOBAL.is_server
@@ -68,7 +71,6 @@ CL_Init :: ()
 
 CL_FlushPlayerInput :: ()
 {
-  INJECT("CL");
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
   CL.input_tick += 1;
@@ -78,7 +80,6 @@ CL_FlushPlayerInput :: ()
 
 CL_IterateSend :: ()
 {
-  INJECT("CL");
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
   PerfFunc();
@@ -103,7 +104,6 @@ CL_IterateSend :: ()
 
 CL_IterateReceive :: ()
 {
-  INJECT("CL");
   if G.net.err return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
@@ -155,7 +155,6 @@ CL_IterateReceive :: ()
 
 CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
-  INJECT("CL");
   if insert_shared_idx >= CL.shared_ghosts.count
   {
     Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
@@ -182,7 +181,6 @@ CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_i
 
 CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
 {
-  INJECT("CL");
   PerfFunc();
   msg := full_payload;
   while msg.count
@@ -237,7 +235,6 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
 
 CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 {
-  INJECT("CL");
   key_index := OBJ_IndexOfKey(key);
 
   index_in_valid_storage := false;
@@ -264,7 +261,6 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 
 CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 {
-  INJECT("CL");
   obj: *Ghost;
   index: u32;
 
@@ -294,7 +290,6 @@ CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 
 CL_InitObjects :: ()
 {
-  INJECT("CL");
   // Sun
   {
     sun := CL_CreateLocalObject(.DRAW_COLLIDERS);
