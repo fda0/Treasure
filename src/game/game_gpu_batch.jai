@@ -1,3 +1,7 @@
+#scope_file;
+using,only(GPU) COMPS;
+#scope_export;
+
 // @todo Drawing colliders results in 21906 transfer buffers created vs 1501...
 //       And that's on the first frame alone! Even the regular 1501 is insane. Needs debugging!
 // @todo Collect per frame gpu stats and display them in dev UI so these things are more obvious.
@@ -81,9 +85,9 @@ GPU_BATCH_TargetMatch :: (a: GPU_BATCH_Target, b: GPU_BATCH_Target) -> bool
 GPU_BATCH_FindBundle :: (target: GPU_BATCH_Target) -> *GPU_Batch
 {
   batch: *GPU_Batch;
-  for MakeRange(G.gpu.mem.batches_count)
+  for MakeRange(GPU.mem.batches_count)
   {
-    search := *G.gpu.mem.batches[it];
+    search := *GPU.mem.batches[it];
     if (GPU_BATCH_TargetMatch(search.target, target))
     {
       batch = search;
@@ -98,12 +102,12 @@ GPU_BATCH_FindOrCreateBundle :: (target: GPU_BATCH_Target) -> *GPU_Batch
   batch := GPU_BATCH_FindBundle(target);
   if (!batch)
   {
-    assert(G.gpu.mem.batches_count < G.gpu.mem.batches.count);
-    batch = *G.gpu.mem.batches[G.gpu.mem.batches_count];
-    G.gpu.mem.batches_count += 1;
+    assert(GPU.mem.batches_count < GPU.mem.batches.count);
+    batch = *GPU.mem.batches[GPU.mem.batches_count];
+    GPU.mem.batches_count += 1;
     // We don't need to clear batch since
     // batches array is zero initialized on game launch.
-    // + G.gpu.mem.batches_count isn't reset between frames.
+    // + GPU.mem.batches_count isn't reset between frames.
     batch.target = target;
   }
   return batch;
@@ -112,7 +116,7 @@ GPU_BATCH_FindOrCreateBundle :: (target: GPU_BATCH_Target) -> *GPU_Batch
 GPU_BATCH_TransferUnmap :: (transfer: *GPU_BATCH_Transfer)
 {
   assert(!!transfer.mapped_memory);
-  SDL_UnmapGPUTransferBuffer(G.gpu.device, transfer.handle);
+  SDL_UnmapGPUTransferBuffer(GPU.device, transfer.handle);
   transfer.mapped_memory = null;
 }
 
@@ -125,10 +129,10 @@ GPU_BATCH_TransferCreate :: (batch: *GPU_Batch, size: u32) -> *GPU_BATCH_Transfe
 
   // Reclaim GPU_BATCH_TransferStorage from free list or allocate a new one
   // Zero initialize it
-  result := G.gpu.mem.free_transfers;
+  result := GPU.mem.free_transfers;
   {
-    if result  G.gpu.mem.free_transfers = G.gpu.mem.free_transfers.next;
-    else       result = New(GPU_BATCH_Transfer, initialized=false,, G.gpu.mem.arena);
+    if result  GPU.mem.free_transfers = GPU.mem.free_transfers.next;
+    else       result = New(GPU_BATCH_Transfer, initialized=false,, GPU.mem.arena);
     Initialize(result);
   }
 
@@ -141,9 +145,9 @@ GPU_BATCH_TransferCreate :: (batch: *GPU_Batch, size: u32) -> *GPU_BATCH_Transfe
     usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
     size = alloc_size
   };
-  result.handle = SDL_CreateGPUTransferBuffer(G.gpu.device, *transfer_info);
+  result.handle = SDL_CreateGPUTransferBuffer(GPU.device, *transfer_info);
   result.cap = alloc_size;
-  result.mapped_memory = SDL_MapGPUTransferBuffer(G.gpu.device, result.handle, false);
+  result.mapped_memory = SDL_MapGPUTransferBuffer(GPU.device, result.handle, false);
 
   // Chain result into its GPU_BATCH_Entry
   {
@@ -192,15 +196,15 @@ GPU_BATCH_TransferUploadBytes :: (batch: *GPU_Batch, data: *void, size: u32, ele
 //
 GPU_BATCH_AllocBuffer :: (alloc_size: u32, usage: SDL_GPUBufferUsageFlags) -> *GPU_BATCH_Buffer
 {
-  buffer := G.gpu.mem.free_buffers;
+  buffer := GPU.mem.free_buffers;
   {
-    if buffer  G.gpu.mem.free_buffers = G.gpu.mem.free_buffers.next;
-    else       buffer = New(GPU_BATCH_Buffer, initialized=false,, G.gpu.mem.arena);
+    if buffer  GPU.mem.free_buffers = GPU.mem.free_buffers.next;
+    else       buffer = New(GPU_BATCH_Buffer, initialized=false,, GPU.mem.arena);
     Initialize(buffer);
   }
 
   buffer_info := SDL_GPUBufferCreateInfo.{usage = usage, size = alloc_size};
-  buffer.handle = SDL_CreateGPUBuffer(G.gpu.device, *buffer_info);
+  buffer.handle = SDL_CreateGPUBuffer(GPU.device, *buffer_info);
   buffer.cap = alloc_size;
   return buffer;
 }
@@ -215,11 +219,11 @@ GPU_BATCH_UploadBatch :: (copy_pass: *SDL_GPUCopyPass, batch: *GPU_Batch)
     {
       if (batch.buffer.cap < batch.total_used)
       {
-        SDL_ReleaseGPUBuffer(G.gpu.device, batch.buffer.handle);
+        SDL_ReleaseGPUBuffer(GPU.device, batch.buffer.handle);
 
         // Move BufferStorage to free list
-        batch.buffer.next = G.gpu.mem.free_buffers;
-        G.gpu.mem.free_buffers = batch.buffer;
+        batch.buffer.next = GPU.mem.free_buffers;
+        GPU.mem.free_buffers = batch.buffer;
         batch.buffer = null;
       }
     }
@@ -261,9 +265,9 @@ GPU_BATCH_UploadBatch :: (copy_pass: *SDL_GPUCopyPass, batch: *GPU_Batch)
     {
       next := transfer.next;
 
-      SDL_ReleaseGPUTransferBuffer(G.gpu.device, transfer.handle);
-      transfer.next = G.gpu.mem.free_transfers;
-      G.gpu.mem.free_transfers = transfer;
+      SDL_ReleaseGPUTransferBuffer(GPU.device, transfer.handle);
+      transfer.next = GPU.mem.free_transfers;
+      GPU.mem.free_transfers = transfer;
 
       transfer = next;
     }
@@ -278,9 +282,9 @@ GPU_BATCH_UploadAllBatches :: (cmd: *SDL_GPUCommandBuffer)
 {
   copy_pass := SDL_BeginGPUCopyPass(cmd);
 
-  for batch_index: MakeRange(G.gpu.mem.batches_count)
+  for batch_index: MakeRange(GPU.mem.batches_count)
   {
-    batch := *G.gpu.mem.batches[batch_index];
+    batch := *GPU.mem.batches[batch_index];
     GPU_BATCH_UploadBatch(copy_pass, batch);
   }
 
@@ -289,9 +293,9 @@ GPU_BATCH_UploadAllBatches :: (cmd: *SDL_GPUCommandBuffer)
 
 GPU_BATCH_PostFrame :: ()
 {
-  for batch_index: MakeRange(G.gpu.mem.batches_count)
+  for batch_index: MakeRange(GPU.mem.batches_count)
   {
-    batch := *G.gpu.mem.batches[batch_index];
+    batch := *GPU.mem.batches[batch_index];
     assert(!batch.transfer_first);
     assert(!batch.transfer_last);
     batch.total_used = 0;
@@ -301,24 +305,24 @@ GPU_BATCH_PostFrame :: ()
 
 GPU_BATCH_GetPosesBatch :: () -> *GPU_Batch
 {
-  return G.gpu.mem.batches.data;
+  return GPU.mem.batches.data;
 }
 
 GPU_BATCH_Init :: ()
 {
-  init(*G.gpu.mem.arena);
+  init(*GPU.mem.arena);
   // reserve poses batch
-  G.gpu.mem.batches_count += 1;
-  G.gpu.mem.batches[0].target.type = .Poses;
-  G.gpu.mem.batches[0].buffer = GPU_BATCH_AllocBuffer(16, SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
+  GPU.mem.batches_count += 1;
+  GPU.mem.batches[0].target.type = .Poses;
+  GPU.mem.batches[0].buffer = GPU_BATCH_AllocBuffer(16, SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
 }
 
 GPU_BATCH_Deinit :: ()
 {
-  for batch_index: MakeRange(G.gpu.mem.batches_count)
+  for batch_index: MakeRange(GPU.mem.batches_count)
   {
-    batch := *G.gpu.mem.batches[batch_index];
+    batch := *GPU.mem.batches[batch_index];
     if (batch.buffer)
-      SDL_ReleaseGPUBuffer(G.gpu.device, batch.buffer.handle);
+      SDL_ReleaseGPUBuffer(GPU.device, batch.buffer.handle);
   }
 }

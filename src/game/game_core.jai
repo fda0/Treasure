@@ -20,11 +20,8 @@ GAME_State :: struct
   frame_number: s64;
 
   // component states
-  gpu: GPU_State;
   ast: ASSET_State;
-  audio: AUDIO_State;
   hr: HOT_RELOAD_State;
-  font: FONT_State;
   net: NET_State;
   dev: DEV_State;
   stats: STATS_State;

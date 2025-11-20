@@ -1,3 +1,7 @@
+#scope_file;
+using,only(AUDIO,GPU) COMPS;
+#scope_export;
+
 PLATFORM_PreInit :: ()
 {
   G.time_launch = current_time_monotonic();
@@ -29,14 +33,14 @@ PLATFORM_PreInit :: ()
 
   if ok && !G.headless
   {
-    G.audio.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, null);
-    ok = G.audio.device != 0;
+    AUDIO.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, null);
+    ok = AUDIO.device != 0;
   }
 
   if ok && !G.headless
   {
-    G.gpu.device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL, debug_mode = true, name = null);
-    ok = !!G.gpu.device;
+    GPU.device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL, debug_mode = true, name = null);
+    ok = !!GPU.device;
   }
 
   if ok && !G.headless
@@ -52,7 +56,7 @@ PLATFORM_PreInit :: ()
 
   if ok && !G.headless
   {
-    ok = SDL_ClaimWindowForGPUDevice(G.gpu.device, G.window);
+    ok = SDL_ClaimWindowForGPUDevice(GPU.device, G.window);
   }
 
   if ok && !G.headless && (G.init_window_p.x > 0 || G.init_window_p.y)

@@ -1,3 +1,7 @@
+#scope_file;
+using,only(GPU) COMPS;
+#scope_export;
+
 UI_Uniform :: struct
 {
   window_dim: V2;
@@ -27,52 +31,49 @@ UI_ShapeIn3D :: struct
 
 UI_Draw2D :: (shape: UI_Shape)
 {
-  using G.gpu.ui;
-  if indices_count + 6 > indices.count ||
-     shapes_count + 6 > shapes.count
+  if (GPU.ui.indices_count + 6 > GPU.ui.indices.count) ||
+     (GPU.ui.shapes_count + 6 > GPU.ui.shapes.count)
   {
     log_error("Out of space in UI_Draw2D");
     return;
   }
 
-  shape_i := shapes_count;
-  shapes_count += 1;
-  shapes[shape_i] = shape;
+  shape_i := GPU.ui.shapes_count;
+  GPU.ui.shapes_count += 1;
+  GPU.ui.shapes[shape_i] = shape;
 
-  index_i := indices_count;
-  indices_count += 6;
+  index_i := GPU.ui.indices_count;
+  GPU.ui.indices_count += 6;
 
   encoded := shape_i << 2;
-  indices[index_i + 0] = 0 | encoded;
-  indices[index_i + 1] = 1 | encoded;
-  indices[index_i + 2] = 2 | encoded;
-  indices[index_i + 3] = 2 | encoded;
-  indices[index_i + 4] = 1 | encoded;
-  indices[index_i + 5] = 3 | encoded;
+  GPU.ui.indices[index_i + 0] = 0 | encoded;
+  GPU.ui.indices[index_i + 1] = 1 | encoded;
+  GPU.ui.indices[index_i + 2] = 2 | encoded;
+  GPU.ui.indices[index_i + 3] = 2 | encoded;
+  GPU.ui.indices[index_i + 4] = 1 | encoded;
+  GPU.ui.indices[index_i + 5] = 3 | encoded;
 }
 
 UI_Draw3D :: (world_p: V3, shape: UI_Shape)
 {
-  using G.gpu.ui;
-  if shapes3d_count + 1 > shapes3d.count
+  if GPU.ui.shapes3d_count + 1 > GPU.ui.shapes3d.count
   {
     log_error("Out of space in UI_Draw3D");
     return;
   }
 
-  shapes3d[shapes3d_count] = .{world_p, shape};
-  shapes3d_count += 1;
+  GPU.ui.shapes3d[GPU.ui.shapes3d_count] = .{world_p, shape};
+  GPU.ui.shapes3d_count += 1;
 }
 
 UI_Translate3DShapes :: ()
 {
   PerfFunc();
 
-  using G.gpu.ui;
-  for MakeRange(shapes3d_count)
+  for MakeRange(GPU.ui.shapes3d_count)
   {
-    world_p := shapes3d[it].world_p;
-    shape := shapes3d[it].shape;
+    world_p := GPU.ui.shapes3d[it].world_p;
+    shape := GPU.ui.shapes3d[it].shape;
 
     transformed_p := G.camera_transform * V4.{xyz = world_p, w = 1.0};
     divided_p := transformed_p.xyz / transformed_p.w;
@@ -87,8 +88,7 @@ UI_Translate3DShapes :: ()
 
 UI_ClearRenderCounters :: ()
 {
-  using G.gpu.ui;
-  indices_count = 0;
-  shapes_count = 0;
-  shapes3d_count = 0;
+  GPU.ui.indices_count = 0;
+  GPU.ui.shapes_count = 0;
+  GPU.ui.shapes3d_count = 0;
 }

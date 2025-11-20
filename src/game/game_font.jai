@@ -1,3 +1,8 @@
+#scope_file;
+using,only(GPU) COMPS;
+using COMPS.FONT;
+#scope_export;
+
 FONT_ATLAS_LAYERS :: 4;
 FONT_ATLAS_LAYER_MAX_LINES :: 64;
 FONT_ATLAS_LAYER_MAX_GLYPHS :: 4096;
@@ -53,7 +58,6 @@ FONT_State :: struct
 
 FONT_Init :: ()
 {
-  using G.font;
   if err then return;
 
   err = FT_Init_FreeType(*ft_library);
@@ -75,7 +79,6 @@ FONT_Init :: ()
 
 FONT_MaybeResizeAtlasTexture :: ()
 {
-  using G.font;
 
   window_area := sqrt(G.window_dim.x * G.window_dim.y);
   new_texture_dim := max(CeilPow2(window_area.(u32)).(u16), 512);
@@ -87,7 +90,7 @@ FONT_MaybeResizeAtlasTexture :: ()
     texture_dim = new_texture_dim;
 
     {
-      SDL_ReleaseGPUTexture(G.gpu.device, G.gpu.ui.gpu_atlas_texture);
+      SDL_ReleaseGPUTexture(GPU.device, GPU.ui.gpu_atlas_texture);
       tex_info := SDL_GPUTextureCreateInfo.{
         type = .SDL_GPU_TEXTURETYPE_2D_ARRAY,
         format = .SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
@@ -97,8 +100,8 @@ FONT_MaybeResizeAtlasTexture :: ()
         num_levels = 1,
         usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
       };
-      G.gpu.ui.gpu_atlas_texture = SDL_CreateGPUTexture(G.gpu.device, *tex_info);
-      SDL_SetGPUTextureName(G.gpu.device, G.gpu.ui.gpu_atlas_texture, "UI Atlas Texture");
+      GPU.ui.gpu_atlas_texture = SDL_CreateGPUTexture(GPU.device, *tex_info);
+      SDL_SetGPUTextureName(GPU.device, GPU.ui.gpu_atlas_texture, "UI Atlas Texture");
     }
 
     ZeroArray(layers);
@@ -122,7 +125,7 @@ FONT_FaceMetrics :: struct
 
 FONT_GetFaceMetrics :: (font: FONT_Family, pixel_height: u16) -> FONT_FaceMetrics
 {
-  ft_face := G.font.ft_faces[font];
+  ft_face := ft_faces[font];
   FT_Set_Pixel_Sizes(ft_face, 0, pixel_height);
 
   result := FONT_FaceMetrics.{
@@ -184,7 +187,6 @@ FONT_FindGlyphInLayer :: (layer: *FONT_Layer, hash: u64, create_mode: bool) -> *
 
 FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig_height: u16) -> *FONT_Glyph
 {
-  using G.font;
 
   if orig_width <= 0 || orig_height <= 0
   {
@@ -204,7 +206,7 @@ FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig
 
   width := orig_width + margin2;
   height := orig_height + margin2;
-  max_dim := G.font.texture_dim;
+  max_dim := texture_dim;
   all_lines_height: u16;
 
   // find best line
@@ -292,14 +294,12 @@ FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig
 
 FONT_LayerIndexFromPointer :: (layer: *FONT_Layer) -> u8
 {
-  using G.font;
   index := (layer.(u64) - layers.data.(u64)) / size_of(FONT_Layer);
   return index.(u8);
 }
 
 FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16) -> FONT_Glyph
 {
-  using G.font;
   assert(!G.headless);
   AssertThatScopeIsSingleThreaded();
 
@@ -430,18 +430,18 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
         usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         size = xx glyph_pixels_size
       };
-      buf_transfer := SDL_CreateGPUTransferBuffer(G.gpu.device, *trans_cpu);
+      buf_transfer := SDL_CreateGPUTransferBuffer(GPU.device, *trans_cpu);
 
       // CPU memory -> GPU memory
       {
-        mapped_memory := SDL_MapGPUTransferBuffer(G.gpu.device, buf_transfer, false);
+        mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, buf_transfer, false);
         memcpy(mapped_memory, glyph_pixels, glyph_pixels_size);
-        SDL_UnmapGPUTransferBuffer(G.gpu.device, buf_transfer);
+        SDL_UnmapGPUTransferBuffer(GPU.device, buf_transfer);
       }
 
       // GPU memory -> GPU texture
       {
-        cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+        cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
         copy_pass := SDL_BeginGPUCopyPass(cmd);
 
         trans_gpu := SDL_GPUTextureTransferInfo.{
@@ -451,10 +451,10 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
 
         assert(slot.p.x >= margin);
         assert(slot.p.y >= margin);
-        assert(slot.p.x + slot.dim.x + margin <= G.font.texture_dim);
-        assert(slot.p.y + slot.dim.y + margin <= G.font.texture_dim);
+        assert(slot.p.x + slot.dim.x + margin <= texture_dim);
+        assert(slot.p.y + slot.dim.y + margin <= texture_dim);
         dst_region := SDL_GPUTextureRegion.{
-          texture = G.gpu.ui.gpu_atlas_texture,
+          texture = GPU.ui.gpu_atlas_texture,
           layer = slot.layer,
           x = slot.p.x - margin,
           y = slot.p.y - margin,
@@ -468,7 +468,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
         SDL_SubmitGPUCommandBuffer(cmd);
       }
 
-      SDL_ReleaseGPUTransferBuffer(G.gpu.device, buf_transfer);
+      SDL_ReleaseGPUTransferBuffer(GPU.device, buf_transfer);
     }
 
     return slot.*;

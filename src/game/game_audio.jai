@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(CL,AUDIO) COMPS;
 #scope_export;
 
 AUDIO_State :: struct
@@ -76,7 +76,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
     return;
   }
 
-  SDL_BindAudioStream(G.audio.device, stream);
+  SDL_BindAudioStream(AUDIO.device, stream);
   SDL_PutAudioStreamData(stream, sound.data.data, xx sound.data.count);
   SDL_ResumeAudioStreamDevice(stream);
   SDL_FlushAudioStream(stream);
@@ -90,12 +90,12 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
     duration = xx (sound.data.count*1000 / duration_divisor),
     stream = stream,
   };
-  array_add(*G.audio.actives, active);
+  array_add(*AUDIO.actives, active);
 }
 
 AUDIO_CloseFinishedStreams :: ()
 {
-  for G.audio.actives
+  for AUDIO.actives
   {
     if SDL_GetAudioStreamQueued(it.stream) == 0
     {

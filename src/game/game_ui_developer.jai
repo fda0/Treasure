@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(AUDIO,CL,FONT) COMPS;
 #scope_export;
 
 #scope_file;
@@ -261,7 +261,7 @@ UI_BuildDeveloperWindow :: ()
       Layers(UI_MONO_TEXT);
       // @todo Master volume slider
       CreateText("Active sounds:");
-      for G.audio.actives
+      for AUDIO.actives
       {
         // @todo not related to dev_ui but add data driver way to tweak volume, pitch etc
         CreateText(tprint("%, %ms / %ms", it.type, Elapsed(G.frame_timestamp, it.start_time)*1000, it.duration));
@@ -355,7 +355,7 @@ UI_BuildDeveloperWindow :: ()
       // }
 
       case .fonts;
-      CreateText(tprint("Active atlas layer: %/%", G.font.active_layer_index, G.font.layers.count));
+      CreateText(tprint("Active atlas layer: %/%", FONT.active_layer_index, FONT.layers.count));
       side_size_px := window_outer.inner.x * 0.8;
 
       atlas_clip_box = window_outer;
@@ -372,7 +372,7 @@ UI_DrawDeveloperFontAtlas :: ()
 {
   if !G.dev.atlas_clip_box return;
 
-  tex_dim := V2.{xx G.font.texture_dim, xx G.font.texture_dim};
+  tex_dim := V2.{xx FONT.texture_dim, xx FONT.texture_dim};
 
   clip_min, clip_dim := FinalInnerMinDim(G.dev.atlas_clip_box);
   clip := MakeRectMinDim(clip_min, clip_dim);
@@ -383,7 +383,7 @@ UI_DrawDeveloperFontAtlas :: ()
 
     p := box.abs_p + BOX.PaddingLower2(box);
     dim := box.inner;
-    shade := ifx it_index == G.font.active_layer_index then 1.0 else 0.7;
+    shade := ifx it_index == FONT.active_layer_index then 1.0 else 0.7;
 
     shape := UI_Shape.{
       rect = MakeRectMinDim(p, dim),

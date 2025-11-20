@@ -94,7 +94,6 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_stats.jai";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
-#load "game_inject.jai";
 #load "game_simulation.jai";
 
 #load "../shared/base_utils.jai";

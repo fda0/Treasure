@@ -1,3 +1,7 @@
+#scope_file;
+using,only(GPU) COMPS;
+#scope_export;
+
 ASSET_InitPreGPU :: ()
 {
   using,only(err) G.ast.pie;
@@ -132,13 +136,13 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
       usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
       size = xx (gpu_full_data.count * 4) // @todo why *4?
     };
-    transfer := SDL_CreateGPUTransferBuffer(G.gpu.device, *transfer_create_info);
+    transfer := SDL_CreateGPUTransferBuffer(GPU.device, *transfer_create_info);
 
     // CPU -> GPU
     {
-      gpu_mapped := SDL_MapGPUTransferBuffer(G.gpu.device, transfer, false);
+      gpu_mapped := SDL_MapGPUTransferBuffer(GPU.device, transfer, false);
       memcpy(gpu_mapped, gpu_full_data.data, gpu_full_data.count);
-      SDL_UnmapGPUTransferBuffer(G.gpu.device, transfer);
+      SDL_UnmapGPUTransferBuffer(GPU.device, transfer);
     }
 
     // Create texture
@@ -158,14 +162,14 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
       if (generate_lods)
         texture_info.usage |= SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
 
-      texture = SDL_CreateGPUTexture(G.gpu.device, *texture_info);
+      texture = SDL_CreateGPUTexture(GPU.device, *texture_info);
       debug_texture_name := tprint("PIE_TEX: %", PIE_LOAD_ListToString(pie_material.name));
-      SDL_SetGPUTextureName(G.gpu.device, texture, temp_c_string(debug_texture_name));
+      SDL_SetGPUTextureName(GPU.device, texture, temp_c_string(debug_texture_name));
     }
 
     // GPU memory -> GPU texture
     {
-      cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+      cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
       copy_pass := SDL_BeginGPUCopyPass(cmd);
 
       for pie_texture_sections
@@ -191,7 +195,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
       SDL_SubmitGPUCommandBuffer(cmd);
     }
 
-    SDL_ReleaseGPUTransferBuffer(G.gpu.device, transfer);
+    SDL_ReleaseGPUTransferBuffer(GPU.device, transfer);
   }
 
   material.tex = texture;
@@ -254,8 +258,8 @@ ASSET_InitMaterials :: ()
       num_levels = CalculateMipMapCount(dim, dim),
       usage = SDL_GPU_TEXTUREUSAGE_SAMPLER|SDL_GPU_TEXTUREUSAGE_COLOR_TARGET
     };
-    texture := SDL_CreateGPUTexture(G.gpu.device, *tex_info);
-    SDL_SetGPUTextureName(G.gpu.device, texture, "Fallback texture");
+    texture := SDL_CreateGPUTexture(GPU.device, *tex_info);
+    SDL_SetGPUTextureName(GPU.device, texture, "Fallback texture");
 
     // Fill texture
     {
@@ -263,12 +267,12 @@ ASSET_InitMaterials :: ()
         usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         size = tex_size,
       };
-      trans_buf := SDL_CreateGPUTransferBuffer(G.gpu.device, *trans_desc);
+      trans_buf := SDL_CreateGPUTransferBuffer(GPU.device, *trans_desc);
       assert(!!trans_buf, "@todo handle this error? or remove assert");
 
       // Fill GPU memory
       {
-        map: *u32 = SDL_MapGPUTransferBuffer(G.gpu.device, trans_buf, false);
+        map: *u32 = SDL_MapGPUTransferBuffer(GPU.device, trans_buf, false);
         pixel := map;
         for y: MakeRange(dim)
         {
@@ -278,12 +282,12 @@ ASSET_InitMaterials :: ()
             pixel += 1;
           }
         }
-        SDL_UnmapGPUTransferBuffer(G.gpu.device, trans_buf);
+        SDL_UnmapGPUTransferBuffer(GPU.device, trans_buf);
       }
 
       // GPU memory -> GPU buffers
       {
-        cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+        cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
         copy_pass := SDL_BeginGPUCopyPass(cmd);
 
         trans_info := SDL_GPUTextureTransferInfo.{transfer_buffer = trans_buf};
@@ -298,12 +302,12 @@ ASSET_InitMaterials :: ()
         SDL_EndGPUCopyPass(copy_pass);
         SDL_SubmitGPUCommandBuffer(cmd);
       }
-      SDL_ReleaseGPUTransferBuffer(G.gpu.device, trans_buf);
+      SDL_ReleaseGPUTransferBuffer(GPU.device, trans_buf);
     }
 
     // Generate texture mipmap
     {
-      cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+      cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
       SDL_GenerateMipmapsForGPUTexture(cmd, texture);
       SDL_SubmitGPUCommandBuffer(cmd);
     }
@@ -358,7 +362,7 @@ ASSET_InitModels :: ()
     vertices_string := PIE_LOAD_ListToString(pie.links.models.vertices);
     indices_string := PIE_LOAD_ListToString(pie.links.models.indices);
 
-    cmd := SDL_AcquireGPUCommandBuffer(G.gpu.device);
+    cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
     GPU_TransferBuffer(cmd, G.ast.model_vertices, vertices_string.data, xx vertices_string.count);
     GPU_TransferBuffer(cmd, G.ast.model_indices, indices_string.data, xx indices_string.count);
     SDL_SubmitGPUCommandBuffer(cmd);
