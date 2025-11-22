@@ -85,47 +85,6 @@ OBJ_ActivityState :: struct
   last_projectile: OBJ_Key;
 }
 
-OBJ_AnimationState :: struct
-{
-  is_walking: float; // 0=idle; 1=walking; 2=running
-  walk_cycle: float;
-
-  is_attacking: float;
-  is_hit: float;
-
-  tracks: [10] ANIMATION_Track;
-}
-
-OBJ_Snapshot :: struct
-{
-  obj: Object;
-  tick: ServerTick;
-  received_time: Timestamp;
-}
-
-Ghost :: struct
-{
-  at: OBJ_Snapshot;
-  from: OBJ_Snapshot;
-  dest: OBJ_Snapshot;
-
-  tick_t: float = 1.0; // 0 = from_tick; 1 = to_tick
-  tick_speed := 1.0;
-
-  handled_tick: ServerTick;
-  creation_time: Timestamp;
-  death_time: Timestamp;
-
-  // Object data that's kept on client side only
-  animated_rot: Quat; // animates towards rotation
-  animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
-
-  anim: OBJ_AnimationState;
-
-  #place at;
-  using #as at_obj: Object; // @todo remove? rename?
-};
-
 Object :: struct
 {
   // Object data that's synced with the server
@@ -166,13 +125,6 @@ Object :: struct
 
   collider: OBJ_Collider;
 };
-
-IsTickDue :: (action_tick: ServerTick, ghost: Ghost) -> bool
-{
-  was_handled := action_tick < ghost.handled_tick;
-  is_in_the_future := action_tick > ghost.at.tick;
-  return !was_handled && !is_in_the_future;
-}
 
 lerp :: (prev: Object, next: Object, t: float) -> Object
 {
@@ -275,5 +227,3 @@ OBJ_Test2 :: (tested: Object, reference: Object, using params: OBJ_TestParams) -
   }
   return true;
 }
-
-

@@ -14,7 +14,7 @@ CL_State :: struct
   // Queues of snapshots - playback states received from the server.
   // Queue contains snapshot in sorted (by tick) order.
   // received_time is guaranteed to be sorted as well (should to be faked if needed).
-  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, OBJ_Snapshot);
+  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, Snapshot);
 
   // Object keys
   player_key: OBJ_Key;
@@ -175,7 +175,7 @@ CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_
     return;
   }
 
-  snapshot: OBJ_Snapshot;
+  snapshot: Snapshot;
   snapshot.obj = insert_obj;
   snapshot.tick = from_tick;
   snapshot.received_time = G.client_timestamp;
