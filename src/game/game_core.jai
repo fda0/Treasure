@@ -213,15 +213,15 @@ GAME_Iterate :: ()
     {
       if CL.input.type == .PATHING
       {
-        marker.o.flags |= .DRAW_MODEL;
-        marker.o.model = ModelKey("Flag");
-        marker.o.p = CL.input.world_p;
-        marker.animated_p.xy = marker.o.p.xy;
+        marker.flags |= .DRAW_MODEL;
+        marker.model = ModelKey("Flag");
+        marker.p = CL.input.world_p;
+        marker.animated_p.xy = marker.p.xy;
         CL.pathing_marker_set = true;
       }
       else
       {
-        marker.o.p.z = -2.0;
+        marker.p.z = -2.0;
         CL.pathing_marker_set = false;
       }
     }
@@ -351,7 +351,7 @@ GAME_CalculateCameraAndMouseThings :: ()
     player := CL_GetGhost(.SHARED, CL.player_key);
     if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
-      G.camera_p.xy = player.o.p.xy;
+      G.camera_p.xy = player.p.xy;
       G.camera_p.x -= 8.5;
     }
   }
@@ -414,10 +414,7 @@ GAME_UpdateOfflineObjects :: ()
   sun_y := Cos(0.5 + sun_time * 0.03);
   towards_sun_dir := normalize(V3.{sun_x, sun_y, 2.0});
   G.sun_dir = -towards_sun_dir;
-
-  sun_dist := towards_sun_dir * 40.0;
-  G.sun_camera_p = G.camera_p + sun_dist;
-  CL_GetGhost(.LOCAL, CL.sun).o.p = G.sun_camera_p;
+  G.sun_camera_p = G.camera_p + towards_sun_dir * 40.0;
 
   transl := TranslationMatrix(-G.sun_camera_p);
   rot := RotationMatrix(RotationFromPair(G.sun_dir, AxisV3(.X)));
@@ -425,6 +422,12 @@ GAME_UpdateOfflineObjects :: ()
   dim := 20.0;
   projection := OrthographicMatrix(-dim, dim, -dim, dim, 30.0, 100.0);
   G.sun_camera_transform = projection * (rot * transl);
+
+  sun := CL_GetGhost(.LOCAL, CL.sun);
+  if !OBJ_IsNil(sun)
+  {
+    sun.p = G.sun_camera_p;
+  }
 }
 
 GAME_CollectClientInput :: ()
@@ -446,7 +449,7 @@ GAME_CollectClientInput :: ()
   {
     self := CL_GetGhost(.SHARED, CL.player_key);
     hovered_obj := CL_GetGhost(.ALL, G.hover_object);
-    hovers_enemy := OBJ_Test2(hovered_obj.o, self.o,
+    hovers_enemy := OBJ_Test2(hovered_obj, self,
                               .{require_flags = .TARGETABLE,
                                 common = .IS_ALIVE,
                                 common2 = .ARE_ENEMIES});
@@ -484,7 +487,7 @@ GAME_AdvanceGhosts :: ()
     snapshot_queue := *CL.snapshots[ghost_index];
 
     #if PLAYER_LOGS {
-      is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).o.key);
+      is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).key);
     }
 
     // Advance handled_tick, lerp_t and calculate new at_tick

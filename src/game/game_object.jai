@@ -123,7 +123,7 @@ Ghost :: struct
   anim: OBJ_AnimationState;
 
   #place at;
-  o: Object; // @todo remove? rename?
+  using #as at_obj: Object; // @todo remove? rename?
 };
 
 Object :: struct

@@ -98,10 +98,10 @@ WORLD_DrawObjects :: ()
 
   for *ghost: CL.all_ghosts
   {
-    draw_model := OBJ_HasAnyFlag(ghost.o, .DRAW_MODEL);
-    draw_colliders := OBJ_HasAnyFlag(ghost.o, .DRAW_COLLIDERS);
+    draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
+    draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
     debug_colliders := G.dev.show_colliders;
-    draw_hp := OBJ_HasAnyFlag(ghost.o, .HAS_HP);
+    draw_hp := OBJ_HasAnyFlag(ghost, .HAS_HP);
 
     if draw_model
     {
@@ -109,21 +109,21 @@ WORLD_DrawObjects :: ()
       transform = transform * RotationMatrix(ghost.animated_rot); // rotate first, translate second
 
       hover_color := C4.{1,1,1,1};
-      if ghost.o.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
-      if ghost.o.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
+      if ghost.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
+      if ghost.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
-      WORLD_DrawModel(ghost.o.model, transform, ghost.anim.tracks,
-                      C32_from_C4(hover_color), OBJ_KeyToColor(ghost.o.key));
+      WORLD_DrawModel(ghost.model, transform, ghost.anim.tracks,
+                      C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));
     }
 
     if draw_hp
     {
       bar_height := 10.0;
-      start_x := -ghost.o.max_hp / 2;
+      start_x := -ghost.max_hp / 2;
       start_y := -bar_height*2;
       alpha := 1.0;
 
-      if ghost.o.death_tick
+      if ghost.death_tick
       {
         death_t := Elapsed(G.frame_timestamp, ghost.death_time);
         death_t = clamp(death_t * 2.0, 0.0, 1.0);
@@ -131,22 +131,22 @@ WORLD_DrawObjects :: ()
       }
 
       max_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.o.max_hp, bar_height}),
+        rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.max_hp, bar_height}),
         color = Color32_RGBAf(0, 0, 0, alpha)
       };
       active_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.o.hp), bar_height}),
+        rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.hp), bar_height}),
         color = Color32_RGBAf(0.1, 1, 0, alpha)
       };
 
-      UI_Draw3D(ghost.o.p + .{0,0,1.75}, max_hp_bar);
-      UI_Draw3D(ghost.o.p + .{0,0,1.75}, active_hp_bar);
+      UI_Draw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
+      UI_Draw3D(ghost.p + .{0,0,1.75}, active_hp_bar);
 
-      if ghost.o.team
+      if ghost.team
       {
         color: Color32;
-        if ghost.o.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
-        if ghost.o.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
+        if ghost.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
+        if ghost.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
 
         bar_dim := bar_height;
 
@@ -154,14 +154,14 @@ WORLD_DrawObjects :: ()
           rect = MakeRectMinDim(.{start_x - bar_dim, start_y}, .{bar_dim, bar_dim}),
           color = color
         };
-        UI_Draw3D(ghost.o.p + .{0,0,1.75}, team_square);
+        UI_Draw3D(ghost.p + .{0,0,1.75}, team_square);
       }
     }
 
     if draw_colliders || debug_colliders
     {
-      height := ghost.o.height;
-      material := ghost.o.material;
+      height := ghost.height;
+      material := ghost.material;
 
       if debug_colliders && draw_model
       {
@@ -174,10 +174,10 @@ WORLD_DrawObjects :: ()
       mesh_verts_count: u32 = face_count * vertices_per_face;
       mesh_verts: [6 * 3 * 2] WORLD_Vertex; // CPU side temporary buffer
 
-      bot_z := ghost.o.p.z;
+      bot_z := ghost.p.z;
       top_z := bot_z + height;
 
-      collider := ghost.o.collider;
+      collider := ghost.collider;
       {
         cube_verts := V3.[
           V3.{xy=collider.vertices[0], z=bot_z}, // 0
@@ -208,8 +208,8 @@ WORLD_DrawObjects :: ()
         {
           cube_index := cube_verts_map[mesh_index];
           mesh_verts[mesh_index].p = cube_verts[cube_index];
-          mesh_verts[mesh_index].p.x += ghost.o.p.x;
-          mesh_verts[mesh_index].p.y += ghost.o.p.y;
+          mesh_verts[mesh_index].p.x += ghost.p.x;
+          mesh_verts[mesh_index].p.y += ghost.p.y;
         }
       }
 
@@ -233,7 +233,7 @@ WORLD_DrawObjects :: ()
         ];
 
         // If texture_texels_per_m is set - scale texture uvs
-        if (ghost.o.texture_texels_per_m)
+        if (ghost.texture_texels_per_m)
         {
           // face texture UVs
           face_dim: V2;
@@ -247,7 +247,7 @@ WORLD_DrawObjects :: ()
             case .B; face_dim = V2.{w0, w1}; // works for rects only
           }
 
-          face_scale := face_dim * ghost.o.texture_texels_per_m;
+          face_scale := face_dim * ghost.texture_texels_per_m;
           for *face_uvs
             it.* *= face_scale;
         }

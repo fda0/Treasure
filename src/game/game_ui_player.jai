@@ -24,7 +24,7 @@ UI_BuildHUD :: ()
   Parent(hud);
 
   player := CL_GetGhost(.SHARED, CL.player_key);
-  hp_ratio := SafeDiv(player.o.hp, player.o.max_hp);
+  hp_ratio := SafeDiv(player.hp, player.max_hp);
 
 
   {

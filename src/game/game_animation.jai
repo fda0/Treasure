@@ -186,20 +186,20 @@ ANIMATION_AnimateObjects :: ()
 
   for *ghost: CL.all_ghosts
   {
-    activity := *ghost.o.activity;
-    animate_rotation := OBJ_HasAnyFlag(ghost.o, .ANIMATE_ROTATION);
-    animate_position := OBJ_HasAnyFlag(ghost.o, .ANIMATE_POSITION);
+    activity := *ghost.activity;
+    animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
+    animate_position := OBJ_HasAnyFlag(ghost, .ANIMATE_POSITION);
 
-    if OBJ_HasAnyFlag(ghost.o, .IS_TURRET)
+    if OBJ_HasAnyFlag(ghost, .IS_TURRET)
     {
-      t := WrapFloat(activity.attack_t, 0.0, ghost.o.attack_cooldown_t);
-      max_t := min(1.25, ghost.o.attack_cooldown_t);
+      t := WrapFloat(activity.attack_t, 0.0, ghost.attack_cooldown_t);
+      max_t := min(1.25, ghost.attack_cooldown_t);
       t = min(t, max_t) / max_t;
 
-      pos_t := EasingInOut(t, ghost.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
-      rot_t := EasingInOut(t, ghost.o.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
+      pos_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
+      rot_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
-      ghost.animated_p.xy = ghost.o.p.xy;
+      ghost.animated_p.xy = ghost.p.xy;
       if activity.is_attacking || activity.attack_t < 0.0
       {
         ghost.animated_p.z = pos_t * 1.0;
@@ -212,9 +212,9 @@ ANIMATION_AnimateObjects :: ()
       }
     }
 
-    if OBJ_HasAnyFlag(ghost.o, .TARGETED_PROJECTILE)
+    if OBJ_HasAnyFlag(ghost, .TARGETED_PROJECTILE)
     {
-      rng := OBJ_EntropyFromObj(ghost.o);
+      rng := OBJ_EntropyFromObj(ghost);
       weight0 := RngF_01(*rng);
       weight1 := (1.0 - weight0)*0.5 + RngF_01(*rng)*0.5;
       offset0 := RngF_01(*rng);
@@ -231,7 +231,7 @@ ANIMATION_AnimateObjects :: ()
       ROTATION_SPEED :: 16.0;
 
       q0 := ghost.animated_rot;
-      q1 := ghost.o.rotation;
+      q1 := ghost.rotation;
 
       w1 := min(1.0, G.dt * ROTATION_SPEED);
       w0 := 1.0 - w1;
@@ -241,41 +241,41 @@ ANIMATION_AnimateObjects :: ()
 
       ghost.animated_rot = normalize(Mix(q0, q1, w0, w1));
     }
-    else if !OBJ_HasAnyFlag(ghost.o, .MANUAL_ROTATION)
+    else if !OBJ_HasAnyFlag(ghost, .MANUAL_ROTATION)
     {
-      ghost.animated_rot = ghost.o.rotation;
+      ghost.animated_rot = ghost.rotation;
     }
 
     if animate_position
     {
       POSITION_SPEED :: 10.0;
 
-      delta := ghost.o.p - ghost.animated_p;
+      delta := ghost.p - ghost.animated_p;
       move_by := delta * (G.dt * POSITION_SPEED);
       ghost.animated_p += move_by;
 
       for *ghost.animated_p.component
       {
         if abs(delta.component[it_index]) < 0.01
-          it.* = ghost.o.p.component[it_index];
+          it.* = ghost.p.component[it_index];
       }
     }
-    else if !OBJ_HasAnyFlag(ghost.o, .MANUAL_POSITION)
+    else if !OBJ_HasAnyFlag(ghost, .MANUAL_POSITION)
     {
-      ghost.animated_p = ghost.o.p;
+      ghost.animated_p = ghost.p;
     }
 
-    if OBJ_HasAnyFlag(ghost.o, .ANIMATE_TRACKS)
+    if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
     {
       as := *ghost.anim;
-      model := GetModel(ghost.o.model);
+      model := GetModel(ghost.model);
       if model.is_skinned
       {
         WALK_T_SPEED :: 0.016;
         WALK_TO_RUN :: 0.2;
         RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
 
-        moved_distance := length(ghost.o.moved_dp);
+        moved_distance := length(ghost.moved_dp);
         moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
 
         as.walk_cycle += moved_cycle_delta;
@@ -291,7 +291,7 @@ ANIMATION_AnimateObjects :: ()
         as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
         as.is_attacking = clamp(as.is_attacking, 0, 1);
 
-        if (ghost.o.key == CL.player_key) {
+        if (ghost.key == CL.player_key) {
           // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
@@ -310,7 +310,7 @@ ANIMATION_AnimateObjects :: ()
 
         as.tracks[3].weight = as.is_attacking;
         as.tracks[3].type = .PUNCH;
-        as.tracks[3].t = activity.attack_t / ghost.o.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
+        as.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
         as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
         as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].type, as.tracks[3].t);
 
@@ -320,7 +320,7 @@ ANIMATION_AnimateObjects :: ()
 
         as.tracks[5].type = .DEATH;
         as.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-        as.tracks[5].weight = ifx ghost.o.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
+        as.tracks[5].weight = ifx ghost.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
 
 
         #if 0 {
@@ -345,11 +345,11 @@ ANIMATION_AnimateObjects :: ()
           }
 
           is_punching := activity.is_attacking && !ghost.animation_attack_hide_cooldown;
-          AddClamp01(*ghost.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * ghost.o.attack_speed);
-          AddClamp01(*ghost.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * ghost.o.attack_speed);
-          attack_normalized_t := WrapFloat(activity.attack_t, 0.0, ghost.o.attack_cooldown_t);
-          attack_normalized_t /= ghost.o.attack_cooldown_t;
-          use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, ghost.o.attack_cooldown_t*2) > ghost.o.attack_cooldown_t;
+          AddClamp01(*ghost.animation_hands_punching_hot_t, (ifx is_punching then G.dt*4 else -G.dt*8) * ghost.attack_speed);
+          AddClamp01(*ghost.animation_full_punching_hot_t, (ifx is_punching then G.dt*2 else -G.dt*20) * ghost.attack_speed);
+          attack_normalized_t := WrapFloat(activity.attack_t, 0.0, ghost.attack_cooldown_t);
+          attack_normalized_t /= ghost.attack_cooldown_t;
+          use_jab_animation := WrapFloat(activity.visual_attack_t, 0.0, ghost.attack_cooldown_t*2) > ghost.attack_cooldown_t;
 
           // Fill animation tracks
           all_joints_are_masked := false;
@@ -397,7 +397,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 5
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(ghost.o.animation_requests, 2);
+              p := QueuePeek(ghost.animation_requests, 2);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -406,7 +406,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 6
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(ghost.o.animation_requests, 1);
+              p := QueuePeek(ghost.animation_requests, 1);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -415,7 +415,7 @@ ANIMATION_AnimateObjects :: ()
             else if it_index == 7
             {
               anim_mode = .MANUAL01;
-              p := QueuePeek(ghost.o.animation_requests, 0);
+              p := QueuePeek(ghost.animation_requests, 0);
               pt := ClientSecondsSinceServerTick(p.start, max_on_fail=true) * 1.0;
               it.type = p.type;
               it.t = pt;
@@ -423,10 +423,10 @@ ANIMATION_AnimateObjects :: ()
             }
             else if it_index == 8
             {
-              if ghost.o.death_time
+              if ghost.death_time
               {
                 it.type = .DEATH;
-                it.t = ElapsedSeconds(ghost.o.death_time) * 1.0;
+                it.t = ElapsedSeconds(ghost.death_time) * 1.0;
                 it.weight = min(1.0, it.t * 10.0);
               }
               else it.weight = 0.0;

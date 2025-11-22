@@ -257,38 +257,38 @@ CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   if index_in_valid_storage
   {
     obj := *CL.all_ghosts[key_index];
-    if obj.o.key == key then result = obj;
+    if obj.key == key then result = obj;
   }
   return result;
 }
 
 CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 {
-  obj: *Ghost;
+  ghost: *Ghost;
   index: u32;
 
   for *CL.local_ghosts
   {
-    if !OBJ_IsInit(it.o)
+    if !OBJ_IsInit(it)
     {
-      obj = it;
+      ghost = it;
       index = xx it_index;
       break;
     }
   }
 
-  if (!obj) return OBJ_NilObject();
+  if (!ghost) return OBJ_NilObject();
 
-  Initialize(obj);
+  Initialize(ghost);
 
   CL.local_objects_creation_serials[index] = max(CL.local_objects_creation_serials[index] + 1, 1);
   index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
-  obj.o.key = OBJ_CreateKey(index_in_all_objects, CL.local_objects_creation_serials[index]);
+  ghost.key = OBJ_CreateKey(index_in_all_objects, CL.local_objects_creation_serials[index]);
 
-  obj.o.init = true;
-  obj.o.creation_tick = CL.local_objects_tick;
-  obj.o.flags = flags;
-  return *obj.o;
+  ghost.init = true;
+  ghost.creation_tick = CL.local_objects_tick;
+  ghost.flags = flags;
+  return *ghost.at_obj;
 }
 
 CL_InitLocalObjects :: ()

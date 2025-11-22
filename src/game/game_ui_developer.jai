@@ -154,7 +154,7 @@ UI_BuildDeveloperWindow :: ()
 
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
-      CreateText(tprint("Camera - Player: %", G.camera_p - CL_GetGhost(.SHARED, CL.player_key).o.p));
+      CreateText(tprint("Camera - Player: %", G.camera_p - CL_GetGhost(.SHARED, CL.player_key).p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
 
       CreateText("more random data 1");
@@ -277,7 +277,7 @@ UI_BuildDeveloperWindow :: ()
       obj := CL_GetGhost(.ALL, selected_object);
       if OBJ_IsNil(obj) CreateText("obj is nil");
 
-      CreateText(tprint("ModelKey: %", obj.o.model));
+      CreateText(tprint("ModelKey: %", obj.model));
 
       // model := GetModel(obj.s.model, silent = true);
       // if !OBJ_IsNil(obj) && model.skeleton

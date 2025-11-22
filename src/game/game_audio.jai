@@ -40,11 +40,11 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
-  for *ghost: CL.all_ghosts
+  for ghost: CL.all_ghosts
   {
-    if OBJ_HasAnyFlag(ghost.o, .PLAY_SOUNDS)
+    if OBJ_HasAnyFlag(ghost, .PLAY_SOUNDS)
     {
-      for sound: ghost.o.sound_requests
+      for sound: ghost.sound_requests
       {
         if IsTickDue(sound.tick, ghost)
         {
