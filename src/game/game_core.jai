@@ -548,7 +548,7 @@ GAME_AdvanceGhosts :: ()
         if highest_tick > ghost.at.tick && highest_time_delta > 0
         {
           tick_dist := highest_tick - ghost.at.tick;
-          compare := tick_dist > 1;
+          compare := tick_dist > 1; // COMPILER BUG?
           if compare
           {
             tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
