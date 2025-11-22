@@ -16,26 +16,15 @@ LaneGroupCreate :: (thread_count: s64) -> *LaneGroup
   group.threads = NewArray(thread_count, Thread);
   BarrierInit(*group.barrier, xx group.threads.count);
 
-  initial_context := context;
   for *group.threads
   {
-    it.starting_context = initial_context;
+    it.starting_context = context;
     it.starting_context.lane = .{
       lane_id = it_index,
       lane_count = group.threads.count,
       barrier = *group.barrier,
       broadcast_memory = *group.broadcast_memory,
     };
-
-    if it_index > 0
-    {
-      thread_init(it, GAME_LoopThreadEntry);
-      thread_start(it);
-    }
-    else
-    {
-      context = it.starting_context;
-    }
   }
 
   return group;

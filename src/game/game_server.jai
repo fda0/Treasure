@@ -18,6 +18,7 @@ SV_Start :: ()
     }
   }
 
+  SV.thread.starting_context = context;
   thread_init(*SV.thread, SV_ThreadEntry);
   thread_start(*SV.thread);
 }
