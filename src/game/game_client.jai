@@ -137,7 +137,7 @@ CL_IterateReceive :: ()
       dgram.buflen, to_string(SDLNet_GetAddressString(dgram.addr)), dgram.port);
 
     invalid_dgram := false;
-    if !NET_MatchConnection(*CL.server_connection, dgram.addr, dgram.port)
+    if !NET_MatchConnection(CL.server_connection, dgram.addr, dgram.port)
     {
       invalid_dgram = true;
       Nlog(LOG_NetDatagram, "dgram rejected - received from non-server address %:%",

@@ -185,7 +185,7 @@ SV_IterateSend :: ()
       assign: PACKET_AssignPlayerKey;
       assign.player_key = user.key;
       packet := PACKET_Create(SV.tick, assign);
-      NET_SendPacket(*packet, user.connection, true);
+      NET_SendPacket(packet, user.connection, true);
     }
   }
 
