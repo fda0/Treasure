@@ -11,7 +11,9 @@ CL_State :: struct
   input: PlayerInput; // Accumulates inputs. Flushed to client.input_queue once in a while.
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
-  // playback state received from the server
+  // Queues of snapshots - playback states received from the server.
+  // Queue contains snapshot in sorted (by tick) order.
+  // received_time is guaranteed to be sorted as well (should to be faked if needed).
   snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, OBJ_Snapshot);
 
   // Object keys
@@ -153,7 +155,7 @@ CL_IterateReceive :: ()
   }
 }
 
-CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
+CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
   if insert_shared_idx >= CL.shared_ghosts.count
   {
@@ -176,6 +178,7 @@ CL_InsertSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_i
   snapshot: OBJ_Snapshot;
   snapshot.object = insert_obj;
   snapshot.tick = from_tick;
+  snapshot.received_time = G.client_timestamp;
   QueuePush(snaps, snapshot);
 }
 
@@ -205,7 +208,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
         update.sync.init = true;
       }
 
-      CL_InsertSnapshot(from_tick, update.sync, update.net_index);
+      CL_ReceiveSnapshot(from_tick, update.sync, update.net_index);
     }
     else if msg_type == .AssignPlayerKey
     {

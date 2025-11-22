@@ -14,6 +14,7 @@ GAME_State :: struct
 
   // Time
   frame_timestamp: Timestamp;
+  client_timestamp: Timestamp; // Same as frame_timestamp for now; Usages of this will have to be replaced in the future when client network gets a separate thread (if that ever happens)
   delta_timestamp: Timestamp;
   dt: float;
   at: float;
@@ -96,6 +97,7 @@ GAME_Iterate :: ()
     now := TimeNow();
     G.delta_timestamp = now - G.frame_timestamp;
     G.frame_timestamp = now;
+    G.client_timestamp = G.frame_timestamp; // Same as frame_timestamp for now; Usages of this will have to be replaced in the future when client network gets a separate thread (if that ever happens)
     G.dt = G.delta_timestamp.(float) * 0.001;
     G.at = WrapFloat(G.at + G.dt, 0.0, 1000.0);
     G.frame_number += 1;
@@ -158,7 +160,7 @@ GAME_Iterate :: ()
   if LaneIdx() == 0
   {
     CL_IterateReceive();
-    GAME_InterpolateGhosts();
+    GAME_AdvanceGhosts();
     CL_IterateSend();
   }
 
@@ -473,7 +475,7 @@ GAME_CollectClientInput :: ()
   CL_FlushPlayerInput();
 }
 
-GAME_InterpolateGhosts :: ()
+GAME_AdvanceGhosts :: ()
 {
   PerfFunc();
   assert(context.role == .CLIENT);
@@ -489,12 +491,14 @@ GAME_InterpolateGhosts :: ()
     }
 
     // Advance lerp_t and calculate new at_tick
-    ghost.tick_t += G.dt * TICK_RATE.(float);
-    at_tick_advance := ghost.tick_t.(ServerTick);
-    ghost.at.tick += at_tick_advance;
-    ghost.tick_t -= at_tick_advance.(float);
+    ghost.tick_t += G.dt * TICK_RATE.(float) * ghost.tick_speed;
+    {
+      full_ticks_in_tick_t := ghost.tick_t.(ServerTick);
+      ghost.at.tick += full_ticks_in_tick_t;
+      ghost.tick_t -= full_ticks_in_tick_t.(float);
+    }
 
-    // @todo TEMP - hacky desync fix
+    // We reached a destination tick - pick a new destination.
     if ghost.at.tick >= ghost.dest.tick
     {
       if is_player_index {
@@ -502,15 +506,29 @@ GAME_InterpolateGhosts :: ()
         aaa += 1;
       }
 
+      // Calculate ghost.tick_speed + snap to latest tick if we are too far behind.
       {
+        prev_received_time: Timestamp;
+        highest_time_delta: Timestamp;
+
         highest_tick := ServerTick_ZERO;
         smallest_tick := ServerTick_MAX;
+
         for snapshot_queue
         {
           smallest_tick = min(smallest_tick, it.tick);
           highest_tick = max(highest_tick, it.tick);
+
+          // This method requires queue to be sorted.
+          if prev_received_time > 0 && it.received_time > prev_received_time
+          {
+            delta := it.received_time - prev_received_time;
+            highest_time_delta = max(highest_time_delta, delta);
+          }
+          prev_received_time = it.received_time;
         }
 
+        // Snap to latest if we are too far behind.
         if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
         {
           if is_player_index {
@@ -522,6 +540,40 @@ GAME_InterpolateGhosts :: ()
           ghost.at.tick = xx (highest_tick - 1);
           ghost.tick_t = 0.0;
         }
+
+        // Calculate new tick_speed
+        // @todo This has an issue currently where we oscillate between 0.8 and 1.2 speeds constantly.
+        //       Needs a stabilization where we aim to keep playback at 1.0.
+        ghost.tick_speed = 1.0;
+        if highest_tick > ghost.at.tick && highest_time_delta > 0
+        {
+          tick_dist := highest_tick - ghost.at.tick;
+          compare := tick_dist > 1;
+          if compare
+          {
+            tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
+            time_dist_seconds := ToSeconds(highest_time_delta);
+
+            ratio := tick_dist_seconds / time_dist_seconds;
+            ghost.tick_speed = clamp(ratio, 0.8, 1.2);
+
+            if is_player_index
+            {
+              log("highest_time_delta: %, tick_dist: %, tick_dist_s: %, time_dist_s: %, ratio: %, ghost.tick_speed: %",
+                highest_time_delta, tick_dist, tick_dist_seconds, time_dist_seconds, ratio, ghost.tick_speed);
+            }
+          }
+          else if is_player_index
+          {
+            log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
+          }
+        }
+
+        if is_player_index
+        {
+          log("highest_time_delta: %", highest_time_delta);
+        }
+
       }
 
       // Calculate desired from/dest tick values.
@@ -531,6 +583,7 @@ GAME_InterpolateGhosts :: ()
       best_from := *ghost.from;
       best_dest := *ghost.dest;
 
+      // @todo simplify the loop by assuming queue is sorted.
       for * snapshot_queue
       {
         // - Pick FROM -

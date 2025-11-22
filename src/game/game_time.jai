@@ -1,11 +1,16 @@
 Timestamp :: #type,distinct s64; // @todo make this a signed type?
 TimeNow :: () -> Timestamp { return xx SDL_GetTicks(); }
 
+ToSeconds :: inline (t: Timestamp) -> float
+{
+  return t.(float) * 0.001;
+}
+
 Elapsed :: (current: Timestamp, since: Timestamp, max_on_fail := false) -> float
 {
   delta := current - since;
   if delta < 0 return FailTime(max_on_fail);
-  return delta.(float) * 0.001;
+  return ToSeconds(delta);
 }
 
 FailTime :: (max_on_fail: bool) -> float

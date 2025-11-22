@@ -100,6 +100,7 @@ OBJ_Snapshot :: struct
 {
   object: Object;
   tick: ServerTick;
+  received_time: Timestamp;
 }
 
 Ghost :: struct
@@ -109,6 +110,7 @@ Ghost :: struct
   dest: OBJ_Snapshot;
 
   tick_t: float = 1.0; // 0 = from_tick; 1 = to_tick
+  tick_speed := 1.0;
 
   // Object data that's kept on client side only
   animated_rot: Quat; // animates towards rotation
