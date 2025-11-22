@@ -6,7 +6,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
-  animation_records: [#run EnumMaxPlus1(ANIMATION_Type)] ANIMATION_Record;
+  animation_records: [#run EnumMaxPlus1(AnimationId)] ANIMATION_Record;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
@@ -52,7 +52,7 @@ ANIMATION_Record :: struct
   // count = 0 -> all weights are equal to one
 }
 
-ANIMATION_Type :: enum u8
+AnimationId :: enum u8
 {
   IDLE;
   WALK;
@@ -68,12 +68,12 @@ ANIMATION_Type :: enum u8
 ANIMATION_Request :: struct
 {
   tick: ServerTick;
-  type: ANIMATION_Type;
+  id: AnimationId;
 }
 
 ANIMATION_Track :: struct
 {
-  type: ANIMATION_Type;
+  id: AnimationId;
   t: float;
   weight: float;
 }
@@ -90,7 +90,7 @@ ANIMATION_InitSkeletons :: ()
   skeleton := GetModel(ModelKey("Dude")).skeleton;
   if skeleton
   {
-    for enum_values_as_enum(ANIMATION_Type)
+    for enum_values_as_enum(AnimationId)
     {
       r := *skeleton.animation_records[it];
 
@@ -142,7 +142,7 @@ ANIMATION_InitSkeletons :: ()
   skeleton = GetModel(ModelKey("Zombie")).skeleton;
   if skeleton
   {
-    for enum_values_as_enum(ANIMATION_Type)
+    for enum_values_as_enum(AnimationId)
     {
       r := *skeleton.animation_records[it];
 
@@ -295,30 +295,33 @@ ANIMATION_AnimateObjects :: ()
           // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
+
+
+
         as.tracks[0].weight = 1.0;
-        as.tracks[0].type = .IDLE;
+        as.tracks[0].id = .IDLE;
         as.tracks[0].t += G.dt;
-        as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].type, as.tracks[0].t);
+        as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].id, as.tracks[0].t);
 
         as.tracks[1].weight = clamp(as.is_walking, 0, 1);
-        as.tracks[1].type = .WALK;
-        as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].type, WrapFloat(as.walk_cycle, 0, 1));
+        as.tracks[1].id = .WALK;
+        as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].id, WrapFloat(as.walk_cycle, 0, 1));
 
         as.tracks[2].weight = clamp(as.is_walking - 1.0, 0, 1);
-        as.tracks[2].type = .RUN;
-        as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].type, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
+        as.tracks[2].id = .RUN;
+        as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].id, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
 
         as.tracks[3].weight = as.is_attacking;
-        as.tracks[3].type = .PUNCH;
+        as.tracks[3].id = .PUNCH;
         as.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
         as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
-        as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].type, as.tracks[3].t);
+        as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].id, as.tracks[3].t);
 
         as.tracks[4].weight = sqrt(as.is_attacking);
-        as.tracks[4].type = .PUNCH_HANDS;
+        as.tracks[4].id = .PUNCH_HANDS;
         as.tracks[4].t = as.tracks[3].t;
 
-        as.tracks[5].type = .DEATH;
+        as.tracks[5].id = .DEATH;
         as.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
         as.tracks[5].weight = ifx ghost.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
       }
@@ -326,25 +329,27 @@ ANIMATION_AnimateObjects :: ()
   }
 }
 
-ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) -> [] Mat4
+ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) -> [] Mat4
 {
   PerfFunc();
+  push_allocator(temp);
 
-  accumulated_scales       := array_copy(skeleton.bind_scales,,       temp);
-  accumulated_rotations    := array_copy(skeleton.bind_rotations,,    temp);
-  accumulated_translations := array_copy(skeleton.bind_translations,, temp);
+  accumulated_scales       := array_copy(skeleton.bind_scales);
+  accumulated_rotations    := array_copy(skeleton.bind_rotations);
+  accumulated_translations := array_copy(skeleton.bind_translations);
+  result_matrices := NewArray(skeleton.joints_count, Mat4);
 
   // mix default rest pose + animation channels using temporary memory
-  for param, param_index: params
+  for track, track_index: tracks
   {
-    if param.weight <= 0 continue;
+    if track.weight <= 0 continue;
 
     auto_release_temp();
     scales: [] V3;
     rotations: [] Quat;
     translations: [] V3;
 
-    if param_index == 0
+    if track_index == 0
     {
       scales = accumulated_scales;
       rotations = accumulated_rotations;
@@ -352,17 +357,17 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
     }
     else
     {
-      scales       = array_copy(skeleton.bind_scales,,       temp);
-      rotations    = array_copy(skeleton.bind_rotations,,    temp);
-      translations = array_copy(skeleton.bind_translations,, temp);
+      scales       = array_copy(skeleton.bind_scales);
+      rotations    = array_copy(skeleton.bind_rotations);
+      translations = array_copy(skeleton.bind_translations);
     }
 
-    record := RecordFromType(skeleton, param.type);
+    record := RecordFromType(skeleton, track.id);
 
     // Overwrite translations, rotations, scales with values from animation
     {
       anim := *skeleton.animations[record.animation_index];
-      time := clamp(param.t, anim.t_min, anim.t_max);
+      time := clamp(track.t, anim.t_min, anim.t_max);
 
       for channel: anim.channels
       {
@@ -424,7 +429,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
       }
     }
 
-    if param_index > 0
+    if track_index > 0
     {
       for joint_index: MakeRange(skeleton.joints_count)
       {
@@ -432,7 +437,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
         if record.joint_weights.count > 0
           joint_weight = record.joint_weights[joint_index];
 
-        weight := param.weight * joint_weight;
+        weight := track.weight * joint_weight;
         if weight <= 0 then continue;
 
         accumulated_scales[it_index]       = lerp(accumulated_scales[it_index],       scales[it_index],       weight);
@@ -442,7 +447,6 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
     }
   }
 
-  result_matrices := NewArray(skeleton.joints_count, Mat4,, temp);
   for *result_matrices
   {
     scale := ScaleMatrix(accumulated_scales[it_index]);
@@ -454,33 +458,34 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, params: [] ANIMATION_Track) 
   WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
 
   for *result_matrices
+  {
     it.* = it.* * skeleton.inverse_matrices[it_index];
-
+  }
   return result_matrices;
 }
 
 #scope_file;
-RecordFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *ANIMATION_Record
+RecordFromType :: (skeleton: Skeleton, id: AnimationId) -> *ANIMATION_Record
 {
-  return *skeleton.animation_records[type];
+  return *skeleton.animation_records[id];
 }
 
-AnimationFromType :: (skeleton: Skeleton, type: ANIMATION_Type) -> *Animation
+AnimationFromType :: (skeleton: Skeleton, id: AnimationId) -> *Animation
 {
-  return *skeleton.animations[RecordFromType(skeleton, type).animation_index];
+  return *skeleton.animations[RecordFromType(skeleton, id).animation_index];
 }
 
-WrapTime :: (skeleton: Skeleton, type: ANIMATION_Type, t: float) -> float
+WrapTime :: (skeleton: Skeleton, id: AnimationId, t: float) -> float
 {
-  anim_index := skeleton.animation_records[type].animation_index;
+  anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];
   result := WrapFloat(t, anim.t_min, anim.t_max);
   return result;
 }
 
-Time01ToAnimT :: (skeleton: Skeleton, type: ANIMATION_Type, t: float) -> float
+Time01ToAnimT :: (skeleton: Skeleton, id: AnimationId, t: float) -> float
 {
-  anim_index := skeleton.animation_records[type].animation_index;
+  anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];
   result := (anim.t_max - anim.t_min) * t + anim.t_min;
   return result;

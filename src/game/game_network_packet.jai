@@ -1,6 +1,6 @@
 PACKET_MAGIC_VALUE :: 0xfda0;
 
-PACKET_Payload :: FixedArray(2048, u8, false);
+PACKET_Payload :: Fixed(2048, u8, false);
 PACKET_Full :: struct
 {
   header: PACKET_Header;

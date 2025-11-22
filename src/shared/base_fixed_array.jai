@@ -1,31 +1,31 @@
-FixedArray :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
+Fixed :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
 {
   #if zero_init  data: [CAPACITY] T;
   else           data: [CAPACITY] T = ---;
   count: s64;
 }
 
-to_view :: (array: *FixedArray) -> [] array.T
+to_view :: (f: *Fixed) -> [] f.T
 {
-  res: [] array.T;
-  res.data = array.data;
-  res.count = array.count;
+  res: [] f.T;
+  res.data = f.data;
+  res.count = f.count;
   return res;
 }
 
-operator [] :: (array: *FixedArray, i: s64) -> array.T
+operator [] :: (f: *Fixed, i: s64) -> f.T
 {
-  assert(i < array.count);
-  return array.data[i];
+  assert(i < f.count);
+  return f.data[i];
 }
 
-operator []= :: inline (array: *FixedArray, i: int, value: array.T)
+operator []= :: inline (f: *Fixed, i: int, value: f.T)
 {
-  assert(i < array.count);
-  array.data[i] = value;
+  assert(i < f.count);
+  f.data[i] = value;
 }
 
-for_expansion :: (array: $A/FixedArray, body: Code, flags: For_Flags) #expand
+for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand
 {
   #assert(flags == 0); // @todo extend support
   `it_index := 0;
@@ -34,43 +34,43 @@ for_expansion :: (array: $A/FixedArray, body: Code, flags: For_Flags) #expand
     if it_index >= range.count break;
     defer it_index += 1;
 
-    `it := array.data[it_index];
+    `it := f.data[it_index];
     #insert body;
   }
 }
 
-array_space_left :: (array: *FixedArray) -> s64
+array_space_left :: (f: *Fixed) -> s64
 {
-  return array.CAPACITY - array.count;
+  return f.CAPACITY - f.count;
 }
 
-array_add :: (array: *FixedArray, item: array.T) -> bool
+array_add :: (f: *Fixed, item: f.T) -> bool
 {
   added := false;
-  if array.count < array.CAPACITY
+  if f.count < f.CAPACITY
   {
     added = true;
-    array.data[array.count] = item;
-    array.count += 1;
+    f.data[f.count] = item;
+    f.count += 1;
   }
   return added;
 }
 
-array_add :: (array: *FixedArray) -> *array.T, bool
+array_add :: (f: *Fixed) -> *f.T, bool
 {
-  if array.count < array.CAPACITY
+  if f.count < f.CAPACITY
   {
-    result := *array.data[array.count];
-    array.count += 1;
+    result := *f.data[f.count];
+    f.count += 1;
     return result, true;
   }
   return null, false;
 }
 
-array_add_many :: (array: *FixedArray, alloc_count: s64, $initialize:=true) -> allocated_slice: [] array.T, bool
+array_add_many :: (f: *Fixed, alloc_count: s64, $initialize:=true) -> allocated_slice: [] f.T, bool
 {
   truncated := false;
-  space_left := array.CAPACITY - array.count;
+  space_left := f.CAPACITY - f.count;
   if alloc_count > space_left
   {
     alloc_count = space_left;
@@ -79,13 +79,13 @@ array_add_many :: (array: *FixedArray, alloc_count: s64, $initialize:=true) -> a
 
   if alloc_count <= 0 then return .[], false;
 
-  res: [] array.T;
+  res: [] f.T;
   res.count = alloc_count;
-  res.data = *array.data[array.count];
+  res.data = *f.data[f.count];
 
   // @todo Call Ini if it exists for this type
   memset(res.data, 0, res.count);
 
-  array.count += alloc_count;
+  f.count += alloc_count;
   return res, !truncated;
 }

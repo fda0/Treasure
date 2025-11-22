@@ -33,7 +33,7 @@ Ghost :: struct
   };
 
   #place at;
-  using #as at_obj: Object; // @todo remove? rename?
+  using #as at_obj: Object;
 };
 
 IsTickDue :: (action_tick: ServerTick, ghost: Ghost) -> bool
