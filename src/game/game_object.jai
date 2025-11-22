@@ -98,7 +98,7 @@ OBJ_AnimationState :: struct
 
 OBJ_Snapshot :: struct
 {
-  object: Object;
+  obj: Object;
   tick: ServerTick;
   received_time: Timestamp;
 }
@@ -112,24 +112,18 @@ Ghost :: struct
   tick_t: float = 1.0; // 0 = from_tick; 1 = to_tick
   tick_speed := 1.0;
 
+  handled_tick: ServerTick;
+  creation_time: Timestamp;
+  death_time: Timestamp;
+
   // Object data that's kept on client side only
   animated_rot: Quat; // animates towards rotation
   animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
 
   anim: OBJ_AnimationState;
 
-  // animation_distance01: float; // in range [0; 1]
-  // animation_moving_hot_t: float; // 1 = moving; 0 = idling
-  // animation_hands_punching_hot_t: float;
-  // animation_full_punching_hot_t: float;
-  // animation_attack_hide_cooldown: bool;
-  // animation_requests_hot_t: [3] float;
-
-  played_audio_tick: ServerTick; // @todo 1. This should be ServerTick type; 2. Shouldn't be specific to sound.
-
   #place at;
-  o: Object; // @todo remove
-  server_tick: ServerTick; // @todo remove
+  o: Object; // @todo remove? rename?
 };
 
 Object :: struct
@@ -172,6 +166,13 @@ Object :: struct
 
   collider: OBJ_Collider;
 };
+
+IsTickDue :: (action_tick: ServerTick, ghost: Ghost) -> bool
+{
+  was_handled := action_tick < ghost.handled_tick;
+  is_in_the_future := action_tick > ghost.at.tick;
+  return !was_handled && !is_in_the_future;
+}
 
 lerp :: (prev: Object, next: Object, t: float) -> Object
 {

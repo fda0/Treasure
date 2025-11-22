@@ -4,15 +4,16 @@ main :: ()
   PLATFORM_PreInit();
   GLOBAL.is_client |= !GLOBAL.is_server;
 
-  GAME_Init();
   NET_Init();
-  if (GLOBAL.is_server) SV_Start();
+  if (GLOBAL.is_server) SV_LaunchServerThread();
+  GAME_Init();
 
   PLATFORM_PostInit();
 
   // Setup lane multithreading; Start client game loop.
   lane_group := LaneGroupCreate(4);
   LaneGroupLaunch(GAME_LoopThreadEntry, lane_group, true);
+  exit(0);
 }
 
 GAME_LoopThreadEntry :: (thread: *Thread) -> s64

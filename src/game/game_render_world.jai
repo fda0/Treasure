@@ -125,8 +125,8 @@ WORLD_DrawObjects :: ()
 
       if ghost.o.death_tick
       {
-        death_t := SecondBetweenGhostAndTick(ghost, ghost.o.death_tick, false);
-        death_t = clamp((death_t - 0.25) * 2.0, 0.0, 1.0);
+        death_t := Elapsed(G.frame_timestamp, ghost.death_time);
+        death_t = clamp(death_t * 2.0, 0.0, 1.0);
         alpha = 1.0 - death_t;
       }
 

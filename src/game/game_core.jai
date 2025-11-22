@@ -83,7 +83,7 @@ GAME_Init :: ()
   HOT_RELOAD_InitWatcher();
 
   CL_Init();
-  CL_InitObjects();
+  CL_InitLocalObjects();
 }
 
 GAME_Iterate :: ()
@@ -477,18 +477,18 @@ GAME_CollectClientInput :: ()
 GAME_AdvanceGhosts :: ()
 {
   PerfFunc();
+  PLAYER_LOGS :: false;
 
   for *ghost, ghost_index: CL.shared_ghosts
   {
     snapshot_queue := *CL.snapshots[ghost_index];
 
-    is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).o.key);
-    if is_player_index {
-      aaa := 123;
-      aaa += 1;
+    #if PLAYER_LOGS {
+      is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).o.key);
     }
 
-    // Advance lerp_t and calculate new at_tick
+    // Advance handled_tick, lerp_t and calculate new at_tick
+    ghost.handled_tick = ghost.at.tick;
     ghost.tick_t += G.dt * TICK_RATE.(float) * ghost.tick_speed;
     {
       full_ticks_in_tick_t := ghost.tick_t.(ServerTick);
@@ -499,11 +499,6 @@ GAME_AdvanceGhosts :: ()
     // We reached a destination tick - pick a new destination.
     if ghost.at.tick >= ghost.dest.tick
     {
-      if is_player_index {
-        aaa := 123;
-        aaa += 1;
-      }
-
       // Calculate ghost.tick_speed + snap to latest tick if we are too far behind.
       {
         prev_received_time: Timestamp;
@@ -529,7 +524,7 @@ GAME_AdvanceGhosts :: ()
         // Snap to latest if we are too far behind.
         if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
         {
-          if is_player_index {
+          #if PLAYER_LOGS if is_player_index {
             log("[RESET PLAYER PLAYBACK] old at: %, from: %, dest: %, tick_t: %; smallest: %, highest: %, new at: %",
               ghost.at.tick, ghost.from.tick, ghost.dest.tick,
               ghost.tick_t, smallest_tick, highest_tick, highest_tick - 1);
@@ -540,12 +535,13 @@ GAME_AdvanceGhosts :: ()
         }
 
         // Calculate new tick_speed
-        // @todo This has an issue currently where we oscillate between 0.8 and 1.2 speeds constantly.
-        //       Needs a stabilization where we aim to keep playback at 1.0.
         ghost.tick_speed = 1.0;
         if highest_tick > ghost.at.tick && highest_time_delta > 0
         {
           tick_dist := highest_tick - ghost.at.tick;
+          // @todo This has an issue currently where we oscillate between 0.8 and 1.2 speeds constantly.
+          //       Needs a stabilization where we aim to keep playback at 1.0.
+          //       Temp solution for now is to check for tick_dist > 1
           if tick_dist > 1
           {
             tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
@@ -554,20 +550,23 @@ GAME_AdvanceGhosts :: ()
             ratio := tick_dist_seconds / time_dist_seconds;
             ghost.tick_speed = clamp(ratio, 0.8, 1.2);
 
-            if is_player_index
-            {
+            #if PLAYER_LOGS if is_player_index {
               log("highest_time_delta: %, tick_dist: %, tick_dist_s: %, time_dist_s: %, ratio: %, ghost.tick_speed: %",
                 highest_time_delta, tick_dist, tick_dist_seconds, time_dist_seconds, ratio, ghost.tick_speed);
             }
           }
-          else if is_player_index
+          else
           {
-            log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
+            #if PLAYER_LOGS if is_player_index {
+              log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
+            }
           }
         }
-        else if is_player_index
+        else
         {
-          log("highest_time_delta: %", highest_time_delta);
+          #if PLAYER_LOGS if is_player_index {
+            log("highest_time_delta: %", highest_time_delta);
+          }
         }
       }
 
@@ -626,19 +625,13 @@ GAME_AdvanceGhosts :: ()
         tick_range := best_dest.tick.(s64) - best_from.tick.(s64);
         if tick_range >= 1
         {
-          if tick_range > 50 {
-            bbb := 1;
-            bbb += 1;
-          }
-
           // Overwrite ghost from, dest
           ghost.from = best_from.*;
           ghost.dest = best_dest.*;
         }
       }
 
-      if is_player_index
-      {
+      #if PLAYER_LOGS if is_player_index {
         log("[player playback] SQ.min=%; SQ.count=%; at: %, from: %, dest: %, tick_t: %",
           snapshot_queue.min, QueueCount(snapshot_queue),
           ghost.at.tick, ghost.from.tick, ghost.dest.tick,
@@ -653,7 +646,12 @@ GAME_AdvanceGhosts :: ()
     tick_t := ghost.tick_t / snap_range;
     lerp_t := snap_t + tick_t;
 
-    ghost.at.object = lerp(ghost.from.object, ghost.dest.object, lerp_t);
+    ghost.at.obj = lerp(ghost.from.obj, ghost.dest.obj, lerp_t);
+
+    if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
+    if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
+    if IsTickDue(ghost.at.obj.creation_tick, ghost) ghost.creation_time = G.frame_timestamp;
+    if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
   }
 }
 

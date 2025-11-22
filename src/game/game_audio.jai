@@ -46,14 +46,11 @@ AUDIO_PlayObjectSounds :: ()
     {
       for sound: ghost.o.sound_requests
       {
-        was_played := sound.tick < ghost.played_audio_tick;
-        in_future := sound.tick > ghost.server_tick;
-        if !was_played && !in_future
+        if IsTickDue(sound.tick, ghost)
         {
           AUDIO_PlaySound(sound.type);
         }
       }
-      ghost.played_audio_tick = ghost.server_tick;
     }
   }
 }

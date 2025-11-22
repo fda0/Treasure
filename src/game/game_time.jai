@@ -30,11 +30,6 @@ SecondsBetweenTicks :: (current: ServerTick, since: ServerTick, max_on_fail := f
   return result;
 }
 
-SecondBetweenGhostAndTick :: (ref: Ghost, since: ServerTick, max_on_fail := false) -> float
-{
-  return SecondsBetweenTicks(ref.server_tick, since, max_on_fail);
-}
-
 Tick :: u32;
 ServerTick :: #type,distinct Tick;
 InputTick :: #type,distinct Tick;

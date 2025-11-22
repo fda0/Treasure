@@ -2,7 +2,7 @@
 using,only(SV) COMPS;
 #scope_export;
 
-SV_Start :: ()
+SV_LaunchServerThread :: ()
 {
   log("Launching as server");
   SV_InitObjects();

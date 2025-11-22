@@ -176,7 +176,7 @@ CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_
   }
 
   snapshot: OBJ_Snapshot;
-  snapshot.object = insert_obj;
+  snapshot.obj = insert_obj;
   snapshot.tick = from_tick;
   snapshot.received_time = G.client_timestamp;
   QueuePush(snaps, snapshot);
@@ -291,7 +291,7 @@ CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   return *obj.o;
 }
 
-CL_InitObjects :: ()
+CL_InitLocalObjects :: ()
 {
   // Sun
   {
@@ -394,5 +394,4 @@ CL_InitObjects :: ()
       }
     }
   }
-
 }
