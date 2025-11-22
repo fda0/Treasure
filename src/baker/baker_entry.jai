@@ -16,9 +16,9 @@ main :: ()
 
     spec := BK_GLTF_Spec.{height = 1.7, rot = rot_xz};
     // @todo detect duplicated skeleton & animations and reuse it
-    BK_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
-    BK_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
-    BK_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
+    // BK_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
+    // BK_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
+    // BK_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
 
     BK_GLTF_Load("../res/models/UniversalAnimationLibrary[Standard]/Dude.glb", spec);
     BK_GLTF_Load("../res/models/ZombieApocalypseKit/Zombie.gltf", .{height = 1.0, rot = rot_xz});
@@ -39,19 +39,19 @@ main :: ()
     spec_low := Color32_Grayf(0.1);
     spec_mid := Color32_Grayf(0.2);
     spec_big := Color32_Grayf(0.4);
-    BK_TEX_LoadPBRs("Bricks071", spec_mid);
-    BK_TEX_LoadPBRs("Bricks097", spec_mid);
+    // BK_TEX_LoadPBRs("Bricks071", spec_mid);
+    // BK_TEX_LoadPBRs("Bricks097", spec_mid);
     BK_TEX_LoadPBRs("Clay002", spec_big);
     BK_TEX_LoadPBRs("Grass004", spec_tiny);
-    BK_TEX_LoadPBRs("Ground037", spec_tiny);
-    BK_TEX_LoadPBRs("Ground068", spec_tiny);
+    // BK_TEX_LoadPBRs("Ground037", spec_tiny);
+    // BK_TEX_LoadPBRs("Ground068", spec_tiny);
     BK_TEX_LoadPBRs("Ground075", spec_mid);
-    BK_TEX_LoadPBRs("Ground078", spec_tiny);
+    // BK_TEX_LoadPBRs("Ground078", spec_tiny);
     BK_TEX_LoadPBRs("Leather011", spec_big);
-    BK_TEX_LoadPBRs("PavingStones067", spec_low);
-    BK_TEX_LoadPBRs("Tiles087", spec_big);
-    BK_TEX_LoadPBRs("Tiles101", spec_big);
-    BK_TEX_LoadPBRs("TestPBR001", spec_mid);
+    // BK_TEX_LoadPBRs("PavingStones067", spec_low);
+    // BK_TEX_LoadPBRs("Tiles087", spec_big);
+    // BK_TEX_LoadPBRs("Tiles101", spec_big);
+    // BK_TEX_LoadPBRs("TestPBR001", spec_mid);
     Timer("PBR textures loaded");
   }
 

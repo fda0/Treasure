@@ -58,14 +58,14 @@ PIE_FinalizeBuilder :: ()
   PIE_ListSetValue(*header.links, links);
 
   // Calculate hash
-  hashable_file := FromRange(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), file.current_point);
+  hashable_file := StringFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), file.current_point);
   header.file_hash = Hash64Any(PIE_MAGIC_HASH_SEED, hashable_file);
 }
 
 PIE_SaveToFile :: (file_path: string)
 {
   using B.pie;
-  content := FromRange(file.memory_base, file.current_point);
+  content := StringFirstLast(file.memory_base, file.current_point);
   write_entire_file(file_path, content);
 }
 

@@ -167,7 +167,7 @@ BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
       }
 
       if tex_inputs_count
-        BK_TEX_LoadPaths(pie_material, ArrayPrefix(tex_inputs, tex_inputs_count));
+        BK_TEX_LoadPaths(pie_material, Prefix(tex_inputs, tex_inputs_count));
     }
   }
 

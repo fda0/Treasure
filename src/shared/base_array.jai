@@ -1,5 +1,5 @@
 // Common string-like operations for array views
-ArrayRange :: (first: *$T, last: *T) -> [] T
+ArrayFirstLast :: (first: *$T, last: *T) -> [] T
 {
   res: [] T;
   res.data = first;
@@ -10,7 +10,7 @@ ArrayMinMax :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
 {
   sub_max = clamp(sub_max, 0, array.count);
   sub_min = clamp(sub_min, 0, array.count);
-  if sub_min > sub_max  Swap(*sub_min, *sub_max);
+  if sub_min > sub_max  swap(*sub_min, *sub_max);
 
   res: [] T;
   res.count = sub_max - sub_min;

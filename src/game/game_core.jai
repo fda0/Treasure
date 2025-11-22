@@ -552,9 +552,7 @@ GAME_AdvanceGhosts :: ()
           compare1 := tick_dist > 1; // COMPILER BUG?
           compare2 := 1 < tick_dist;
           compare3 := (tick_dist & (~(cast(u32)1))) != 0;
-
-          if compare1 != compare2
-          {
+          if compare1 != compare2 {
             log("How is that possible?");
           }
 
