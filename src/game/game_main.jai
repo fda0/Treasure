@@ -4,46 +4,15 @@ main :: ()
   PLATFORM_PreInit();
   GLOBAL.is_client |= !GLOBAL.is_server;
 
-  if GLOBAL.is_client push_context CreateContextWithRole(.CLIENT)
-  {
-    GAME_Init();
-  }
-  if GLOBAL.is_server
-  {
-    SV_Start();
-  }
+  GAME_Init();
   NET_Init();
+  if (GLOBAL.is_server) SV_Start();
 
   PLATFORM_PostInit();
 
   // Setup lane multithreading; Start client game loop.
-  client_ctx := CreateContextWithRole(.CLIENT);
-
-  threads: [4] Thread;
-  barrier: Barrier;
-  BarrierInit(*barrier, xx threads.count);
-  broadcast_memory: u64;
-
-  for *threads
-  {
-    it.starting_context = client_ctx;
-    it.starting_context.lane.lane_id = it_index;
-    it.starting_context.lane.lane_count = threads.count;
-    it.starting_context.lane.barrier = *barrier;
-    it.starting_context.lane.broadcast_memory = *broadcast_memory;
-
-    if it_index > 0
-    {
-      thread_init(it, GAME_LoopThreadEntry);
-      thread_start(it);
-    }
-    else
-    {
-      context = it.starting_context;
-    }
-  }
-
-  GAME_LoopThreadEntry(null);
+  lane_group := LaneGroupCreate(4);
+  LaneGroupLaunch(GAME_LoopThreadEntry, lane_group, true);
 }
 
 GAME_LoopThreadEntry :: (thread: *Thread) -> s64
@@ -65,7 +34,7 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_core.jai";
 #load "game_global.jai";
 #load "game_sdl_platform.jai";
-#load "game_context.jai";
+#load "game_lane_multithreading.jai";
 #load "game_text.jai";
 #load "game_ui_core.jai";
 #load "game_ui_developer.jai";
@@ -88,7 +57,6 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_render_world.jai";
 #load "game_render_ui.jai";
 #load "game_font.jai";
-#load "game_util.jai";
 #load "game_tests.jai";
 #load "game_pie_loader.jai";
 #load "game_stats.jai";
@@ -111,7 +79,7 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/game_render_world_shared.jai";
 #import "tr_hash_table";
 
-#import "superluminal"()(ENABLE_PROFILER = true);
+#import "superluminal"()(ENABLE_PROFILER = false);
 BOX :: #import "tr_box_layout"(Color=Color32);
 
 #import "Basic";

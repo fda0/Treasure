@@ -29,7 +29,6 @@ PlayerInput :: struct
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
-  assert(context.role == .SERVER);
 
   if SecondsBetweenTicks(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
   {

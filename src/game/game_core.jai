@@ -88,7 +88,6 @@ GAME_Init :: ()
 
 GAME_Iterate :: ()
 {
-  assert(context.role == .CLIENT);
   PerfFunc();
 
   // Advance time
@@ -478,7 +477,6 @@ GAME_CollectClientInput :: ()
 GAME_AdvanceGhosts :: ()
 {
   PerfFunc();
-  assert(context.role == .CLIENT);
 
   for *ghost, ghost_index: CL.shared_ghosts
   {
@@ -548,15 +546,7 @@ GAME_AdvanceGhosts :: ()
         if highest_tick > ghost.at.tick && highest_time_delta > 0
         {
           tick_dist := highest_tick - ghost.at.tick;
-
-          compare1 := tick_dist > 1; // COMPILER BUG?
-          compare2 := 1 < tick_dist;
-          compare3 := (tick_dist & (~(cast(u32)1))) != 0;
-          if compare1 != compare2 {
-            log("How is that possible?");
-          }
-
-          if compare2
+          if tick_dist > 1
           {
             tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
             time_dist_seconds := ToSeconds(highest_time_delta);
@@ -575,12 +565,10 @@ GAME_AdvanceGhosts :: ()
             log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
           }
         }
-
-        if is_player_index
+        else if is_player_index
         {
           log("highest_time_delta: %", highest_time_delta);
         }
-
       }
 
       // Calculate desired from/dest tick values.

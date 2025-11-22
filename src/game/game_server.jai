@@ -4,32 +4,27 @@ using,only(SV) COMPS;
 
 SV_Start :: ()
 {
-  push_context CreateContextWithRole(.SERVER)
+  log("Launching as server");
+  SV_InitObjects();
+
+  if GLOBAL.is_client
   {
-    log("Launching as server");
-    SV_InitObjects();
-
-    if GLOBAL.is_client
+    local_user := SV_FindEmptyUserSlot();
+    if local_user
     {
-      local_user := SV_FindEmptyUserSlot();
-      if local_user
-      {
-        Initialize(local_user);
-        local_user.connection.type = .LOCAL;
-        local_user.connection.local_packets = *GLOBAL.packets_for_local_user;
-      }
+      Initialize(local_user);
+      local_user.connection.type = .LOCAL;
+      local_user.connection.local_packets = *GLOBAL.packets_for_local_user;
     }
-
-    SV.thread.starting_context = context;
-    thread_init(*SV.thread, SV_ThreadEntry);
-    thread_start(*SV.thread);
   }
+
+  thread_init(*SV.thread, SV_ThreadEntry);
+  thread_start(*SV.thread);
 }
 
 SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
 {
   PerfFunc();
-  assert(context.role == .SERVER);
 
   top_delay: float;
   for user.received_inputs
@@ -98,7 +93,6 @@ SV_User :: struct
 SV_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
-  assert(context.role == .SERVER);
 
   while true
   {
@@ -468,7 +462,6 @@ SV_InitObjects :: ()
 
 SV_GetObject :: (key: OBJ_Key) -> *Object
 {
-  assert(context.role == .SERVER);
   result := OBJ_NilObject();
   key_index := OBJ_IndexOfKey(key);
 
@@ -482,14 +475,11 @@ SV_GetObject :: (key: OBJ_Key) -> *Object
 
 SV_DeleteObject :: (obj: *Object)
 {
-  assert(context.role == .SERVER);
   obj.* = .{};
 }
 
 SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 {
-  assert(context.role == .SERVER);
-
   obj: *Object;
   index: u32;
 
@@ -519,8 +509,6 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
 
 SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
 {
-  assert(context.role == .SERVER);
-
   nearest := OBJ_NilObject();
   nearest_distsq := FLOAT32_MAX;
 

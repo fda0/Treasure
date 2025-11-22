@@ -35,9 +35,11 @@ SecondBetweenGhostAndTick :: (ref: Ghost, since: ServerTick, max_on_fail := fals
   return SecondsBetweenTicks(ref.server_tick, since, max_on_fail);
 }
 
-Tick :: #type,distinct u32;
-ServerTick :: #type,isa Tick;
-InputTick :: #type,isa Tick;
+Tick :: u32;
+ServerTick :: #type,distinct Tick;
+InputTick :: #type,distinct Tick;
+AnyTick :: Type.[Tick, ServerTick, InputTick];
+
 ServerTick_ZERO :: cast(ServerTick) 0;
 ServerTick_ONE :: cast(ServerTick) 1;
 ServerTick_MAX :: cast(ServerTick) U32_MAX;

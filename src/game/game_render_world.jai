@@ -95,7 +95,6 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
 WORLD_DrawObjects :: ()
 {
   PerfFunc();
-  assert(context.role == .CLIENT);
 
   for *ghost: CL.all_ghosts
   {

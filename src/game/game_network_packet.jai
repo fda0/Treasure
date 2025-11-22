@@ -86,12 +86,12 @@ PACKET_CopyType :: (full: *PACKET_Full, value: $T)
   PACKET_CopyData(full, *value, size_of(T));
 }
 
-PACKET_FinalizeHeader :: (from_tick: Tick, full: *PACKET_Full)
+PACKET_FinalizeHeader :: (from_tick: $T/AnyTick, full: *PACKET_Full)
 {
   str := PACKET_PayloadAsString(full.payload);
   full.header.magic_value = PACKET_MAGIC_VALUE;
   full.header.payload_hash = Hash64Any(str).(u16,trunc);
-  full.header.from_tick = from_tick;
+  full.header.from_tick = xx from_tick;
 }
 
 PACKET_IsFinalized :: (full: PACKET_Full) -> bool
@@ -99,7 +99,7 @@ PACKET_IsFinalized :: (full: PACKET_Full) -> bool
   return !!full.header.magic_value;
 }
 
-PACKET_Create :: (from_tick: Tick, things: ..Any) -> PACKET_Full
+PACKET_Create :: (from_tick: $T/AnyTick, things: ..Any) -> PACKET_Full
 {
   full: PACKET_Full;
   for things
