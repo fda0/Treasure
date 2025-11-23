@@ -198,7 +198,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
     else if msg_type == .AssignPlayerKey
     {
       // If the server was ever going to dynamically change player key
-      // We should use IsTickDue kind of tracking to apply it on the side of GAME_State.
+      // We should use IsTickDue kind of tracking to apply it on the side of GameState.
       assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
 
       if G.player_key_latest_tick < from_tick
@@ -212,7 +212,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
       layout := PACKET_Consume(PACKET_WindowLayout, *msg);
       if G.window_autolayout
       {
-        // GAME_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
+        // G_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
       }
     }
     else

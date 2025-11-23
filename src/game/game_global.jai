@@ -8,7 +8,7 @@ ComponentState :: struct
   CL: ClientState;
   DEV: DEV_State;
   FONT: FONT_State;
-  G: GAME_State;
+  G: GameState;
   GPU: GPU_State;
   HR: HotReloadState;
   LOG: LOG_State;

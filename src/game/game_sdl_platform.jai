@@ -13,7 +13,7 @@ PLATFORM_PreInit :: ()
 
   if ok
   {
-    GAME_ParseCommandLineArguments(get_command_line_arguments());
+    G_ParseCommandLineArguments(get_command_line_arguments());
 
     // Query display resolution and calculate default window dimensions
     if G.init_window_dim.x < 0 || G.init_window_dim.y < 0

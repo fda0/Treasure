@@ -154,7 +154,7 @@ UI_BuildDeveloperWindow :: ()
 
       CreateText(tprint("Mouse: %", G.mouse));
       CreateText(tprint("World Camera: %", G.camera_p));
-      CreateText(tprint("Camera - Player: %", G.camera_p - GetGhost(.SHARED, G.player_key).p));
+      CreateText(tprint("Camera - Player: %", G.camera_p - G_GetGhost(.SHARED, G.player_key).p));
       CreateText(tprint("Camera angles: %", G.camera_angles));
 
       CreateText("more random data 1");
@@ -274,7 +274,7 @@ UI_BuildDeveloperWindow :: ()
       CreateText(tprint("Seletected: % {index: %, serial: %}", selected_object, OBJ_IndexOfKey(selected_object), OBJ_SerialOfKey(selected_object)));
       if UI_Button("reset selection") selected_object = .{};
 
-      obj := GetGhost(.ALL, selected_object);
+      obj := G_GetGhost(.ALL, selected_object);
       if OBJ_IsNil(obj) CreateText("obj is nil");
 
       CreateText(tprint("ModelKey: %", obj.model));

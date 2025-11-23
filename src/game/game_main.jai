@@ -6,17 +6,17 @@ main :: ()
 
   NET_Init();
   if (GLOBAL.is_server) SV_LaunchServerThread();
-  GAME_Init();
+  G_Init();
 
   PLATFORM_PostInit();
 
   // Setup lane multithreading; Start client game loop.
   lane_group := LaneGroupCreate(4);
-  LaneGroupLaunch(GAME_LoopThreadEntry, lane_group, true);
+  LaneGroupLaunch(G_LoopThreadEntry, lane_group, true);
   exit(0);
 }
 
-GAME_LoopThreadEntry :: (thread: *Thread) -> s64
+G_LoopThreadEntry :: (thread: *Thread) -> s64
 {
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
@@ -25,7 +25,7 @@ GAME_LoopThreadEntry :: (thread: *Thread) -> s64
   while !GLOBAL.in_shutdown
   {
     if (LaneIdx() == 0) PLATFORM_PreIterate();
-    GAME_Iterate();
+    G_Iterate();
     LaneSync();
   }
   return 0;

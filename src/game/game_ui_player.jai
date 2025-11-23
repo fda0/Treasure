@@ -23,7 +23,7 @@ UI_BuildHUD :: ()
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Parent(hud);
 
-  player := GetGhost(.SHARED, G.player_key);
+  player := G_GetGhost(.SHARED, G.player_key);
   hp_ratio := SafeDiv(player.hp, player.max_hp);
 
 

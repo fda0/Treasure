@@ -2,7 +2,7 @@
 using,only(CL,DEV,G) COMPS;
 #scope_export;
 
-GAME_State :: struct
+GameState :: struct
 {
   // startup profiling
   time_launch: Apollo_Time;
@@ -79,7 +79,7 @@ GAME_State :: struct
   all_ghosts: [] Ghost;
 }
 
-GAME_Init :: ()
+G_Init :: ()
 {
   PerfFunc();
 
@@ -102,10 +102,10 @@ GAME_Init :: ()
     G.local_ghosts = Suffix(G.all_ghosts, OBJ_MAX_LOCAL_OBJECTS);
   }
 
-  InitLocalObjects();
+  G_InitLocalObjects();
 }
 
-GAME_Iterate :: ()
+G_Iterate :: ()
 {
   PerfFunc();
 
@@ -178,7 +178,7 @@ GAME_Iterate :: ()
   if LaneIdx() == 0
   {
     CL_IterateReceive();
-    GAME_InterpolateSnapshots();
+    G_InterpolateSnapshots();
     CL_IterateSend();
   }
 
@@ -209,25 +209,25 @@ GAME_Iterate :: ()
   // Calculate mouse input and camera
   if LaneIdx() == 0 && !G.headless
   {
-    GAME_CalculateCameraAndMouseThings();
+    G_CalculateCameraAndMouseThings();
   }
 
   // Move the sun object
   if LaneIdx() == 0
   {
-    GAME_AdvanceLocalObjects();
+    G_AdvanceLocalObjects();
   }
 
   // Prepare client player input and send it
   if LaneIdx() == 0 && !G.headless
   {
-    GAME_CollectClientInput();
+    G_CollectClientInput();
   }
 
   // Update marker object
   if LaneIdx() == 0 && !G.headless
   {
-    marker := GetGhost(.LOCAL, G.pathing_marker);
+    marker := G_GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
     {
       if G.input.type == .PATHING
@@ -314,7 +314,7 @@ GAME_Iterate :: ()
   }
 }
 
-GAME_CalculateCameraAndMouseThings :: ()
+G_CalculateCameraAndMouseThings :: ()
 {
   if DEV.noclip
   {
@@ -367,7 +367,7 @@ GAME_CalculateCameraAndMouseThings :: ()
       G.camera_p.xy += dir * G.dt * 16.0;
     }
 
-    player := GetGhost(.SHARED, G.player_key);
+    player := G_GetGhost(.SHARED, G.player_key);
     if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.p.xy;
@@ -423,7 +423,7 @@ GAME_CalculateCameraAndMouseThings :: ()
   }
 }
 
-GAME_AdvanceLocalObjects :: ()
+G_AdvanceLocalObjects :: ()
 {
   // Move sun
   sun_time := G.at*4.0;
@@ -442,14 +442,14 @@ GAME_AdvanceLocalObjects :: ()
   projection := OrthographicMatrix(-dim, dim, -dim, dim, 30.0, 100.0);
   G.sun_camera_transform = projection * (rot * transl);
 
-  sun := GetGhost(.LOCAL, G.sun);
+  sun := G_GetGhost(.LOCAL, G.sun);
   if !OBJ_IsNil(sun)
   {
     sun.p = G.sun_camera_p;
   }
 }
 
-GAME_CollectClientInput :: ()
+G_CollectClientInput :: ()
 {
   G.input.skills = 0;
 
@@ -464,8 +464,8 @@ GAME_CollectClientInput :: ()
 
   if G.world_mouse_valid
   {
-    self := GetGhost(.SHARED, G.player_key);
-    hovered_obj := GetGhost(.ALL, G.hover_object);
+    self := G_GetGhost(.SHARED, G.player_key);
+    hovered_obj := G_GetGhost(.ALL, G.hover_object);
     hovers_enemy := OBJ_Test2(hovered_obj, self,
                               .{require_flags = .TARGETABLE,
                                 common = .IS_ALIVE,
@@ -485,7 +485,7 @@ GAME_CollectClientInput :: ()
       G.input.target_object = .{};
       if move_pressed
       {
-        marker := GetGhost(.LOCAL, G.pathing_marker);
+        marker := G_GetGhost(.LOCAL, G.pathing_marker);
         if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
       }
     }
@@ -494,7 +494,7 @@ GAME_CollectClientInput :: ()
   CL_FlushPlayerInput();
 }
 
-GAME_InterpolateSnapshots :: ()
+G_InterpolateSnapshots :: ()
 {
   PerfFunc();
   PLAYER_LOGS :: false;
@@ -504,7 +504,7 @@ GAME_InterpolateSnapshots :: ()
     snapshot_queue := *CL.snapshots[ghost_index];
 
     #if PLAYER_LOGS {
-      is_player_index := ghost_index == OBJ_IndexOfKey(GetGhost(.SHARED, CL.player_key).key);
+      is_player_index := ghost_index == OBJ_IndexOfKey(G_GetGhost(.SHARED, CL.player_key).key);
     }
 
     // Advance handled_tick, lerp_t and calculate new at_tick
@@ -675,7 +675,7 @@ GAME_InterpolateSnapshots :: ()
   }
 }
 
-GAME_ParseCommandLineArguments :: (args: [] string)
+G_ParseCommandLineArguments :: (args: [] string)
 {
   parse_target: *float;
   for args
@@ -725,11 +725,11 @@ GAME_ParseCommandLineArguments :: (args: [] string)
 // Local objects
 //
 
-InitLocalObjects :: ()
+G_InitLocalObjects :: ()
 {
   // Sun
   {
-    sun := CreateLocalObject(.DRAW_COLLIDERS);
+    sun := G_CreateLocalObject(.DRAW_COLLIDERS);
     sun.material = MaterialKey("tex.Leather011");
     sun.height = 0.5;
     sun.collider = OBJ_ColliderFromRect(.{.5, .5});
@@ -738,7 +738,7 @@ InitLocalObjects :: ()
 
   // Pathing marker
   {
-    G.pathing_marker = CreateLocalObject(.ANIMATE_POSITION).key;
+    G.pathing_marker = G_CreateLocalObject(.ANIMATE_POSITION).key;
   }
 
   // Ground
@@ -752,7 +752,7 @@ InitLocalObjects :: ()
     {
       for x: MakeRange(-r, r)
       {
-        tile := CreateLocalObject(.DRAW_COLLIDERS);
+        tile := G_CreateLocalObject(.DRAW_COLLIDERS);
         if !OBJ_IsNil(tile)
         {
           tile.p = .{x = d * x, y = d * y};
@@ -784,7 +784,7 @@ InitLocalObjects :: ()
         x -= (0.5*d*len);
         y -= (0.5*d*len);
 
-        block := CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
+        block := G_CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
         if !OBJ_IsNil(block)
         {
           block.p = V3.{x, y, 0};
@@ -819,7 +819,7 @@ InitLocalObjects :: ()
         pos.x *= ifx x < x_half_count then -1 else 1;
         pos.y *= ifx y < y_half_count then -1 else 1;
 
-        tree := CreateLocalObject(.DRAW_MODEL);
+        tree := G_CreateLocalObject(.DRAW_MODEL);
         if !OBJ_IsNil(tree)
         {
           tree.p = pos;
@@ -830,7 +830,7 @@ InitLocalObjects :: ()
   }
 }
 
-CreateLocalObject :: (flags: OBJ_Flags) -> *Object
+G_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
 {
   ghost: *Ghost;
   index: u32;
@@ -859,7 +859,7 @@ CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   return *ghost.at_obj;
 }
 
-GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
+G_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
 {
   key_index := OBJ_IndexOfKey(key);
 
