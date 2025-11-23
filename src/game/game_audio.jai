@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,CL,AUDIO) COMPS;
+using,only(AST,AUDIO,G) COMPS;
 #scope_export;
 
 AUDIO_State :: struct
@@ -40,7 +40,7 @@ AUDIO_Request :: struct
 
 AUDIO_PlayObjectSounds :: ()
 {
-  for ghost: CL.all_ghosts
+  for ghost: G.all_ghosts
   {
     if OBJ_HasAnyFlag(ghost, .PLAY_SOUNDS)
     {

@@ -58,6 +58,25 @@ GAME_State :: struct
   camera_angles: V3;
   camera_fov_y: float = 0.111;
   camera_transform: Mat4;
+
+  // Accumulates inputs. Flushed to client.input_queue once in a while.
+  input: PlayerInput;
+
+  // Object keys
+  sun: OBJ_Key;
+  pathing_marker: OBJ_Key;
+  pathing_marker_set: bool;
+
+  player_key: OBJ_Key;
+  player_key_latest_tick: ServerTick;
+
+  // Objects
+  local_objects_tick: ServerTick = 1;
+  local_objects_creation_serials: [] u8;
+
+  shared_ghosts: [] Ghost;
+  local_ghosts: [] Ghost;
+  all_ghosts: [] Ghost;
 }
 
 GAME_Init :: ()
@@ -72,9 +91,18 @@ GAME_Init :: ()
   FONT_Init();
   UI_ClearRenderCounters();
   HR_InitWatcher();
-
   CL_Init();
-  CL_InitLocalObjects();
+
+  // Allocate objects
+  {
+    G.local_objects_creation_serials = NewArray(OBJ_MAX_LOCAL_OBJECTS, u8);
+
+    G.all_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS, Ghost);
+    G.shared_ghosts = Prefix(G.all_ghosts, OBJ_MAX_SHARED_OBJECTS);
+    G.local_ghosts = Suffix(G.all_ghosts, OBJ_MAX_LOCAL_OBJECTS);
+  }
+
+  InitLocalObjects();
 }
 
 GAME_Iterate :: ()
@@ -199,21 +227,21 @@ GAME_Iterate :: ()
   // Update marker object
   if LaneIdx() == 0 && !G.headless
   {
-    marker := CL_GetGhost(.LOCAL, CL.pathing_marker);
+    marker := GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if CL.input.type == .PATHING
+      if G.input.type == .PATHING
       {
         marker.flags |= .DRAW_MODEL;
         marker.model = ModelKey("Flag");
-        marker.p = CL.input.world_p;
+        marker.p = G.input.world_p;
         marker.animated_p.xy = marker.p.xy;
-        CL.pathing_marker_set = true;
+        G.pathing_marker_set = true;
       }
       else
       {
         marker.p.z = -2.0;
-        CL.pathing_marker_set = false;
+        G.pathing_marker_set = false;
       }
     }
   }
@@ -339,7 +367,7 @@ GAME_CalculateCameraAndMouseThings :: ()
       G.camera_p.xy += dir * G.dt * 16.0;
     }
 
-    player := CL_GetGhost(.SHARED, CL.player_key);
+    player := GetGhost(.SHARED, G.player_key);
     if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
       G.camera_p.xy = player.p.xy;
@@ -414,7 +442,7 @@ GAME_AdvanceLocalObjects :: ()
   projection := OrthographicMatrix(-dim, dim, -dim, dim, 30.0, 100.0);
   G.sun_camera_transform = projection * (rot * transl);
 
-  sun := CL_GetGhost(.LOCAL, CL.sun);
+  sun := GetGhost(.LOCAL, G.sun);
   if !OBJ_IsNil(sun)
   {
     sun.p = G.sun_camera_p;
@@ -423,23 +451,21 @@ GAME_AdvanceLocalObjects :: ()
 
 GAME_CollectClientInput :: ()
 {
-
-  input := *CL.input;
-  input.skills = 0;
+  G.input.skills = 0;
 
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
   move_pressed := KEY_Pressed(..move_buttons);
   move_held := KEY_Held(..move_buttons, held_for = 0.25);
 
-  if KEY_Pressed(.Q) input.skills |= .Q;
-  if KEY_Pressed(.W) input.skills |= .W;
-  if KEY_Pressed(.E) input.skills |= .E;
-  if KEY_Pressed(.R) input.skills |= .R;
+  if KEY_Pressed(.Q) G.input.skills |= .Q;
+  if KEY_Pressed(.W) G.input.skills |= .W;
+  if KEY_Pressed(.E) G.input.skills |= .E;
+  if KEY_Pressed(.R) G.input.skills |= .R;
 
   if G.world_mouse_valid
   {
-    self := CL_GetGhost(.SHARED, CL.player_key);
-    hovered_obj := CL_GetGhost(.ALL, G.hover_object);
+    self := GetGhost(.SHARED, G.player_key);
+    hovered_obj := GetGhost(.ALL, G.hover_object);
     hovers_enemy := OBJ_Test2(hovered_obj, self,
                               .{require_flags = .TARGETABLE,
                                 common = .IS_ALIVE,
@@ -447,19 +473,19 @@ GAME_CollectClientInput :: ()
 
     if move_pressed && hovers_enemy
     {
-      input.type = .ATTACK;
-      input.target_object = G.hover_object;
-      input.world_p = G.world_mouse;
+      G.input.type = .ATTACK;
+      G.input.target_object = G.hover_object;
+      G.input.world_p = G.world_mouse;
     }
 
-    if (move_pressed && !hovers_enemy) || (move_held && input.type == .PATHING)
+    if (move_pressed && !hovers_enemy) || (move_held && G.input.type == .PATHING)
     {
-      input.type = .PATHING;
-      input.world_p = G.world_mouse;
-      input.target_object = .{};
+      G.input.type = .PATHING;
+      G.input.world_p = G.world_mouse;
+      G.input.target_object = .{};
       if move_pressed
       {
-        marker := CL_GetGhost(.LOCAL, CL.pathing_marker);
+        marker := GetGhost(.LOCAL, G.pathing_marker);
         if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
       }
     }
@@ -473,12 +499,12 @@ GAME_InterpolateSnapshots :: ()
   PerfFunc();
   PLAYER_LOGS :: false;
 
-  for *ghost, ghost_index: CL.shared_ghosts
+  for *ghost, ghost_index: G.shared_ghosts
   {
     snapshot_queue := *CL.snapshots[ghost_index];
 
     #if PLAYER_LOGS {
-      is_player_index := ghost_index == OBJ_IndexOfKey(CL_GetGhost(.SHARED, CL.player_key).key);
+      is_player_index := ghost_index == OBJ_IndexOfKey(GetGhost(.SHARED, CL.player_key).key);
     }
 
     // Advance handled_tick, lerp_t and calculate new at_tick
@@ -693,4 +719,168 @@ GAME_ParseCommandLineArguments :: (args: [] string)
 
     print("arg%: %\n", it_index, it);
   }
+}
+
+//
+// Local objects
+//
+
+InitLocalObjects :: ()
+{
+  // Sun
+  {
+    sun := CreateLocalObject(.DRAW_COLLIDERS);
+    sun.material = MaterialKey("tex.Leather011");
+    sun.height = 0.5;
+    sun.collider = OBJ_ColliderFromRect(.{.5, .5});
+    G.sun = sun.key;
+  }
+
+  // Pathing marker
+  {
+    G.pathing_marker = CreateLocalObject(.ANIMATE_POSITION).key;
+  }
+
+  // Ground
+  {
+    r := 32;
+    d := 1.0;
+    grass := MaterialKey("tex.Grass004");
+    ground1 := MaterialKey("tex.Ground075");
+
+    for y: MakeRange(-r, r)
+    {
+      for x: MakeRange(-r, r)
+      {
+        tile := CreateLocalObject(.DRAW_COLLIDERS);
+        if !OBJ_IsNil(tile)
+        {
+          tile.p = .{x = d * x, y = d * y};
+          tile.collider = OBJ_ColliderFromRect(.{d, d});
+          tile.texture_texels_per_m = 1.0 / d;
+          tile.material = grass;
+          if x < -r+5 || x >r-5 then tile.material = ground1;
+          if y < -r+5 || y >r-5 then tile.material = ground1;
+          if abs(x+y) < 4 then tile.material = ground1;
+        }
+      }
+    }
+  }
+
+  // blocks thing
+  {
+    for wall: 0..3
+    {
+      len := 64;
+      for i: MakeRange(len)
+      {
+        d := 1.0;
+
+        x, y: float;
+        if wall == 0 y = d*i;
+        if wall == 1 {x = d*i; y = d * len;}
+        if wall == 2 {x = d * len; y = len - d*i;}
+        if wall == 3 x = len - d*i;
+        x -= (0.5*d*len);
+        y -= (0.5*d*len);
+
+        block := CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
+        if !OBJ_IsNil(block)
+        {
+          block.p = V3.{x, y, 0};
+          block.collider = OBJ_ColliderFromRect(.{d,d});
+          block.height = d;
+          block.material = MaterialKey("tex.Clay002");
+          block.texture_texels_per_m = 1.0 / d;
+        }
+      }
+    }
+  }
+
+  // Add trees
+  {
+    x_count := 4;
+    y_count := 4;
+
+    for y: MakeRange(y_count)
+    {
+      for x: MakeRange(x_count)
+      {
+        x_half_count := x_count/2;
+        y_half_count := y_count/2;
+
+        pos: V3;
+        if ((x^y)&1) pos.x = 4.70;
+        else         pos.y = 6.90;
+
+        pos.x += 7 + 4.0*(x % x_half_count);
+        pos.y += 5 + 2.4*(y % y_half_count);
+
+        pos.x *= ifx x < x_half_count then -1 else 1;
+        pos.y *= ifx y < y_half_count then -1 else 1;
+
+        tree := CreateLocalObject(.DRAW_MODEL);
+        if !OBJ_IsNil(tree)
+        {
+          tree.p = pos;
+          tree.model = ModelKey("Tree");
+        }
+      }
+    }
+  }
+}
+
+CreateLocalObject :: (flags: OBJ_Flags) -> *Object
+{
+  ghost: *Ghost;
+  index: u32;
+
+  for *G.local_ghosts
+  {
+    if !OBJ_IsInit(it)
+    {
+      ghost = it;
+      index = xx it_index;
+      break;
+    }
+  }
+
+  if (!ghost) return OBJ_NilObject();
+
+  Initialize(ghost);
+
+  G.local_objects_creation_serials[index] = max(G.local_objects_creation_serials[index] + 1, 1);
+  index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
+  ghost.key = OBJ_CreateKey(index_in_all_objects, G.local_objects_creation_serials[index]);
+
+  ghost.init = true;
+  ghost.creation_tick = G.local_objects_tick;
+  ghost.flags = flags;
+  return *ghost.at_obj;
+}
+
+GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
+{
+  key_index := OBJ_IndexOfKey(key);
+
+  index_in_valid_storage := false;
+  {
+    min: u32 = 0;
+    max: u32 = OBJ_MAX_SHARED_OBJECTS;
+    if (storage_mask & .SHARED)
+      index_in_valid_storage |= (key_index >= 0 && key_index < max);
+
+    min = max;
+    max += OBJ_MAX_LOCAL_OBJECTS;
+    if (storage_mask & .LOCAL)
+      index_in_valid_storage |= (key_index >= min && key_index < max);
+  }
+
+  result := OBJ_NilGhost();
+  if index_in_valid_storage
+  {
+    obj := *G.all_ghosts[key_index];
+    if obj.key == key then result = obj;
+  }
+  return result;
 }

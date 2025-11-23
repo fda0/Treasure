@@ -8,45 +8,20 @@ ClientState :: struct
 
   // client inputs sent to the server
   input_tick: InputTick;
-  input: PlayerInput; // Accumulates inputs. Flushed to client.input_queue once in a while.
   input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
 
   // Queues of snapshots - playback states received from the server.
   // Queue contains snapshot in sorted (by tick) order.
   // received_time is guaranteed to be sorted as well (should to be faked if needed).
   snapshots: [] Queue(NET_CL_MAX_SNAPSHOTS, Snapshot);
-
-  // Object keys
-  player_key: OBJ_Key;
-  player_key_latest_tick: ServerTick;
-
-  sun: OBJ_Key;
-  pathing_marker: OBJ_Key;
-  pathing_marker_set: bool;
-
-  // Objects
-  local_objects_tick: ServerTick = 1;
-  local_objects_creation_serials: [] u8;
-
-  shared_ghosts: [] Ghost;
-  local_ghosts: [] Ghost;
-  all_ghosts: [] Ghost;
 };
 
 CL_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
 
-  // Allocate data
-  {
-    CL.snapshots = NewArray(OBJ_MAX_SHARED_OBJECTS, Queue(NET_CL_MAX_SNAPSHOTS, Snapshot));
-
-    CL.local_objects_creation_serials = NewArray(OBJ_MAX_LOCAL_OBJECTS, u8);
-
-    CL.all_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS, Ghost);
-    CL.shared_ghosts = Prefix(CL.all_ghosts, OBJ_MAX_SHARED_OBJECTS);
-    CL.local_ghosts = Suffix(CL.all_ghosts, OBJ_MAX_LOCAL_OBJECTS);
-  }
+  // Allocate snapshots
+  CL.snapshots = NewArray(OBJ_MAX_SHARED_OBJECTS, Queue(NET_CL_MAX_SNAPSHOTS, Snapshot));
 
   if GLOBAL.is_server
   {
@@ -86,7 +61,7 @@ CL_FlushPlayerInput :: ()
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
 
   CL.input_tick += 1;
-  QueuePush(*CL.input_queue, CL.input);
+  QueuePush(*CL.input_queue, G.input);
   // @todo clear skills queue once it exsits in Action
 }
 
@@ -167,10 +142,10 @@ CL_IterateReceive :: ()
 
 CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
-  if insert_shared_idx >= CL.shared_ghosts.count
+  if insert_shared_idx >= OBJ_MAX_SHARED_OBJECTS
   {
     Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
-      insert_shared_idx, CL.shared_ghosts.count);
+      insert_shared_idx, OBJ_MAX_SHARED_OBJECTS);
     return;
   }
 
@@ -222,12 +197,14 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
     }
     else if msg_type == .AssignPlayerKey
     {
+      // If the server was ever going to dynamically change player key
+      // We should use IsTickDue kind of tracking to apply it on the side of GAME_State.
       assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
 
-      if CL.player_key_latest_tick < from_tick
+      if G.player_key_latest_tick < from_tick
       {
-        CL.player_key = assign.player_key;
-        CL.player_key_latest_tick = from_tick;
+        G.player_key = assign.player_key;
+        G.player_key_latest_tick = from_tick;
       }
     }
     else if msg_type == .WindowLayout
@@ -242,166 +219,6 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
     {
       Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", msg_type);
       return;
-    }
-  }
-}
-
-CL_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
-{
-  key_index := OBJ_IndexOfKey(key);
-
-  index_in_valid_storage := false;
-  {
-    min: u32 = 0;
-    max: u32 = OBJ_MAX_SHARED_OBJECTS;
-    if (storage_mask & .SHARED)
-      index_in_valid_storage |= (key_index >= 0 && key_index < max);
-
-    min = max;
-    max += OBJ_MAX_LOCAL_OBJECTS;
-    if (storage_mask & .LOCAL)
-      index_in_valid_storage |= (key_index >= min && key_index < max);
-  }
-
-  result := OBJ_NilGhost();
-  if index_in_valid_storage
-  {
-    obj := *CL.all_ghosts[key_index];
-    if obj.key == key then result = obj;
-  }
-  return result;
-}
-
-CL_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
-{
-  ghost: *Ghost;
-  index: u32;
-
-  for *CL.local_ghosts
-  {
-    if !OBJ_IsInit(it)
-    {
-      ghost = it;
-      index = xx it_index;
-      break;
-    }
-  }
-
-  if (!ghost) return OBJ_NilObject();
-
-  Initialize(ghost);
-
-  CL.local_objects_creation_serials[index] = max(CL.local_objects_creation_serials[index] + 1, 1);
-  index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
-  ghost.key = OBJ_CreateKey(index_in_all_objects, CL.local_objects_creation_serials[index]);
-
-  ghost.init = true;
-  ghost.creation_tick = CL.local_objects_tick;
-  ghost.flags = flags;
-  return *ghost.at_obj;
-}
-
-CL_InitLocalObjects :: ()
-{
-  // Sun
-  {
-    sun := CL_CreateLocalObject(.DRAW_COLLIDERS);
-    sun.material = MaterialKey("tex.Leather011");
-    sun.height = 0.5;
-    sun.collider = OBJ_ColliderFromRect(.{.5, .5});
-    CL.sun = sun.key;
-  }
-
-  // Pathing marker
-  {
-    CL.pathing_marker = CL_CreateLocalObject(.ANIMATE_POSITION).key;
-  }
-
-  // Ground
-  {
-    r := 32;
-    d := 1.0;
-    grass := MaterialKey("tex.Grass004");
-    ground1 := MaterialKey("tex.Ground075");
-
-    for y: MakeRange(-r, r)
-    {
-      for x: MakeRange(-r, r)
-      {
-        tile := CL_CreateLocalObject(.DRAW_COLLIDERS);
-        if !OBJ_IsNil(tile)
-        {
-          tile.p = .{x = d * x, y = d * y};
-          tile.collider = OBJ_ColliderFromRect(.{d, d});
-          tile.texture_texels_per_m = 1.0 / d;
-          tile.material = grass;
-          if x < -r+5 || x >r-5 then tile.material = ground1;
-          if y < -r+5 || y >r-5 then tile.material = ground1;
-          if abs(x+y) < 4 then tile.material = ground1;
-        }
-      }
-    }
-  }
-
-  // blocks thing
-  {
-    for wall: 0..3
-    {
-      len := 64;
-      for i: MakeRange(len)
-      {
-        d := 1.0;
-
-        x, y: float;
-        if wall == 0 y = d*i;
-        if wall == 1 {x = d*i; y = d * len;}
-        if wall == 2 {x = d * len; y = len - d*i;}
-        if wall == 3 x = len - d*i;
-        x -= (0.5*d*len);
-        y -= (0.5*d*len);
-
-        block := CL_CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
-        if !OBJ_IsNil(block)
-        {
-          block.p = V3.{x, y, 0};
-          block.collider = OBJ_ColliderFromRect(.{d,d});
-          block.height = d;
-          block.material = MaterialKey("tex.Clay002");
-          block.texture_texels_per_m = 1.0 / d;
-        }
-      }
-    }
-  }
-
-  // Add trees
-  {
-    x_count := 4;
-    y_count := 4;
-
-    for y: MakeRange(y_count)
-    {
-      for x: MakeRange(x_count)
-      {
-        x_half_count := x_count/2;
-        y_half_count := y_count/2;
-
-        pos: V3;
-        if ((x^y)&1) pos.x = 4.70;
-        else         pos.y = 6.90;
-
-        pos.x += 7 + 4.0*(x % x_half_count);
-        pos.y += 5 + 2.4*(y % y_half_count);
-
-        pos.x *= ifx x < x_half_count then -1 else 1;
-        pos.y *= ifx y < y_half_count then -1 else 1;
-
-        tree := CL_CreateLocalObject(.DRAW_MODEL);
-        if !OBJ_IsNil(tree)
-        {
-          tree.p = pos;
-          tree.model = ModelKey("Tree");
-        }
-      }
     }
   }
 }

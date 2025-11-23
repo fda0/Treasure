@@ -96,7 +96,7 @@ WORLD_DrawObjects :: ()
 {
   PerfFunc();
 
-  for *ghost: CL.all_ghosts
+  for *ghost: G.all_ghosts
   {
     draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
     draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);

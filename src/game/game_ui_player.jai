@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(G) COMPS;
 #scope_export;
 
 #scope_file;
@@ -23,7 +23,7 @@ UI_BuildHUD :: ()
                                           parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
   Parent(hud);
 
-  player := CL_GetGhost(.SHARED, CL.player_key);
+  player := GetGhost(.SHARED, G.player_key);
   hp_ratio := SafeDiv(player.hp, player.max_hp);
 
 

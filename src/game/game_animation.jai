@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,CL,G) COMPS;
+using,only(AST,G) COMPS;
 #scope_export;
 
 Skeleton :: struct
@@ -184,7 +184,7 @@ ANIMATION_AnimateObjects :: ()
   PerfFunc();
   AssertThatScopeIsSingleThreaded();
 
-  for *ghost: CL.all_ghosts
+  for *ghost: G.all_ghosts
   {
     activity := *ghost.activity;
     animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
@@ -291,7 +291,7 @@ ANIMATION_AnimateObjects :: ()
         as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
         as.is_attacking = clamp(as.is_attacking, 0, 1);
 
-        if (ghost.key == CL.player_key) {
+        if (ghost.key == G.player_key) {
           // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
         }
 
