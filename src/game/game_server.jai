@@ -13,30 +13,17 @@ ServerState :: struct
 
   users: [NET_MAX_PLAYERS] SV_User;
 
-  objects: [OBJ_MAX_SHARED_OBJECTS] Object;
-  creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
+  objects: [] Object;
+  creation_serials: [] u8;
 
   last_sleeper_group_spawn: ServerTick;
   last_sleeper_spawn: ServerTick;
-  sleepers_spawned_in_group_count := 0;
+  sleepers_spawned_in_group_count: s64;
 }
 
 SV_LaunchServerThread :: ()
 {
   log("Launching as server");
-  SV_InitObjects();
-
-  if GLOBAL.is_client
-  {
-    local_user := SV_FindEmptyUserSlot();
-    if local_user
-    {
-      Initialize(local_user);
-      local_user.connection.type = .LOCAL;
-      local_user.connection.local_packets = *GLOBAL.packets_for_local_user;
-    }
-  }
-
   SV.thread.starting_context = context;
   thread_init(*SV.thread, SV_ThreadEntry);
   thread_start(*SV.thread);
@@ -73,6 +60,99 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
   return result;
 }
 
+
+SV_GetObject :: (key: OBJ_Key) -> *Object
+{
+  result := OBJ_NilObject();
+  key_index := OBJ_IndexOfKey(key);
+
+  if key_index < SV.objects.count
+  {
+    obj := *SV.objects[key_index];
+    if (obj.key == key) result = obj;
+  }
+  return result;
+}
+
+SV_DeleteObject :: (obj: *Object)
+{
+  obj.* = .{};
+}
+
+SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
+{
+  obj: *Object;
+  index: u32;
+
+  for *SV.objects
+  {
+    if !OBJ_IsInit(it)
+    {
+      obj = it;
+      index = xx it_index;
+      break;
+    }
+  }
+
+  if (!obj) return OBJ_NilObject();
+
+  Initialize(obj);
+
+  SV.creation_serials[index] = max(SV.creation_serials[index] + 1, 1);
+  obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
+
+  obj.init = true;
+  obj.creation_tick = SV.tick;
+  obj.flags = flags;
+  obj.team = team;
+  return obj;
+}
+
+SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
+{
+  nearest := OBJ_NilObject();
+  nearest_distsq := FLOAT32_MAX;
+
+  for *candidate: SV.objects
+  {
+    if (candidate == obj) continue;
+    if !OBJ_Test2(candidate, obj, params) continue;
+
+    distsq := OBJ_Distance2DSquared(obj, candidate);
+    if distsq < nearest_distsq
+    {
+      nearest = candidate;
+      nearest_distsq = distsq;
+    }
+  }
+
+  return nearest;
+}
+
+SV_CreateHero :: (model: MODEL_Key, team: OBJ_Team) -> *Object
+{
+  obj := SV_CreateObject(
+    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
+
+  if !OBJ_IsNil(obj)
+  {
+    dim := 0.4;
+    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
+    obj.height = dim;
+    obj.model = model;
+    obj.color = Color32_Grayf(1);
+    obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
+
+    obj.max_hp = 40;
+    obj.hp = 40;
+    obj.move_speed = 1.5;
+
+    obj.team = team;
+  }
+  return obj;
+}
+
 #scope_file;
 SV_User :: struct
 {
@@ -94,6 +174,7 @@ SV_User :: struct
 SV_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
+  SV_Init();
 
   while true
   {
@@ -401,154 +482,26 @@ SV_AddNetworkUser :: (address: *SDLNet_Address, port: u16) -> *SV_User
   return slot;
 }
 
-SV_InitObjects :: ()
+SV_Init :: ()
 {
-  // Add turrets
+  PerfFunc();
+
+  // Allocate data
   {
-    for team: BOTH_TEAMS
-    {
-      for tier: 0..2
-      {
-        if tier != 0 continue;
-
-        turret := SV_CreateObject(
-          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
-          team);
-
-        if !OBJ_IsNil(turret)
-        {
-          p := 6.0 + 10.0*tier;
-          if team == .RED then p = -p;
-          turret.p = .{-p,p,0};
-
-          dim := 0.4;
-          turret.collider = OBJ_ColliderFromRect(.{dim,dim});
-
-          turret.model = ModelKey("Plank");
-
-          turret.max_hp = 400;
-          turret.hp = 400;
-          turret.attack_speed = 2.5;
-          turret.attack_landed_t = 0.1;
-          turret.attack_cooldown_t = 5.0;
-        }
-      }
-    }
+    SV.objects = NewArray(OBJ_MAX_SHARED_OBJECTS, Object);
+    SV.creation_serials = NewArray(OBJ_MAX_SHARED_OBJECTS, u8);
   }
 
+  SIM_InitObjects();
+
+  if GLOBAL.is_client
   {
-    hero := SV_CreateHero(ModelKey("Dude"), .RED);
-    if !OBJ_IsNil(hero)
+    local_user := SV_FindEmptyUserSlot();
+    if local_user
     {
-      hero.p.x = 3.0;
-      hero.p.y = 1.0;
-    }
-    hero = SV_CreateHero(ModelKey("Dude"), .RED);
-    if !OBJ_IsNil(hero)
-    {
-      hero.p.x = 3.2;
-      hero.p.y = 2.0;
-    }
-    hero = SV_CreateHero(ModelKey("Dude"), .BLUE);
-    if !OBJ_IsNil(hero)
-    {
-      hero.p.x = 3.4;
-      hero.p.y = 3.0;
+      Initialize(local_user);
+      local_user.connection.type = .LOCAL;
+      local_user.connection.local_packets = *GLOBAL.packets_for_local_user;
     }
   }
-}
-
-#scope_export;
-
-SV_GetObject :: (key: OBJ_Key) -> *Object
-{
-  result := OBJ_NilObject();
-  key_index := OBJ_IndexOfKey(key);
-
-  if key_index < SV.objects.count
-  {
-    obj := *SV.objects[key_index];
-    if (obj.key == key) result = obj;
-  }
-  return result;
-}
-
-SV_DeleteObject :: (obj: *Object)
-{
-  obj.* = .{};
-}
-
-SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
-{
-  obj: *Object;
-  index: u32;
-
-  for *SV.objects
-  {
-    if !OBJ_IsInit(it)
-    {
-      obj = it;
-      index = xx it_index;
-      break;
-    }
-  }
-
-  if (!obj) return OBJ_NilObject();
-
-  Initialize(obj);
-
-  SV.creation_serials[index] = max(SV.creation_serials[index] + 1, 1);
-  obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
-
-  obj.init = true;
-  obj.creation_tick = SV.tick;
-  obj.flags = flags;
-  obj.team = team;
-  return obj;
-}
-
-SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
-{
-  nearest := OBJ_NilObject();
-  nearest_distsq := FLOAT32_MAX;
-
-  for *candidate: SV.objects
-  {
-    if (candidate == obj) continue;
-    if !OBJ_Test2(candidate, obj, params) continue;
-
-    distsq := OBJ_Distance2DSquared(obj, candidate);
-    if distsq < nearest_distsq
-    {
-      nearest = candidate;
-      nearest_distsq = distsq;
-    }
-  }
-
-  return nearest;
-}
-
-SV_CreateHero :: (model: MODEL_Key, team: OBJ_Team) -> *Object
-{
-  obj := SV_CreateObject(
-    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
-
-  if !OBJ_IsNil(obj)
-  {
-    dim := 0.4;
-    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
-    obj.height = dim;
-    obj.model = model;
-    obj.color = Color32_Grayf(1);
-    obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
-
-    obj.max_hp = 40;
-    obj.hp = 40;
-    obj.move_speed = 1.5;
-
-    obj.team = team;
-  }
-  return obj;
 }

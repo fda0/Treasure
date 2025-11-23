@@ -540,7 +540,6 @@ SIM_MoveAndCollideObjects :: ()
   } // obj loop
 }
 
-
 SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   QueuePush(*obj.sound_requests, .{SV.tick, type});
@@ -548,4 +547,62 @@ SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 SIM_PlayAnimation :: (obj: *Object, id: AnimationId)
 {
   QueuePush(*obj.animation_requests, .{SV.tick, id});
+}
+
+SIM_InitObjects :: ()
+{
+  // Add turrets
+  {
+    for team: BOTH_TEAMS
+    {
+      for tier: 0..2
+      {
+        if tier != 0 continue;
+
+        turret := SV_CreateObject(
+          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
+          team);
+
+        if !OBJ_IsNil(turret)
+        {
+          p := 6.0 + 10.0*tier;
+          if team == .RED then p = -p;
+          turret.p = .{-p,p,0};
+
+          dim := 0.4;
+          turret.collider = OBJ_ColliderFromRect(.{dim,dim});
+
+          turret.model = ModelKey("Plank");
+
+          turret.max_hp = 400;
+          turret.hp = 400;
+          turret.attack_speed = 2.5;
+          turret.attack_landed_t = 0.1;
+          turret.attack_cooldown_t = 5.0;
+        }
+      }
+    }
+  }
+
+  {
+    hero := SV_CreateHero(ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.0;
+      hero.p.y = 1.0;
+    }
+    hero = SV_CreateHero(ModelKey("Dude"), .RED);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.2;
+      hero.p.y = 2.0;
+    }
+    hero = SV_CreateHero(ModelKey("Dude"), .BLUE);
+    if !OBJ_IsNil(hero)
+    {
+      hero.p.x = 3.4;
+      hero.p.y = 3.0;
+    }
+  }
 }

@@ -14,7 +14,7 @@ ClientState :: struct
   // Queues of snapshots - playback states received from the server.
   // Queue contains snapshot in sorted (by tick) order.
   // received_time is guaranteed to be sorted as well (should to be faked if needed).
-  snapshots: [OBJ_MAX_SHARED_OBJECTS] Queue(NET_CL_MAX_SNAPSHOTS, Snapshot);
+  snapshots: [] Queue(NET_CL_MAX_SNAPSHOTS, Snapshot);
 
   // Object keys
   player_key: OBJ_Key;
@@ -26,17 +26,30 @@ ClientState :: struct
 
   // Objects
   local_objects_tick: ServerTick = 1;
-  local_objects_creation_serials: [OBJ_MAX_LOCAL_OBJECTS] u8;
+  local_objects_creation_serials: [] u8;
 
-  shared_ghosts: [OBJ_MAX_SHARED_OBJECTS] Ghost;
-  local_ghosts: [OBJ_MAX_LOCAL_OBJECTS] Ghost;
-  #place shared_ghosts;
-  all_ghosts: [OBJ_MAX_ALL_OBJECTS] Ghost = ---;
+  shared_ghosts: [] Ghost;
+  local_ghosts: [] Ghost;
+  all_ghosts: [] Ghost;
 };
 
 CL_Init :: ()
 {
   Nlog(LOG_NetInfo, "Launching as client");
+
+  // Allocate data
+  {
+    CL.snapshots = NewArray(OBJ_MAX_SHARED_OBJECTS, Queue(NET_CL_MAX_SNAPSHOTS, Snapshot));
+
+    CL.local_objects_creation_serials = NewArray(OBJ_MAX_LOCAL_OBJECTS, u8);
+
+    CL.shared_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS, Ghost);
+    CL.local_ghosts = NewArray(OBJ_MAX_LOCAL_OBJECTS, Ghost);
+    CL.all_ghosts = .{
+      data = CL.shared_ghosts.data,
+      count = CL.shared_ghosts.count + CL.local_ghosts.count
+    };
+  }
 
   if GLOBAL.is_server
   {
