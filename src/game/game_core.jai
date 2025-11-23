@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(CL,DEV) COMPS;
 #scope_export;
 
 G: GAME_State;
@@ -19,13 +19,6 @@ GAME_State :: struct
   dt: float;
   at: float;
   frame_number: s64;
-
-  // component states
-  hr: HOT_RELOAD_State;
-  net: NET_State;
-  dev: DEV_State;
-  stats: STATS_State;
-  log: LOG_State;
 
   // SDL, window stuff
   window: *SDL_Window;
@@ -79,7 +72,7 @@ GAME_Init :: ()
   ANIMATION_InitSkeletons();
   FONT_Init();
   UI_ClearRenderCounters();
-  HOT_RELOAD_InitWatcher();
+  HR_InitWatcher();
 
   CL_Init();
   CL_InitLocalObjects();
@@ -109,7 +102,7 @@ GAME_Iterate :: ()
   {
     if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
-    if G.dev.show || G.dev.noclip || !G.window_has_focus
+    if DEV.show || DEV.noclip || !G.window_has_focus
     {
       G.grab_mouse = false;
     }
@@ -257,7 +250,7 @@ GAME_Iterate :: ()
     UI_ClearRenderCounters();
     ASSET_PostFrame();
 
-    HOT_RELOAD_Iterate();
+    HR_Iterate();
   }
 
   // Post frame logic
@@ -296,7 +289,7 @@ GAME_Iterate :: ()
 
 GAME_CalculateCameraAndMouseThings :: ()
 {
-  if G.dev.noclip
+  if DEV.noclip
   {
     if KEY_Held(.MOUSE_LEFT)
     {

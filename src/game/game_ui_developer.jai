@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AUDIO,CL,FONT) COMPS;
+using,only(AUDIO,CL,DEV,FONT,STATS) COMPS;
 #scope_export;
 
 #scope_file;
@@ -100,7 +100,7 @@ DEV_State :: struct // @todo serialize this struct to disk
 
 UI_DeveloperKeyShortcuts :: ()
 {
-  using G.dev;
+  using DEV;
   if (KEY_Pressed(.GRAVE)) then show = !show;
   if (KEY_Pressed(.RETURN)) then noclip = !noclip;
   if (KEY_Pressed(.BACKSPACE)) then sun_camera = !sun_camera;
@@ -108,7 +108,7 @@ UI_DeveloperKeyShortcuts :: ()
 
 UI_BuildDeveloperWindow :: ()
 {
-  using G.dev;
+  using DEV;
   ArrayClear(atlas_boxes);
   atlas_clip_box = null;
 
@@ -162,7 +162,7 @@ UI_BuildDeveloperWindow :: ()
 
       for STATS_CounterValues
       {
-        c := *G.stats.counters[it];
+        c := *STATS.counters[it];
         label := STATS_CounterNames[it];
 
         CreateText("");
@@ -295,14 +295,14 @@ UI_BuildDeveloperWindow :: ()
 
 UI_DrawDeveloperFontAtlas :: ()
 {
-  if !G.dev.atlas_clip_box return;
+  if !DEV.atlas_clip_box return;
 
   tex_dim := V2.{xx FONT.texture_dim, xx FONT.texture_dim};
 
-  clip_min, clip_dim := FinalInnerMinDim(G.dev.atlas_clip_box);
+  clip_min, clip_dim := FinalInnerMinDim(DEV.atlas_clip_box);
   clip := MakeRectMinDim(clip_min, clip_dim);
 
-  for box: G.dev.atlas_boxes
+  for box: DEV.atlas_boxes
   {
     if !box continue;
 

@@ -1,8 +1,8 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(CL,NET) COMPS;
 #scope_export;
 
-CL_State :: struct
+ClientState :: struct
 {
   server_connection: NET_Connection;
 
@@ -65,7 +65,7 @@ CL_Init :: ()
 
     if !CL.server_connection.address
     {
-      G.net.err = true;
+      NET.err = true;
       Nlog(LOG_NetInfo, "Failed to resolve server hostname '%s'", hostname);
     }
   }
@@ -82,7 +82,7 @@ CL_FlushPlayerInput :: ()
 
 CL_IterateSend :: ()
 {
-  if G.net.err return;
+  if NET_HasError() return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
   PerfFunc();
 
@@ -106,7 +106,7 @@ CL_IterateSend :: ()
 
 CL_IterateReceive :: ()
 {
-  if G.net.err return;
+  if NET_HasError() return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
   PerfFunc();
 
@@ -130,7 +130,7 @@ CL_IterateReceive :: ()
   while true
   {
     dgram: *SDLNet_Datagram;
-    receive := SDLNet_ReceiveDatagram(G.net.socket, *dgram);
+    receive := SDLNet_ReceiveDatagram(NET.socket, *dgram);
     if !receive || !dgram break;
 
     Nlog(LOG_NetDatagram, "got %-byte datagram from %:%",

@@ -2,6 +2,25 @@
 using,only(SV) COMPS;
 #scope_export;
 
+ServerState :: struct
+{
+  thread: Thread;
+
+  iteration_timestamp: Timestamp;
+  timestamp_accumulator: Timestamp;
+  tick: ServerTick;
+  last_broadcasted_tick: ServerTick;
+
+  users: [NET_MAX_PLAYERS] SV_User;
+
+  objects: [OBJ_MAX_SHARED_OBJECTS] Object;
+  creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
+
+  last_sleeper_group_spawn: ServerTick;
+  last_sleeper_spawn: ServerTick;
+  sleepers_spawned_in_group_count := 0;
+}
+
 SV_LaunchServerThread :: ()
 {
   log("Launching as server");
@@ -53,25 +72,6 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
   }
   return result;
 }
-
-SV_State :: struct
-{
-  thread: Thread;
-
-  iteration_timestamp: Timestamp;
-  timestamp_accumulator: Timestamp;
-  tick: ServerTick;
-  last_broadcasted_tick: ServerTick;
-
-  users: [NET_MAX_PLAYERS] SV_User;
-
-  objects: [OBJ_MAX_SHARED_OBJECTS] Object;
-  creation_serials: [OBJ_MAX_SHARED_OBJECTS] u8;
-
-  last_sleeper_group_spawn: ServerTick;
-  last_sleeper_spawn: ServerTick;
-  sleepers_spawned_in_group_count := 0;
-};
 
 #scope_file;
 SV_User :: struct

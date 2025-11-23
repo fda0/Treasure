@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(CL,DEV) COMPS;
 #scope_export;
 
 WORLD_Dir :: enum u32
@@ -100,7 +100,7 @@ WORLD_DrawObjects :: ()
   {
     draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
     draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
-    debug_colliders := G.dev.show_colliders;
+    debug_colliders := DEV.show_colliders;
     draw_hp := OBJ_HasAnyFlag(ghost, .HAS_HP);
 
     if draw_model
@@ -110,7 +110,7 @@ WORLD_DrawObjects :: ()
 
       hover_color := C4.{1,1,1,1};
       if ghost.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
-      if ghost.key == G.dev.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
+      if ghost.key == DEV.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
       WORLD_DrawModel(ghost.model, transform, ghost.anim.tracks,
                       C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));

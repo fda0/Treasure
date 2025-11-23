@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,FONT,GPU) COMPS;
+using,only(AST,DEV,FONT,GPU) COMPS;
 #scope_export;
 
 GPU_USE_MSAA :: true;
@@ -527,14 +527,14 @@ GPU_Iterate :: ()
 
   // Set camera position
   GPU.world_uniform.camera_transform = G.camera_transform;
-  if G.dev.sun_camera
+  if DEV.sun_camera
   {
     GPU.world_uniform.camera_transform = G.sun_camera_transform;
     GPU.world_uniform.camera_position = G.sun_camera_p;
   }
 
   // Mouse picking pass
-  if G.dev.mouse_picking & .ENABLED
+  if DEV.mouse_picking & .ENABLED
   {
     depth_target.texture = GPU.tex_mouse_picking_depth;
 
@@ -661,13 +661,13 @@ GPU_Iterate :: ()
   // Submit command buffer
   PerfScope("GPU command buffer submit");
 
-  if G.dev.mouse_picking & .ENABLED
+  if DEV.mouse_picking & .ENABLED
   {
     if !QueueIsFull(GPU.readback_queue)
     {
       readback := QueuePush(*GPU.readback_queue);
       readback.dim = Vec2(s32).{xx G.window_dim.x, xx G.window_dim.y};
-      if G.dev.mouse_picking & .ONE_PIXEL
+      if DEV.mouse_picking & .ONE_PIXEL
         readback.dim = .{1,1};
 
       download_info := SDL_GPUTransferBufferCreateInfo.{
@@ -683,7 +683,7 @@ GPU_Iterate :: ()
         h = xx readback.dim.y,
         d = 1,
       };
-      if G.dev.mouse_picking & .ONE_PIXEL
+      if DEV.mouse_picking & .ONE_PIXEL
       {
         if OverlapsRange(MakeRange(G.window_dim), G.mouse)
         {

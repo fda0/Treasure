@@ -1,3 +1,7 @@
+#scope_file;
+using,only(STATS) COMPS;
+#scope_export;
+
 LOG_STAT_COUNTERS :: false;
 
 STATS_State :: struct
@@ -34,7 +38,7 @@ STATS_Counter :: struct
 
 Increment :: (type: STATS_CounterType, to_increment: s64)
 {
-  c := *G.stats.counters[type];
+  c := *STATS.counters[type];
   if c.paused return;
   c.increment_called = true;
 
@@ -44,7 +48,7 @@ Increment :: (type: STATS_CounterType, to_increment: s64)
 
 Post :: (type: STATS_CounterType, to_increment_and_set: s64 = 0)
 {
-  c := *G.stats.counters[type];
+  c := *STATS.counters[type];
   label := STATS_CounterNames[type];
   if c.paused return;
 
@@ -72,7 +76,7 @@ STATS_PostFrame :: ()
 {
   for STATS_CounterValues
   {
-    c := *G.stats.counters[it];
+    c := *STATS.counters[it];
     if c.increment_called
     {
       Post(it);

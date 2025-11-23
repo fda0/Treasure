@@ -1,3 +1,6 @@
+#scope_file;
+using,only(NET) COMPS;
+#scope_export;
 // @todo remove all NET_IsServer checks from this file
 // @todo this file should become more functional/pure network manager/layer
 
@@ -66,11 +69,11 @@ NET_Init :: ()
 {
   port: u16;
   if (GLOBAL.is_server) port = NET_DEFAULT_SEVER_PORT;
-  G.net.socket = SDLNet_CreateDatagramSocket(null, port);
+  NET.socket = SDLNet_CreateDatagramSocket(null, port);
 
-  if !G.net.socket
+  if !NET.socket
   {
-    G.net.err = true;
+    NET.err = true;
     Nlog(LOG_NetInfo, "Failed to create socket");
   }
   else
@@ -79,16 +82,13 @@ NET_Init :: ()
 
     #if NET_SIMULATE_PACKETLOSS
     {
-      SDLNet_SimulateDatagramPacketLoss(G.net.socket, NET_SIMULATE_PACKETLOSS);
+      SDLNet_SimulateDatagramPacketLoss(NET.socket, NET_SIMULATE_PACKETLOSS);
       Nlog(LOG_NetInfo, "%s: Simulating packetloss: %d", NET_SIMULATE_PACKETLOSS);
     }
   }
 }
 
-NET_HasError :: () -> bool
-{
-  return G.net.err;
-}
+NET_HasError :: () -> bool { return NET.err; }
 
 NET_HackyRatelimitting :: (last_accepted: *Timestamp, minimal_delay_seconds: float) -> bool
 {
@@ -105,7 +105,7 @@ NET_ConnectionIsInactive :: (con: NET_Connection) -> bool
 
 NET_ReceiveDatagram :: (dgram: **SDLNet_Datagram) -> bool
 {
-  return SDLNet_ReceiveDatagram(G.net.socket, dgram);
+  return SDLNet_ReceiveDatagram(NET.socket, dgram);
 }
 
 NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: bool)
@@ -121,7 +121,7 @@ NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: boo
 
   if dest.type == .NETWORK
   {
-    send_res := SDLNet_SendDatagram(G.net.socket, dest.address, dest.port, msg.data, xx msg.count);
+    send_res := SDLNet_SendDatagram(NET.socket, dest.address, dest.port, msg.data, xx msg.count);
     if !send_res
     {
       Nlog(LOG_NetSend, "Sending buffer of size %lluB to %s:%d; %s",

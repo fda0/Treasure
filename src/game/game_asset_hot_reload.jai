@@ -1,27 +1,23 @@
 #scope_file;
-using,only(AST) COMPS;
+using,only(AST,HR) COMPS;
+#import "File_Watcher";
 #scope_export;
 
 HOT_RELOAD :: true;
 // @todo Discard all hot-reload calls #if HOT_RELOAD == false.
 
-#scope_file;
-#import "File_Watcher";
-#scope_export;
-
-HOT_RELOAD_State :: struct
+HotReloadState :: struct
 {
   watcher: File_Watcher;
 };
 
-HOT_RELOAD_InitWatcher :: ()
+HR_InitWatcher :: ()
 {
-  using G.hr;
-  init(*watcher, HOT_RELOAD_FileWatcherCallback, watch_recursively=false);
-  add_directories(*watcher, ".");
+  init(*HR.watcher, HR_FileWatcherCallback, watch_recursively=false);
+  add_directories(*HR.watcher, ".");
 }
 
-HOT_RELOAD_ProcessNewPIEFile :: (file_path: string)
+HR_ProcessNewPIEFile :: (file_path: string)
 {
   push_allocator(AST.arena);
   if !AST.pie.err ASSET_LoadPieFile(file_path);
@@ -29,20 +25,20 @@ HOT_RELOAD_ProcessNewPIEFile :: (file_path: string)
   GPU_InitPipelines(); // @todo in the future detect what changes were found in .pie file and re-init only needed parts of the engine.
 }
 
-HOT_RELOAD_Iterate :: ()
+HR_Iterate :: ()
 {
   PerfFunc();
-  process_changes(*G.hr.watcher);
+  process_changes(*HR.watcher);
 }
 
-HOT_RELOAD_FileWatcherCallback :: (watcher: *File_Watcher(void), change: *File_Change, user_data: *void)
+HR_FileWatcherCallback :: (watcher: *File_Watcher(void), change: *File_Change, user_data: *void)
 {
   log("[HOT_RELOAD] Change for path %: %", change.full_path, change.events);
   if change.events & .MODIFIED
   {
     if EndsWith(change.full_path, "data.pie")
     {
-      HOT_RELOAD_ProcessNewPIEFile(change.full_path);
+      HR_ProcessNewPIEFile(change.full_path);
     }
   }
 }

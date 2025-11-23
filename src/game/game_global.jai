@@ -3,12 +3,17 @@ GLOBAL: GLOBAL_State;
 
 ComponentState :: struct
 {
-  AUDIO: AUDIO_State;
   AST: ASSET_State;
-  CL: CL_State;
+  AUDIO: AUDIO_State;
+  CL: ClientState;
+  DEV: DEV_State;
   FONT: FONT_State;
   GPU: GPU_State;
-  SV: SV_State;
+  HR: HotReloadState;
+  LOG: LOG_State;
+  NET: NET_State;
+  STATS: STATS_State;
+  SV: ServerState;
 }
 
 GLOBAL_State :: struct
