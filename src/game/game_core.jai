@@ -110,7 +110,7 @@ G_Iterate :: ()
   PerfFunc();
 
   // Advance time
-  if LaneIdx() == 0
+  if IsLaneTaskIdx(0)
   {
     now := TimeNow();
     G.delta_timestamp = now - G.frame_timestamp;
@@ -125,7 +125,7 @@ G_Iterate :: ()
   }
 
   // Mouse input things
-  if LaneIdx() == 0
+  if IsLaneTaskIdx(0)
   {
     if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
 
@@ -140,7 +140,7 @@ G_Iterate :: ()
   }
 
   // Pre frame inits
-  if LaneIdx() == 0
+  if IsLaneTaskIdx(0)
   {
     if !G.headless
     {
@@ -157,7 +157,7 @@ G_Iterate :: ()
   }
 
   // Hacky font testing
-  if LaneIdx() == 0
+  if IsLaneTaskIdx(0)
   {
     if !G.headless && KEY_Pressed(.F)
     {
@@ -174,18 +174,31 @@ G_Iterate :: ()
     }
   }
 
-  // Client network / playback
-  if LaneIdx() == 0
+  // Client network
+  if IsLaneTaskIdx(0)
   {
     CL_IterateReceive();
-    G_InterpolateSnapshots();
     CL_IterateSend();
+  }
+
+  if IsLaneTaskIdx(0) && !G.headless
+  {
+    G_CalculateCameraAndMouseInput();
+  }
+
+  if IsLaneTaskIdx(0)
+  {
+    // @todo MULTITHREAD
+    G_InterpolateSnapshots();
+    G_AdvanceLocalObjects();
+    ANIMATION_AnimateObjects();
+    WORLD_DrawObjects();
   }
 
   LaneSync();
 
   // UI work
-  if LaneIdx() == LaneFromTaskIdx(1)
+  if IsLaneTaskIdx(1)
   {
     if !G.headless
     {
@@ -199,33 +212,21 @@ G_Iterate :: ()
   }
 
   // Play sounds
-  if LaneIdx() == LaneFromTaskIdx(3) && !G.headless
+  if IsLaneTaskIdx(3) && !G.headless
   {
     // Play debug sound
     if KEY_Pressed(.M) AUDIO_PlaySound(.HIT);
     AUDIO_PlayObjectSounds();
   }
 
-  // Calculate mouse input and camera
-  if LaneIdx() == 0 && !G.headless
-  {
-    G_CalculateCameraAndMouseThings();
-  }
-
-  // Move the sun object
-  if LaneIdx() == 0
-  {
-    G_AdvanceLocalObjects();
-  }
-
   // Prepare client player input and send it
-  if LaneIdx() == 0 && !G.headless
+  if IsLaneTaskIdx(0) && !G.headless
   {
-    G_CollectClientInput();
+    G_ProcessInputAndSendToClient();
   }
 
   // Update marker object
-  if LaneIdx() == 0 && !G.headless
+  if IsLaneTaskIdx(0) && !G.headless
   {
     marker := G_GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
@@ -246,25 +247,10 @@ G_Iterate :: ()
     }
   }
 
-  // Calculate animations
-  if LaneIdx() == 0 && !G.headless
-  {
-    // @todo This actually has a race condition vs WORLD_DrawObjects
-    //       Most animations will be actually one frame old (edit: not anymore, its on the same lane now).
-    //       Needs redesign.
-    ANIMATION_AnimateObjects();
-  }
-
-  // Draw objects
-  if LaneIdx() == 0 && !G.headless
-  {
-    WORLD_DrawObjects();
-  }
-
   LaneSync();
 
   // Post frame work
-  if LaneIdx() == 0 && !G.headless
+  if IsLaneTaskIdx(0) && !G.headless
   {
     UI_Translate3DShapes();
     UI_ProcessBoxRenderCommands();
@@ -281,7 +267,7 @@ G_Iterate :: ()
   }
 
   // Post frame logic
-  if LaneIdx() == 0
+  if IsLaneTaskIdx(0)
   {
     STATS_PostFrame();
     LOG_FileFlush();
@@ -314,11 +300,12 @@ G_Iterate :: ()
   }
 }
 
-G_CalculateCameraAndMouseThings :: ()
+G_CalculateCameraAndMouseInput :: ()
 {
   if DEV.noclip
   {
     if KEY_Held(.MOUSE_LEFT)
+      // @todo MULTITHREAD
     {
       rot_speed := 0.0004;
       G.camera_angles.z += rot_speed * G.mouse_delta.x;
@@ -449,7 +436,7 @@ G_AdvanceLocalObjects :: ()
   }
 }
 
-G_CollectClientInput :: ()
+G_ProcessInputAndSendToClient :: ()
 {
   G.input.skills = 0;
 

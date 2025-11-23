@@ -58,6 +58,12 @@ LaneContext :: struct
   broadcast_memory: *u64;
 }
 
+IsLaneTaskIdx :: (i: s64) -> bool
+{
+  if (i == 0) return LaneIdx() == 0;
+  return LaneIdx() == LaneFromTaskIdx(i);
+}
+
 LaneIdx :: () -> s64
 {
   assert(context.lane.lane_count > 0);
