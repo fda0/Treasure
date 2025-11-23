@@ -30,8 +30,8 @@ Subarray :: (array: [] $T, offset: s64, count: s64) -> [] T
 }
 Skip :: (array: [] $T, distance: s64) -> [] T
 {
+  // Skip(.[1,2,3,4,5,6], 2) -> .[3, 4, 5, 6]
   distance = clamp(distance, 0, array.count);
-
   res := array;
   res.data += distance;
   res.count -= distance;
@@ -39,25 +39,25 @@ Skip :: (array: [] $T, distance: s64) -> [] T
 }
 Chop :: (array: [] $T, distance_from_end: s64) -> [] T
 {
+  // Chop(.[1,2,3,4,5,6], 2) -> .[1, 2, 3, 4]
   distance_from_end = clamp(distance_from_end, 0, array.count);
-
   res := array;
   res.count -= distance_from_end;
   return res;
 }
 Prefix :: (array: [] $T, count: s64) -> [] T
 {
+  // Prefix(.[1,2,3,4,5,6], 2) -> .[1, 2]
   count = clamp(count, 0, array.count);
-
   res := array;
   res.count = count;
   return res;
 }
 Suffix :: (array: [] $T, count: s64) -> [] T
 {
+  // Suffix(.[1,2,3,4,5,6], 2) -> .[5, 6]
   count = clamp(count, 0, array.count);
   distance := array.count - count;
-
   res := array;
   res.data += distance;
   res.count = count;

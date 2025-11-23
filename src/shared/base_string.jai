@@ -38,7 +38,6 @@ Substr :: (str: string, offset: s64, count: s64) -> string
 Skip :: (str: string, distance: s64) -> string
 {
   distance = clamp(distance, 0, str.count);
-
   res := str;
   res.data += distance;
   res.count -= distance;
@@ -47,7 +46,6 @@ Skip :: (str: string, distance: s64) -> string
 Chop :: (str: string, distance_from_end: s64) -> string
 {
   distance_from_end = clamp(distance_from_end, 0, str.count);
-
   res := str;
   res.count -= distance_from_end;
   return res;

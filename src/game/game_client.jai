@@ -43,12 +43,9 @@ CL_Init :: ()
 
     CL.local_objects_creation_serials = NewArray(OBJ_MAX_LOCAL_OBJECTS, u8);
 
-    CL.shared_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS, Ghost);
-    CL.local_ghosts = NewArray(OBJ_MAX_LOCAL_OBJECTS, Ghost);
-    CL.all_ghosts = .{
-      data = CL.shared_ghosts.data,
-      count = CL.shared_ghosts.count + CL.local_ghosts.count
-    };
+    CL.all_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS, Ghost);
+    CL.shared_ghosts = Prefix(CL.all_ghosts, OBJ_MAX_SHARED_OBJECTS);
+    CL.local_ghosts = Suffix(CL.all_ghosts, OBJ_MAX_LOCAL_OBJECTS);
   }
 
   if GLOBAL.is_server
