@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,GPU,FONT) COMPS;
+using,only(AST,G,GPU,FONT) COMPS;
 #scope_export;
 
 FONT_ATLAS_LAYERS :: 4;
@@ -78,7 +78,6 @@ FONT_Init :: ()
 
 FONT_MaybeResizeAtlasTexture :: ()
 {
-
   window_area := sqrt(G.window_dim.x * G.window_dim.y);
   new_texture_dim := max(CeilPow2(window_area.(u32)).(u16), 512);
 

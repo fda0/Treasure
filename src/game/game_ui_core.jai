@@ -1,4 +1,5 @@
 #scope_file
+using,only(G) COMPS;
 using BOX;
 #scope_export;
 

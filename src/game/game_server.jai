@@ -16,6 +16,8 @@ ServerState :: struct
   objects: [] Object;
   creation_serials: [] u8;
 
+  rng: Entropy;
+
   last_sleeper_group_spawn: ServerTick;
   last_sleeper_spawn: ServerTick;
   sleepers_spawned_in_group_count: s64;
@@ -491,7 +493,7 @@ SV_Init :: ()
     SV.objects = NewArray(OBJ_MAX_SHARED_OBJECTS, Object);
     SV.creation_serials = NewArray(OBJ_MAX_SHARED_OBJECTS, u8);
   }
-
+  SV.rng = .{0xdeadbeef_12349876, 0xfda0fda0_87654321};
   SIM_InitObjects();
 
   if GLOBAL.is_client

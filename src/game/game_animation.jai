@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,CL) COMPS;
+using,only(AST,CL,G) COMPS;
 #scope_export;
 
 Skeleton :: struct

@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL,NET) COMPS;
+using,only(CL,G,NET) COMPS; // @todo remove G from here in the future
 #scope_export;
 
 ClientState :: struct

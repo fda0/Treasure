@@ -159,7 +159,7 @@ SIM_AdvanceByTick :: ()
           turret.activity.last_projectile = projectile.key;
         }
 
-        SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*G.rng, AUDIO_SoundType.SWISH01, .SWISH05));
+        SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*SV.rng, AUDIO_SoundType.SWISH01, .SWISH05));
       }
     }
     else

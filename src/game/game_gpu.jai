@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,DEV,FONT,GPU) COMPS;
+using,only(AST,DEV,FONT,G,GPU) COMPS;
 #scope_export;
 
 GPU_USE_MSAA :: true;

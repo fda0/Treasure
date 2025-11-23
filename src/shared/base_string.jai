@@ -6,7 +6,7 @@ MatchFlags :: enum_flags u32
   SlashInsensitive;
 };
 
-StringFirstLast :: (first: *u8, last: *u8) -> string
+StrFirstLast :: (first: *u8, last: *u8) -> string
 {
   res: string;
   res.data = first;

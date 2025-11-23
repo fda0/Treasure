@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST) COMPS;
+using,only(AST,G) COMPS;
 #scope_export;
 
 ASSET_State :: struct

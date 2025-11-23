@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AUDIO,CL,DEV,FONT,STATS) COMPS;
+using,only(AUDIO,CL,DEV,FONT,G,STATS) COMPS;
 #scope_export;
 
 #scope_file;

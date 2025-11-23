@@ -1,5 +1,5 @@
 #scope_file;
-using,only(STATS) COMPS;
+using,only(G,STATS) COMPS;
 #scope_export;
 
 LOG_STAT_COUNTERS :: false;

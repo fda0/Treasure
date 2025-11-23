@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL,DEV) COMPS;
+using,only(CL,DEV,G) COMPS;
 #scope_export;
 
 WORLD_Dir :: enum u32

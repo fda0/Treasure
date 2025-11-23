@@ -1,8 +1,7 @@
 #scope_file;
-using,only(CL,DEV) COMPS;
+using,only(CL,DEV,G) COMPS;
 #scope_export;
 
-G: GAME_State;
 GAME_State :: struct
 {
   // startup profiling

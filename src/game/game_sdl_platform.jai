@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AUDIO,GPU) COMPS;
+using,only(AUDIO,GPU,G) COMPS;
 #scope_export;
 
 PLATFORM_PreInit :: ()

@@ -1,3 +1,7 @@
+#scope_file;
+using,only(G) COMPS;
+#scope_export;
+
 KEY_Code :: enum u32
 {
   using,except(COUNT) SDL_Scancode;

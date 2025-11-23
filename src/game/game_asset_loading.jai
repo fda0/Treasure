@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,GPU) COMPS;
+using,only(AST,G,GPU) COMPS;
 #scope_export;
 
 ASSET_InitPreGPU :: ()

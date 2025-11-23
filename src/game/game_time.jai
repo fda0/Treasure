@@ -18,11 +18,6 @@ FailTime :: (max_on_fail: bool) -> float
   return ifx max_on_fail then FLOAT32_MAX else 0;
 }
 
-GAME_ElapsedToFrame :: (since: Timestamp, max_on_fail := false) -> float
-{
-  return Elapsed(G.frame_timestamp, since, max_on_fail);
-}
-
 SecondsBetweenTicks :: (current: ServerTick, since: ServerTick, max_on_fail := false) -> float
 {
   if current < since return FailTime(max_on_fail);

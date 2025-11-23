@@ -1,5 +1,5 @@
 #scope_file;
-using,only(GPU) COMPS;
+using,only(G,GPU) COMPS;
 #scope_export;
 
 UI_Uniform :: struct
