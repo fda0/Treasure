@@ -1,3 +1,7 @@
+#scope_file;
+using,only(AST) COMPS;
+#scope_export;
+
 ASSET_State :: struct
 {
   pie: ASSET_PieFile;
@@ -141,14 +145,14 @@ ASSET_PieFile :: struct
 
 MaterialIsNil :: (a: *Material) -> bool
 {
-  return a == *G.ast.nil_material;
+  return a == *AST.nil_material;
 }
 
 GetMaterial :: (key: MATERIAL_Key) -> *Material
 {
   // @speed hash table lookup in the future
-  asset := *G.ast.nil_material;
-  for *G.ast.materials
+  asset := *AST.nil_material;
+  for *AST.materials
   {
     if (MatchKey(it.key, key))
     {
@@ -160,7 +164,7 @@ GetMaterial :: (key: MATERIAL_Key) -> *Material
   if !MaterialIsNil(asset)
   {
     asset.stream.last_touched_frame = G.frame_number;
-    if !(asset.stream.flags & .LOADED)  G.ast.tex_load_needed = true;
+    if !(asset.stream.flags & .LOADED)  AST.tex_load_needed = true;
   }
 
   return asset;
@@ -174,14 +178,14 @@ PrefetchMaterial :: (key: MATERIAL_Key)
 // Model
 ModelIsNil :: (a: *Model) -> bool
 {
-  return a == *G.ast.nil_model;
+  return a == *AST.nil_model;
 }
 
 GetModel :: (key: MODEL_Key, silent := false) -> *Model
 {
   // @speed hash table lookup in the future
-  asset := *G.ast.nil_model;
-  for *G.ast.models
+  asset := *AST.nil_model;
+  for *AST.models
   {
     if (MatchKey(it.key, key))
     {
@@ -190,7 +194,7 @@ GetModel :: (key: MODEL_Key, silent := false) -> *Model
     }
   }
 
-  if !silent && asset == *G.ast.nil_model
+  if !silent && asset == *AST.nil_model
     log("Model % not found", key, flags = .WARNING|.CONTENT);
 
   return asset;
@@ -199,6 +203,6 @@ GetModel :: (key: MODEL_Key, silent := false) -> *Model
 // Shader
 GetShader :: (type: ShaderType) -> string
 {
-  if xx type >= G.ast.shaders.count then return "";
-  return G.ast.shaders[type];
+  if xx type >= AST.shaders.count then return "";
+  return AST.shaders[type];
 }

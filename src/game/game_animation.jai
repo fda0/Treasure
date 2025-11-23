@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL) COMPS;
+using,only(AST,CL) COMPS;
 #scope_export;
 
 Skeleton :: struct
@@ -135,7 +135,7 @@ ANIMATION_InitSkeletons :: ()
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights,, G.ast.arena);
+      if has_non_one then r.joint_weights = array_copy(temp_weights,, AST.arena);
     }
   }
 
@@ -174,7 +174,7 @@ ANIMATION_InitSkeletons :: ()
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights,, G.ast.arena);
+      if has_non_one then r.joint_weights = array_copy(temp_weights,, AST.arena);
     }
   }
 }

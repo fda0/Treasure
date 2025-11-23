@@ -21,7 +21,6 @@ GAME_State :: struct
   frame_number: s64;
 
   // component states
-  ast: ASSET_State;
   hr: HOT_RELOAD_State;
   net: NET_State;
   dev: DEV_State;
@@ -159,7 +158,7 @@ GAME_Iterate :: ()
   if LaneIdx() == 0
   {
     CL_IterateReceive();
-    GAME_AdvanceGhosts();
+    GAME_InterpolateSnapshots();
     CL_IterateSend();
   }
 
@@ -196,7 +195,7 @@ GAME_Iterate :: ()
   // Move the sun object
   if LaneIdx() == 0
   {
-    GAME_UpdateOfflineObjects();
+    GAME_AdvanceLocalObjects();
   }
 
   // Prepare client player input and send it
@@ -228,10 +227,10 @@ GAME_Iterate :: ()
   }
 
   // Calculate animations
-  if LaneIdx() == LaneFromTaskIdx(2) && !G.headless
+  if LaneIdx() == 0 && !G.headless
   {
     // @todo This actually has a race condition vs WORLD_DrawObjects
-    //       Most animations will be actually one frame old.
+    //       Most animations will be actually one frame old (edit: not anymore, its on the same lane now).
     //       Needs redesign.
     ANIMATION_AnimateObjects();
   }
@@ -404,7 +403,7 @@ GAME_CalculateCameraAndMouseThings :: ()
   }
 }
 
-GAME_UpdateOfflineObjects :: ()
+GAME_AdvanceLocalObjects :: ()
 {
   // Move sun
   sun_time := G.at*4.0;
@@ -477,7 +476,7 @@ GAME_CollectClientInput :: ()
   CL_FlushPlayerInput();
 }
 
-GAME_AdvanceGhosts :: ()
+GAME_InterpolateSnapshots :: ()
 {
   PerfFunc();
   PLAYER_LOGS :: false;

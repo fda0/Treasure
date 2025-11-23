@@ -15,25 +15,19 @@ OBJ_Storage :: enum_flags u8
   ALL :: LOCAL | SHARED;
 };
 
-OBJ_Key :: struct
-{
-  index24_serial8: u32;
-};
+ObjIndex :: u32; // 24 bits only
+OBJ_Key :: struct { index24_serial8: u32; }
 
-OBJ_IndexOfKey :: (key: OBJ_Key) -> u32
-{
+OBJ_IndexOfKey :: (key: OBJ_Key) -> ObjIndex {
   return key.index24_serial8 & 0xff_ff_ff;
 }
-OBJ_SerialOfKey :: (key: OBJ_Key) -> u32
-{
+OBJ_SerialOfKey :: (key: OBJ_Key) -> u32 {
   return key.index24_serial8 >> 24;
 }
-OBJ_CreateKey :: (index: u32, serial: u32) -> OBJ_Key
-{
+OBJ_CreateKey :: (index: ObjIndex, serial: u32) -> OBJ_Key {
   return OBJ_Key.{(serial << 24) | (index & 0xff_ff_ff)};
 }
-OBJ_KeyIsZero :: (key: OBJ_Key) -> bool
-{
+OBJ_KeyIsZero :: (key: OBJ_Key) -> bool {
   return !key.index24_serial8;
 }
 

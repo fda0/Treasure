@@ -4,6 +4,7 @@ GLOBAL: GLOBAL_State;
 ComponentState :: struct
 {
   AUDIO: AUDIO_State;
+  AST: ASSET_State;
   CL: CL_State;
   FONT: FONT_State;
   GPU: GPU_State;

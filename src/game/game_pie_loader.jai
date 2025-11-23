@@ -1,6 +1,10 @@
+#scope_file;
+using,only(AST) COMPS;
+#scope_export;
+
 PIE_LOAD_File :: () -> string
 {
-  return G.ast.pie.file;
+  return AST.pie.file;
 }
 
 PIE_LOAD_Check :: (expr: bool, msg_code: Code, critical := true) -> bool #expand
@@ -9,14 +13,14 @@ PIE_LOAD_Check :: (expr: bool, msg_code: Code, critical := true) -> bool #expand
 
   if !expr
   {
-    if !G.ast.pie.err
+    if !AST.pie.err
     {
       msg: string = #insert msg_code;
       log_error(".PIE CRITICAL ERROR: %", msg);
     }
 
     // @todo Create a popup window error when asset file failed to load.
-    if critical  G.ast.pie.err = true;
+    if critical  AST.pie.err = true;
   }
   return expr;
 }

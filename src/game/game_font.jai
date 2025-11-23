@@ -1,6 +1,5 @@
 #scope_file;
-using,only(GPU) COMPS;
-using COMPS.FONT;
+using,only(AST,GPU,FONT) COMPS;
 #scope_export;
 
 FONT_ATLAS_LAYERS :: 4;
@@ -58,20 +57,20 @@ FONT_State :: struct
 
 FONT_Init :: ()
 {
-  if err then return;
+  if FONT.err then return;
 
-  err = FT_Init_FreeType(*ft_library);
+  FONT.err = FT_Init_FreeType(*FONT.ft_library);
   for enum_values_as_enum(FONT_Family)
   {
-    if err break;
-    if it.(s64) > G.ast.fonts.count
+    if FONT.err break;
+    if it.(s64) > AST.fonts.count
     {
-      log_error("Font %(%) is missing in .pie file. Loaded fonts count: %", it, it.(s64), G.ast.fonts.count);
+      log_error("Font %(%) is missing in .pie file. Loaded fonts count: %", it, it.(s64), AST.fonts.count);
       break;
     }
 
-    font_data := G.ast.fonts[it];
-    err = FT_New_Memory_Face(ft_library, font_data.data, xx font_data.count, 0, *ft_faces[it]);
+    font_data := AST.fonts[it];
+    FONT.err = FT_New_Memory_Face(FONT.ft_library, font_data.data, xx font_data.count, 0, *FONT.ft_faces[it]);
   }
 
   FONT_MaybeResizeAtlasTexture();
@@ -84,18 +83,18 @@ FONT_MaybeResizeAtlasTexture :: ()
   new_texture_dim := max(CeilPow2(window_area.(u32)).(u16), 512);
 
   // Do the atlas texture resize if new_texture_dim is 2x too small or more than 2x too big compared to previous texture_dim.
-  if new_texture_dim >= texture_dim * 2 || new_texture_dim*2 < texture_dim
+  if new_texture_dim >= FONT.texture_dim * 2 || new_texture_dim*2 < FONT.texture_dim
   {
-    log("UI texture atlas resizing from % to %", texture_dim, new_texture_dim, flags=.VERBOSE_ONLY);
-    texture_dim = new_texture_dim;
+    log("UI texture atlas resizing from % to %", FONT.texture_dim, new_texture_dim, flags=.VERBOSE_ONLY);
+    FONT.texture_dim = new_texture_dim;
 
     {
       SDL_ReleaseGPUTexture(GPU.device, GPU.ui.gpu_atlas_texture);
       tex_info := SDL_GPUTextureCreateInfo.{
         type = .SDL_GPU_TEXTURETYPE_2D_ARRAY,
         format = .SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        width = texture_dim,
-        height = texture_dim,
+        width = FONT.texture_dim,
+        height = FONT.texture_dim,
         layer_count_or_depth = FONT_ATLAS_LAYERS,
         num_levels = 1,
         usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
@@ -104,14 +103,14 @@ FONT_MaybeResizeAtlasTexture :: ()
       SDL_SetGPUTextureName(GPU.device, GPU.ui.gpu_atlas_texture, "UI Atlas Texture");
     }
 
-    ZeroArray(layers);
+    ZeroArray(FONT.layers);
     // Pre-seed layers to be full.
     // This isn't necessary but will result in more optimal fill order.
-    for * layers
+    for * FONT.layers
     {
       it.line_count = 1;
-      it.line_heights[0] = texture_dim;
-      it.line_advances[0] = texture_dim;
+      it.line_heights[0] = FONT.texture_dim;
+      it.line_advances[0] = FONT.texture_dim;
     }
   }
 }
@@ -125,7 +124,7 @@ FONT_FaceMetrics :: struct
 
 FONT_GetFaceMetrics :: (font: FONT_Family, pixel_height: u16) -> FONT_FaceMetrics
 {
-  ft_face := ft_faces[font];
+  ft_face := FONT.ft_faces[font];
   FT_Set_Pixel_Sizes(ft_face, 0, pixel_height);
 
   result := FONT_FaceMetrics.{
@@ -206,7 +205,7 @@ FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig
 
   width := orig_width + margin2;
   height := orig_height + margin2;
-  max_dim := texture_dim;
+  max_dim := FONT.texture_dim;
   all_lines_height: u16;
 
   // find best line
@@ -294,7 +293,7 @@ FONT_CreateGlyphInLayer :: (layer: *FONT_Layer, hash: u64, orig_width: u16, orig
 
 FONT_LayerIndexFromPointer :: (layer: *FONT_Layer) -> u8
 {
-  index := (layer.(u64) - layers.data.(u64)) / size_of(FONT_Layer);
+  index := (layer.(u64) - FONT.layers.data.(u64)) / size_of(FONT_Layer);
   return index.(u8);
 }
 
@@ -310,10 +309,10 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
   font := preferred_font;
 
   // Find already existing glyph run
-  for layer_offset: 0 .. layers.count-2
+  for layer_offset: 0 .. FONT.layers.count-2
   {
-    layer_index := (active_layer_index + layer_offset) % layers.count;
-    glyph_run := FONT_FindGlyphInLayer(*layers[layer_index], hash, false);
+    layer_index := (FONT.active_layer_index + layer_offset) % FONT.layers.count;
+    glyph_run := FONT_FindGlyphInLayer(*FONT.layers[layer_index], hash, false);
     if (glyph_run.hash == hash)
       return glyph_run.*;
   }
@@ -334,7 +333,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
       font = .NotoColorEmoji;
     }
 
-    ft_face := ft_faces[font];
+    ft_face := FONT.ft_faces[font];
     FT_Set_Pixel_Sizes(ft_face, 0, pixel_height);
     glyph_index := FT_Get_Char_Index(ft_face, codepoint);
     if !glyph_index then continue;
@@ -357,7 +356,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
       bitmap_and_margin_dim := bitmap_dim + Vec2(s32).{margin2, margin2};
 
       // Reject surfaces that are too big
-      if bitmap_and_margin_dim.x > texture_dim || bitmap_and_margin_dim.y > texture_dim
+      if bitmap_and_margin_dim.x > FONT.texture_dim || bitmap_and_margin_dim.y > FONT.texture_dim
         return .{};
 
       // Copy bitmap into a new buffer in a correct format (RGBA) with margin
@@ -394,20 +393,20 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
   // Find glyph slot in atlas.
   // Look for glyph slot in existing atlas layers.
   slot: *FONT_Glyph;
-  for layer_offset: 0 .. layers.count-2
+  for layer_offset: 0 .. FONT.layers.count-2
   {
-    layer_index := (active_layer_index + layer_offset) % layers.count;
-    slot = FONT_CreateGlyphInLayer(*layers[layer_index], hash, xx bitmap_dim.x, xx bitmap_dim.y);
+    layer_index := (FONT.active_layer_index + layer_offset) % FONT.layers.count;
+    slot = FONT_CreateGlyphInLayer(*FONT.layers[layer_index], hash, xx bitmap_dim.x, xx bitmap_dim.y);
     if slot then break;
   }
 
   if !slot // Couldn't find space in any layer. Clear the oldest layer to make space for new glyph.
   {
     // Advance active_layer index (backwards) and clear active layer.
-    active_layer_index += layers.count - 1;
-    active_layer_index %= layers.count;
+    FONT.active_layer_index += FONT.layers.count - 1;
+    FONT.active_layer_index %= FONT.layers.count;
 
-    active_layer := *layers[active_layer_index];
+    active_layer := *FONT.layers[FONT.active_layer_index];
     ZeroType(active_layer);
 
     slot = FONT_CreateGlyphInLayer(active_layer, hash, xx bitmap_dim.x, xx bitmap_dim.y);
@@ -451,8 +450,8 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
 
         assert(slot.p.x >= margin);
         assert(slot.p.y >= margin);
-        assert(slot.p.x + slot.dim.x + margin <= texture_dim);
-        assert(slot.p.y + slot.dim.y + margin <= texture_dim);
+        assert(slot.p.x + slot.dim.x + margin <= FONT.texture_dim);
+        assert(slot.p.y + slot.dim.y + margin <= FONT.texture_dim);
         dst_region := SDL_GPUTextureRegion.{
           texture = GPU.ui.gpu_atlas_texture,
           layer = slot.layer,

@@ -1,14 +1,14 @@
 #scope_file;
-using,only(GPU) COMPS;
+using,only(AST,GPU) COMPS;
 #scope_export;
 
 ASSET_InitPreGPU :: ()
 {
-  using,only(err) G.ast.pie;
+  using,only(err) COMPS.AST.pie;
 
-  init(*G.ast.arena, Gigabyte(32));
+  init(*AST.arena, Gigabyte(32));
   {
-    push_allocator(G.ast.arena);
+    push_allocator(AST.arena);
     if !err ASSET_LoadPieFile("data.pie");
     if !err ASSET_InitSkeletons();
     if !err ASSET_InitMaterials();
@@ -21,16 +21,13 @@ ASSET_InitPreGPU :: ()
 
 ASSET_InitPostGPU :: ()
 {
-  using,only(err) G.ast.pie;
-
   // Texture thread init
-  if !err
+  if !AST.pie.err
   {
-    using G.ast;
-    init(*tex_semaphore);
-    tex_thread.starting_context = context;
-    thread_init(*tex_thread, ASSET_TextureThreadEntry);
-    thread_start(*tex_thread);
+    init(*AST.tex_semaphore);
+    AST.tex_thread.starting_context = context;
+    thread_init(*AST.tex_thread, ASSET_TextureThreadEntry);
+    thread_start(*AST.tex_thread);
   }
 }
 
@@ -39,14 +36,14 @@ ASSET_PostFrame :: ()
   PerfFunc();
 
   // Wake up texture asset loading thread
-  if G.ast.tex_load_needed
+  if AST.tex_load_needed
   {
-    signal(*G.ast.tex_semaphore);
-    G.ast.tex_load_needed = false;
+    signal(*AST.tex_semaphore);
+    AST.tex_load_needed = false;
   }
 
   // Increment loaded_t
-  for *G.ast.materials
+  for *AST.materials
   {
     LOAD_T_SPEED :: 10.0;
     using it.stream;
@@ -57,26 +54,26 @@ ASSET_PostFrame :: ()
 
 ASSET_InitShaders :: ()
 {
-  G.ast.shaders = NewArray(G.ast.pie.shaders.count, string);
-  for G.ast.pie.shaders
-    G.ast.shaders[it_index] = PIE_LOAD_ListToString(it.data);
+  AST.shaders = NewArray(AST.pie.shaders.count, string);
+  for AST.pie.shaders
+    AST.shaders[it_index] = PIE_LOAD_ListToString(it.data);
 }
 
 ASSET_InitFonts :: ()
 {
-  G.ast.fonts = NewArray(G.ast.pie.fonts.count, string);
-  for G.ast.pie.fonts
-    G.ast.fonts[it_index] = PIE_LOAD_ListToString(it.data);
+  AST.fonts = NewArray(AST.pie.fonts.count, string);
+  for AST.pie.fonts
+    AST.fonts[it_index] = PIE_LOAD_ListToString(it.data);
 }
 
 ASSET_InitSounds :: ()
 {
-  G.ast.sounds = NewArray(G.ast.pie.sounds.count, AUDIO_Sound);
-  for G.ast.pie.sounds
+  AST.sounds = NewArray(AST.pie.sounds.count, AUDIO_Sound);
+  for AST.pie.sounds
   {
     // @todo reduce boilerplate on the whole [.pie -> in game memory] transformations
-    G.ast.sounds[it_index].data = PIE_LOAD_ListToString(it.data);
-    G.ast.sounds[it_index].format = it.format;
+    AST.sounds[it_index].data = PIE_LOAD_ListToString(it.data);
+    AST.sounds[it_index].format = it.format;
   }
 }
 
@@ -89,14 +86,14 @@ ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
   // Any false-sharing etc wasn't a concern when making this and it could be improved.
   while true
   {
-    wait_for(*G.ast.tex_semaphore);
+    wait_for(*AST.tex_semaphore);
 
     // Just load any texture that was used in the last 2 frames.
     // Do something smarter when texture eviction is added.
     min_load_frame := max(1, G.frame_number - 2);
     log("Attempting to load an asset with min_load_frame: %", min_load_frame);
 
-    for *G.ast.materials
+    for *AST.materials
     {
       if it.stream.last_touched_frame >= min_load_frame
         ASSET_LoadTextureFromPieToGPU(it, it_index);
@@ -113,7 +110,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
     return;
 
   // Material from .pie - it contains a big buffer that needs to uploaded to GPU
-  using,only(pie) G.ast;
+  using,only(pie) COMPS.AST;
   pie_material := *pie.materials[material_index];
   gpu_full_data := PIE_LOAD_ListToString(pie_material.tex.full_data);
 
@@ -205,7 +202,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
 // LOAD .PIE
 ASSET_LoadPieFile :: (file_path: string)
 {
-  using,only(pie) G.ast;
+  using,only(pie) COMPS.AST;
   using,only(err) pie;
 
   file, read_success := read_entire_file(file_path);
@@ -314,20 +311,20 @@ ASSET_InitMaterials :: ()
 
     // Fill nil_material data
     {
-      G.ast.nil_material.stream.flags |= .LOADED;
-      G.ast.nil_material.stream.loaded_t = 1;
-      G.ast.nil_material.has_texture = true;
-      G.ast.nil_material.texture_layers = 1;
-      G.ast.nil_material.tex = texture;
+      AST.nil_material.stream.flags |= .LOADED;
+      AST.nil_material.stream.loaded_t = 1;
+      AST.nil_material.has_texture = true;
+      AST.nil_material.texture_layers = 1;
+      AST.nil_material.tex = texture;
     }
   }
 
   // Init material array
   {
-    using,only(pie) G.ast;
+    using,only(pie) COMPS.AST;
 
-    G.ast.materials = NewArray(pie.materials.count, Material);
-    for *G.ast.materials
+    AST.materials = NewArray(pie.materials.count, Material);
+    for *AST.materials
     {
       pie_material := *pie.materials[it_index];
       it.key = MaterialKey(PIE_LOAD_ListToString(pie_material.name));
@@ -340,7 +337,7 @@ ASSET_InitMaterials :: ()
         it.stream.flags |= .LOADED;
         it.stream.loaded_t = 1;
       }
-      it.tex = G.ast.nil_material.tex; // fallback texture as default in case anybody tries to use it
+      it.tex = AST.nil_material.tex; // fallback texture as default in case anybody tries to use it
     }
   }
 }
@@ -348,14 +345,14 @@ ASSET_InitMaterials :: ()
 // MODELS
 ASSET_InitModels :: ()
 {
-  using,only(pie) G.ast;
+  using,only(pie) COMPS.AST;
 
   // Load meshes
   {
-    G.ast.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX,
+    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX,
       pie.links.models.vertices.size,
       "WORLD vertices");
-    G.ast.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
+    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
       pie.links.models.indices.size,
       "Model indices");
 
@@ -363,14 +360,14 @@ ASSET_InitModels :: ()
     indices_string := PIE_LOAD_ListToString(pie.links.models.indices);
 
     cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
-    GPU_TransferBuffer(cmd, G.ast.model_vertices, vertices_string.data, xx vertices_string.count);
-    GPU_TransferBuffer(cmd, G.ast.model_indices, indices_string.data, xx indices_string.count);
+    GPU_TransferBuffer(cmd, AST.model_vertices, vertices_string.data, xx vertices_string.count);
+    GPU_TransferBuffer(cmd, AST.model_indices, indices_string.data, xx indices_string.count);
     SDL_SubmitGPUCommandBuffer(cmd);
   }
 
-  G.ast.models = NewArray(pie.models.count, Model);
+  AST.models = NewArray(pie.models.count, Model);
 
-  for *model: G.ast.models
+  for *model: AST.models
   {
     pie_model := *pie.models[it_index];
 
@@ -378,11 +375,11 @@ ASSET_InitModels :: ()
     model.is_skinned = !!pie_model.is_skinned;
 
     if pie_model.is_skinned &&
-      PIE_LOAD_Check(pie_model.skeleton_index < G.ast.skeletons.count,
-        tprint("Pie model skeleton index (%) is out of bounds (count=%).", pie_model.skeleton_index, G.ast.skeletons.count),
+      PIE_LOAD_Check(pie_model.skeleton_index < AST.skeletons.count,
+        tprint("Pie model skeleton index (%) is out of bounds (count=%).", pie_model.skeleton_index, AST.skeletons.count),
         critical = false)
     {
-      model.skeleton = *G.ast.skeletons[pie_model.skeleton_index];
+      model.skeleton = *AST.skeletons[pie_model.skeleton_index];
     }
 
     pie_meshes := PIE_LOAD_ListToArray(pie_model.meshes);
@@ -392,11 +389,11 @@ ASSET_InitModels :: ()
     {
       pie_mesh := *pie_meshes[it_index];
 
-      if PIE_LOAD_Check(pie_mesh.material_index < G.ast.materials.count,
-        tprint("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, G.ast.materials.count),
+      if PIE_LOAD_Check(pie_mesh.material_index < AST.materials.count,
+        tprint("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count),
         critical = false)
       {
-        mesh.material = G.ast.materials[pie_mesh.material_index].key;
+        mesh.material = AST.materials[pie_mesh.material_index].key;
       }
 
       mesh.vertices_start_index = pie_mesh.vertices_start_index;
@@ -409,12 +406,12 @@ ASSET_InitModels :: ()
 // SKELETONS
 ASSET_InitSkeletons :: ()
 {
-  using,only(pie) G.ast;
+  using,only(pie) COMPS.AST;
 
   pie_skeletons := PIE_LOAD_ListToArray(pie.links.skeletons);
-  G.ast.skeletons = NewArray(pie_skeletons.count, Skeleton);
+  AST.skeletons = NewArray(pie_skeletons.count, Skeleton);
 
-  for *skel: G.ast.skeletons
+  for *skel: AST.skeletons
   {
     pie_skel := *pie_skeletons[it_index];
     skel.root_transform = pie_skel.root_transform;

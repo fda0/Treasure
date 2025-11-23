@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL,AUDIO) COMPS;
+using,only(AST,CL,AUDIO) COMPS;
 #scope_export;
 
 AUDIO_State :: struct
@@ -57,13 +57,13 @@ AUDIO_PlayObjectSounds :: ()
 
 AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 {
-  if xx sound_type >= G.ast.sounds.count
+  if xx sound_type >= AST.sounds.count
   {
     log_error("Can't play missing sound %", sound_type);
     return;
   }
 
-  sound := G.ast.sounds[sound_type];
+  sound := AST.sounds[sound_type];
   stream := SDL_CreateAudioStream(*sound.format, null);
   if stream == null
   {

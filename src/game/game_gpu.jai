@@ -1,5 +1,5 @@
 #scope_file;
-using,only(FONT,GPU) COMPS;
+using,only(AST,FONT,GPU) COMPS;
 #scope_export;
 
 GPU_USE_MSAA :: true;
@@ -428,8 +428,8 @@ GPU_Iterate :: ()
     //
 
     // Bind model vertices & indices
-    SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = G.ast.model_vertices}), 1);
-    SDL_BindGPUIndexBuffer(pass, *(SDL_GPUBufferBinding.{buffer = G.ast.model_indices}), .SDL_GPU_INDEXELEMENTSIZE_16BIT);
+    SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = AST.model_vertices}), 1);
+    SDL_BindGPUIndexBuffer(pass, *(SDL_GPUBufferBinding.{buffer = AST.model_indices}), .SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
     //
     // Models
