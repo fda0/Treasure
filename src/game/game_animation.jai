@@ -179,10 +179,8 @@ ANIMATION_InitSkeletons :: ()
   }
 }
 
-ANIMATION_AdvanceAnimationForGhost :: (ghost_index: ObjIndex)
+ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
 {
-  ghost := *G.all_ghosts[ghost_index];
-
   activity := *ghost.activity;
   animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
   animate_position := OBJ_HasAnyFlag(ghost, .ANIMATE_POSITION);
@@ -328,9 +326,9 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost_index: ObjIndex)
 ANIMATION_AdvanceAnimationForAllGhosts :: ()
 {
   PerfFunc();
-  for ghost, ghost_index: G.all_ghosts
+  for * ghost: G.all_ghosts
   {
-    inline ANIMATION_AdvanceAnimationForGhost(xx ghost_index);
+    inline ANIMATION_AdvanceAnimationForGhost(ghost);
   }
 }
 

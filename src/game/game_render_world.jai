@@ -92,10 +92,8 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
   GPU_BATCH_TransferUploadBytes(mesh_batch, vertices, transfer_size, vertices_count);
 }
 
-WORLD_DrawObject :: (ghost_index: ObjIndex)
+WORLD_DrawObject :: (ghost: Ghost)
 {
-  ghost := G.all_ghosts[ghost_index];
-
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
@@ -281,8 +279,8 @@ WORLD_DrawObject :: (ghost_index: ObjIndex)
 WORLD_DrawAllObjects :: ()
 {
   PerfFunc();
-  for ghost, ghost_index: G.all_ghosts
+  for ghost: G.all_ghosts
   {
-    inline WORLD_DrawObject(xx ghost_index);
+    inline WORLD_DrawObject(ghost);
   }
 }

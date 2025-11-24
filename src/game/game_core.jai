@@ -190,26 +190,24 @@ G_Iterate :: ()
   if IsLaneTaskIdx(0)
   {
     // @todo MULTITHREAD
-    G_ProcessSnapshotsForAllGhosts();
-    ANIMATION_AdvanceAnimationForAllGhosts();
-    WORLD_DrawAllObjects();
+    // G_ProcessSnapshotsForAllGhosts();
+    // ANIMATION_AdvanceAnimationForAllGhosts();
+    // WORLD_DrawAllObjects();
+    G_UpdateAllGhosts();
+  }
+
+  // UI work
+  if IsLaneTaskIdx(1) && !G.headless
+  {
+    PerfScope("UI workload");
+    UI_DeveloperKeyShortcuts();
+    UI_BeginBoxLayout();
+    UI_BuildHUD();
+    UI_BuildDeveloperWindow();
+    UI_FinishBoxLayout();
   }
 
   LaneSync();
-
-  // UI work
-  if IsLaneTaskIdx(1)
-  {
-    if !G.headless
-    {
-      PerfScope("UI workload");
-      UI_DeveloperKeyShortcuts();
-      UI_BeginBoxLayout();
-      UI_BuildHUD();
-      UI_BuildDeveloperWindow();
-      UI_FinishBoxLayout();
-    }
-  }
 
   // Play sounds
   if IsLaneTaskIdx(3) && !G.headless
@@ -247,8 +245,6 @@ G_Iterate :: ()
     }
   }
 
-  LaneSync();
-
   // Post frame work
   if IsLaneTaskIdx(0) && !G.headless
   {
@@ -273,7 +269,7 @@ G_Iterate :: ()
     LOG_FileFlush();
   }
 
-  if !G.time_finished_first_iterate
+  if IsLaneTaskIdx(0) && !G.time_finished_first_iterate
   {
     G.time_finished_first_iterate = current_time_monotonic();
     ms :: to_milliseconds;
@@ -481,12 +477,9 @@ G_ProcessInputAndSendToClient :: ()
   CL_FlushPlayerInput();
 }
 
-G_ProcessSnapshotForGhost :: (ghost_index: ObjIndex)
+G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
 {
-  if (ghost_index >= OBJ_MAX_SHARED_OBJECTS) return;
-  ghost := *G.shared_ghosts[ghost_index];
-
-  PerfFunc();
+  // PerfFunc();
   PLAYER_LOGS :: false;
 
   snapshot_queue := *CL.snapshots[ghost_index];
@@ -662,12 +655,30 @@ G_ProcessSnapshotForGhost :: (ghost_index: ObjIndex)
   if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
 }
 
+G_UpdateGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
+{
+  is_shared := ghost_index < OBJ_MAX_SHARED_OBJECTS;
+  if is_shared {
+    inline G_ProcessSnapshotForGhost(ghost, xx ghost_index);
+  }
+  inline ANIMATION_AdvanceAnimationForGhost(ghost);
+  inline WORLD_DrawObject(ghost);
+}
+
+G_UpdateAllGhosts :: ()
+{
+  for * ghost, ghost_index: G.all_ghosts
+  {
+    inline G_UpdateGhost(ghost, xx ghost_index);
+  }
+}
+
 G_ProcessSnapshotsForAllGhosts :: ()
 {
   PerfFunc();
-  for ghost, ghost_index: G.shared_ghosts
+  for * ghost, ghost_index: G.shared_ghosts
   {
-    inline G_ProcessSnapshotForGhost(xx ghost_index);
+    inline G_ProcessSnapshotForGhost(ghost, xx ghost_index);
   }
 }
 

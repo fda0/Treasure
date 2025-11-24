@@ -81,7 +81,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/game_render_world_shared.jai";
 #import "tr_hash_table";
 
-#import "superluminal"()(ENABLE_PROFILER = false);
+#import "superluminal"()(ENABLE_PROFILER = true);
 BOX :: #import "tr_box_layout"(Color=Color32);
 
 #import "Basic";
