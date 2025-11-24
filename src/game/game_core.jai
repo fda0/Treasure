@@ -95,11 +95,11 @@ G_Init :: ()
 
   // Allocate objects
   {
-    G.local_objects_creation_serials = NewArray(OBJ_MAX_LOCAL_OBJECTS, u8);
+    G.local_objects_creation_serials = NewArray(OBJ_LOCAL_COUNT, u8);
 
-    G.all_ghosts = NewArray(OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS, Ghost);
-    G.shared_ghosts = Prefix(G.all_ghosts, OBJ_MAX_SHARED_OBJECTS);
-    G.local_ghosts = Suffix(G.all_ghosts, OBJ_MAX_LOCAL_OBJECTS);
+    G.all_ghosts = NewArray(OBJ_SHARED_COUNT + OBJ_LOCAL_COUNT, Ghost);
+    G.shared_ghosts = Prefix(G.all_ghosts, OBJ_SHARED_COUNT);
+    G.local_ghosts = Suffix(G.all_ghosts, OBJ_LOCAL_COUNT);
   }
 
   G_InitLocalObjects();
@@ -181,23 +181,32 @@ G_Iterate :: ()
     CL_IterateSend();
   }
 
-  if IsLaneTaskIdx(0) && !G.headless
+  if IsLaneTaskIdx(1) && !G.headless
   {
     G_CalculateCameraAndMouseInput();
     G_AdvanceLocalObjects();
   }
 
-  if IsLaneTaskIdx(0)
+  LaneSync();
+
   {
-    // @todo MULTITHREAD
-    // G_ProcessSnapshotsForAllGhosts();
-    // ANIMATION_AdvanceAnimationForAllGhosts();
-    // WORLD_DrawAllObjects();
-    G_UpdateAllGhosts();
+    worker_count := LaneCount();
+    per_lane := OBJ_ALL_COUNT / worker_count;
+
+    work_count := per_lane;
+    if LaneIdx() == worker_count - 1 {
+      reminder := OBJ_ALL_COUNT % worker_count;
+      work_count += reminder;
+    }
+
+    work_start := per_lane * LaneIdx();
+    work_range := MakeRangeMinDim(work_start.(ObjIdx), work_count.(ObjIdx));
+
+    G_UpdateGhostsInRange(work_range);
   }
 
   // UI work
-  if IsLaneTaskIdx(1) && !G.headless
+  if LaneIdx() == LaneCount()-1 && !G.headless
   {
     PerfScope("UI workload");
     UI_DeveloperKeyShortcuts();
@@ -244,6 +253,8 @@ G_Iterate :: ()
       }
     }
   }
+
+  LaneSync();
 
   // Post frame work
   if IsLaneTaskIdx(0) && !G.headless
@@ -477,7 +488,7 @@ G_ProcessInputAndSendToClient :: ()
   CL_FlushPlayerInput();
 }
 
-G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
+G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
 {
   // PerfFunc();
   PLAYER_LOGS :: false;
@@ -655,9 +666,9 @@ G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
   if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
 }
 
-G_UpdateGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
+G_UpdateGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
 {
-  is_shared := ghost_index < OBJ_MAX_SHARED_OBJECTS;
+  is_shared := ghost_index < OBJ_SHARED_COUNT;
   if is_shared {
     inline G_ProcessSnapshotForGhost(ghost, xx ghost_index);
   }
@@ -665,11 +676,12 @@ G_UpdateGhost :: (ghost: *Ghost, ghost_index: ObjIndex)
   inline WORLD_DrawObject(ghost);
 }
 
-G_UpdateAllGhosts :: ()
+G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 {
-  for * ghost, ghost_index: G.all_ghosts
+  for ghost_index: range
   {
-    inline G_UpdateGhost(ghost, xx ghost_index);
+    ghost := *G.all_ghosts[ghost_index];
+    inline G_UpdateGhost(ghost, ghost_index);
   }
 }
 
@@ -857,7 +869,7 @@ G_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   Initialize(ghost);
 
   G.local_objects_creation_serials[index] = max(G.local_objects_creation_serials[index] + 1, 1);
-  index_in_all_objects := index + OBJ_MAX_SHARED_OBJECTS;
+  index_in_all_objects := index + OBJ_SHARED_COUNT;
   ghost.key = OBJ_CreateKey(index_in_all_objects, G.local_objects_creation_serials[index]);
 
   ghost.init = true;
@@ -873,12 +885,12 @@ G_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
   index_in_valid_storage := false;
   {
     min: u32 = 0;
-    max: u32 = OBJ_MAX_SHARED_OBJECTS;
+    max: u32 = OBJ_SHARED_COUNT;
     if (storage_mask & .SHARED)
       index_in_valid_storage |= (key_index >= 0 && key_index < max);
 
     min = max;
-    max += OBJ_MAX_LOCAL_OBJECTS;
+    max += OBJ_LOCAL_COUNT;
     if (storage_mask & .LOCAL)
       index_in_valid_storage |= (key_index >= min && key_index < max);
   }

@@ -490,8 +490,8 @@ SV_Init :: ()
 
   // Allocate data
   {
-    SV.objects = NewArray(OBJ_MAX_SHARED_OBJECTS, Object);
-    SV.creation_serials = NewArray(OBJ_MAX_SHARED_OBJECTS, u8);
+    SV.objects = NewArray(OBJ_SHARED_COUNT, Object);
+    SV.creation_serials = NewArray(OBJ_SHARED_COUNT, u8);
   }
   SV.rng = .{0xdeadbeef_12349876, 0xfda0fda0_87654321};
   SIM_InitObjects();

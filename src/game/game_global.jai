@@ -25,6 +25,8 @@ GLOBAL_State :: struct
 
   server_exit_on_disconnect: bool;
 
+  core_count: s64;
+
   packets_for_local_user: NET_LocalPackets;
   packets_for_local_server: NET_LocalPackets;
 }

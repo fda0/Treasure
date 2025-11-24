@@ -21,7 +21,7 @@ CL_Init :: ()
   Nlog(LOG_NetInfo, "Launching as client");
 
   // Allocate snapshots
-  CL.snapshots = NewArray(OBJ_MAX_SHARED_OBJECTS, Queue(NET_CL_MAX_SNAPSHOTS, Snapshot));
+  CL.snapshots = NewArray(OBJ_SHARED_COUNT, Queue(NET_CL_MAX_SNAPSHOTS, Snapshot));
 
   if GLOBAL.is_server
   {
@@ -142,10 +142,10 @@ CL_IterateReceive :: ()
 
 CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_idx: u32)
 {
-  if insert_shared_idx >= OBJ_MAX_SHARED_OBJECTS
+  if insert_shared_idx >= OBJ_SHARED_COUNT
   {
     Nlog(LOG_NetPayload, "Snapshot insert rejected. insert_shared_idx % overflows %",
-      insert_shared_idx, OBJ_MAX_SHARED_OBJECTS);
+      insert_shared_idx, OBJ_SHARED_COUNT);
     return;
   }
 

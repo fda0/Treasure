@@ -1,6 +1,6 @@
-OBJ_MAX_SHARED_OBJECTS :: 128;
-OBJ_MAX_LOCAL_OBJECTS :: 4096 * 16;
-OBJ_MAX_ALL_OBJECTS :: OBJ_MAX_SHARED_OBJECTS + OBJ_MAX_LOCAL_OBJECTS;
+OBJ_SHARED_COUNT : ObjIdx : 128;
+OBJ_LOCAL_COUNT : ObjIdx : 4096 * 16;
+OBJ_ALL_COUNT : ObjIdx : OBJ_SHARED_COUNT + OBJ_LOCAL_COUNT;
 OBJ_MAX_ANIMATIONS :: 4;
 OBJ_MAX_COLLIDER_VERTS :: 4;
 
@@ -15,16 +15,16 @@ OBJ_Storage :: enum_flags u8
   ALL :: LOCAL | SHARED;
 };
 
-ObjIndex :: u32; // 24 bits only
+ObjIdx :: u32; // 24 bits only
 OBJ_Key :: struct { index24_serial8: u32; }
 
-OBJ_IndexOfKey :: (key: OBJ_Key) -> ObjIndex {
+OBJ_IndexOfKey :: (key: OBJ_Key) -> ObjIdx {
   return key.index24_serial8 & 0xff_ff_ff;
 }
 OBJ_SerialOfKey :: (key: OBJ_Key) -> u32 {
   return key.index24_serial8 >> 24;
 }
-OBJ_CreateKey :: (index: ObjIndex, serial: u32) -> OBJ_Key {
+OBJ_CreateKey :: (index: ObjIdx, serial: u32) -> OBJ_Key {
   return OBJ_Key.{(serial << 24) | (index & 0xff_ff_ff)};
 }
 OBJ_KeyIsZero :: (key: OBJ_Key) -> bool {

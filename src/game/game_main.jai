@@ -11,6 +11,7 @@ main :: ()
   PLATFORM_PostInit();
 
   // Setup lane multithreading; Start client game loop.
+  GLOBAL.core_count = get_number_of_processors();
   lane_group := LaneGroupCreate(4);
   LaneGroupLaunch(G_LoopThreadEntry, lane_group, true);
   exit(0);
@@ -88,4 +89,5 @@ BOX :: #import "tr_box_layout"(Color=Color32);
 #import "File";
 #import "Thread";
 #import "Atomics";
+#import "System";
 String :: #import "String";
