@@ -57,8 +57,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_audio.jai";
 #load "game_gpu.jai";
 #load "game_gpu_batch.jai";
-#load "game_render_world.jai";
-#load "game_render_ui.jai";
+#load "game_render.jai";
 #load "game_font.jai";
 #load "game_tests.jai";
 #load "game_pie_loader.jai";
@@ -79,7 +78,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/base_barrier.jai";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
-#load "../shared/game_render_world_shared.jai";
+#load "../shared/game_render_shared.jai";
 #import "tr_hash_table";
 
 #import "superluminal"()(ENABLE_PROFILER = false);
