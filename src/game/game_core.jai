@@ -184,15 +184,15 @@ G_Iterate :: ()
   if IsLaneTaskIdx(0) && !G.headless
   {
     G_CalculateCameraAndMouseInput();
+    G_AdvanceLocalObjects();
   }
 
   if IsLaneTaskIdx(0)
   {
     // @todo MULTITHREAD
-    G_InterpolateSnapshots();
-    G_AdvanceLocalObjects();
-    ANIMATION_AnimateObjects();
-    WORLD_DrawObjects();
+    G_ProcessSnapshotsForAllGhosts();
+    ANIMATION_AdvanceAnimationForAllGhosts();
+    WORLD_DrawAllObjects();
   }
 
   LaneSync();
@@ -481,184 +481,193 @@ G_ProcessInputAndSendToClient :: ()
   CL_FlushPlayerInput();
 }
 
-G_InterpolateSnapshots :: ()
+G_ProcessSnapshotForGhost :: (ghost_index: ObjIndex)
 {
+  if (ghost_index >= OBJ_MAX_SHARED_OBJECTS) return;
+  ghost := *G.shared_ghosts[ghost_index];
+
   PerfFunc();
   PLAYER_LOGS :: false;
 
-  for *ghost, ghost_index: G.shared_ghosts
+  snapshot_queue := *CL.snapshots[ghost_index];
+
+  #if PLAYER_LOGS {
+    is_player_index := ghost_index == OBJ_IndexOfKey(G_GetGhost(.SHARED, CL.player_key).key);
+  }
+
+  // Advance handled_tick, lerp_t and calculate new at_tick
+  ghost.handled_tick = ghost.at.tick;
+  ghost.tick_t += G.dt * TICK_RATE.(float) * ghost.tick_speed;
   {
-    snapshot_queue := *CL.snapshots[ghost_index];
+    full_ticks_in_tick_t := ghost.tick_t.(ServerTick);
+    ghost.at.tick += full_ticks_in_tick_t;
+    ghost.tick_t -= full_ticks_in_tick_t.(float);
+  }
 
-    #if PLAYER_LOGS {
-      is_player_index := ghost_index == OBJ_IndexOfKey(G_GetGhost(.SHARED, CL.player_key).key);
-    }
-
-    // Advance handled_tick, lerp_t and calculate new at_tick
-    ghost.handled_tick = ghost.at.tick;
-    ghost.tick_t += G.dt * TICK_RATE.(float) * ghost.tick_speed;
+  // We reached a destination tick - pick a new destination.
+  if ghost.at.tick >= ghost.dest.tick
+  {
+    // Calculate ghost.tick_speed + snap to latest tick if we are too far behind.
     {
-      full_ticks_in_tick_t := ghost.tick_t.(ServerTick);
-      ghost.at.tick += full_ticks_in_tick_t;
-      ghost.tick_t -= full_ticks_in_tick_t.(float);
-    }
+      prev_received_time: Timestamp;
+      highest_time_delta: Timestamp;
 
-    // We reached a destination tick - pick a new destination.
-    if ghost.at.tick >= ghost.dest.tick
-    {
-      // Calculate ghost.tick_speed + snap to latest tick if we are too far behind.
+      highest_tick := ServerTick_ZERO;
+      smallest_tick := ServerTick_MAX;
+
+      for snapshot_queue
       {
-        prev_received_time: Timestamp;
-        highest_time_delta: Timestamp;
+        smallest_tick = min(smallest_tick, it.tick);
+        highest_tick = max(highest_tick, it.tick);
 
-        highest_tick := ServerTick_ZERO;
-        smallest_tick := ServerTick_MAX;
-
-        for snapshot_queue
+        // This method requires queue to be sorted.
+        if prev_received_time > 0 && it.received_time > prev_received_time
         {
-          smallest_tick = min(smallest_tick, it.tick);
-          highest_tick = max(highest_tick, it.tick);
+          delta := it.received_time - prev_received_time;
+          highest_time_delta = max(highest_time_delta, delta);
+        }
+        prev_received_time = it.received_time;
+      }
 
-          // This method requires queue to be sorted.
-          if prev_received_time > 0 && it.received_time > prev_received_time
-          {
-            delta := it.received_time - prev_received_time;
-            highest_time_delta = max(highest_time_delta, delta);
-          }
-          prev_received_time = it.received_time;
+      // Snap to latest if we are too far behind.
+      if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
+      {
+        #if PLAYER_LOGS if is_player_index {
+          log("[RESET PLAYER PLAYBACK] old at: %, from: %, dest: %, tick_t: %; smallest: %, highest: %, new at: %",
+            ghost.at.tick, ghost.from.tick, ghost.dest.tick,
+            ghost.tick_t, smallest_tick, highest_tick, highest_tick - 1);
         }
 
-        // Snap to latest if we are too far behind.
-        if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
+        ghost.at.tick = xx (highest_tick - 1);
+        ghost.tick_t = 0.0;
+      }
+
+      // Calculate new tick_speed
+      ghost.tick_speed = 1.0;
+      if highest_tick > ghost.at.tick && highest_time_delta > 0
+      {
+        tick_dist := highest_tick - ghost.at.tick;
+        // @todo This has an issue currently where we oscillate between 0.8 and 1.2 speeds constantly.
+        //       Needs a stabilization where we aim to keep playback at 1.0.
+        //       Temp solution for now is to check for tick_dist > 1
+        if tick_dist > 1
         {
+          tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
+          time_dist_seconds := ToSeconds(highest_time_delta);
+
+          ratio := tick_dist_seconds / time_dist_seconds;
+          ghost.tick_speed = lerp(1.0, ratio, 0.1 * G.dt);
+
           #if PLAYER_LOGS if is_player_index {
-            log("[RESET PLAYER PLAYBACK] old at: %, from: %, dest: %, tick_t: %; smallest: %, highest: %, new at: %",
-              ghost.at.tick, ghost.from.tick, ghost.dest.tick,
-              ghost.tick_t, smallest_tick, highest_tick, highest_tick - 1);
-          }
-
-          ghost.at.tick = xx (highest_tick - 1);
-          ghost.tick_t = 0.0;
-        }
-
-        // Calculate new tick_speed
-        ghost.tick_speed = 1.0;
-        if highest_tick > ghost.at.tick && highest_time_delta > 0
-        {
-          tick_dist := highest_tick - ghost.at.tick;
-          // @todo This has an issue currently where we oscillate between 0.8 and 1.2 speeds constantly.
-          //       Needs a stabilization where we aim to keep playback at 1.0.
-          //       Temp solution for now is to check for tick_dist > 1
-          if tick_dist > 1
-          {
-            tick_dist_seconds := tick_dist.(float) * TICK_FLOAT_STEP;
-            time_dist_seconds := ToSeconds(highest_time_delta);
-
-            ratio := tick_dist_seconds / time_dist_seconds;
-            ghost.tick_speed = clamp(ratio, 0.8, 1.2);
-
-            #if PLAYER_LOGS if is_player_index {
-              log("highest_time_delta: %, tick_dist: %, tick_dist_s: %, time_dist_s: %, ratio: %, ghost.tick_speed: %",
-                highest_time_delta, tick_dist, tick_dist_seconds, time_dist_seconds, ratio, ghost.tick_speed);
-            }
-          }
-          else
-          {
-            #if PLAYER_LOGS if is_player_index {
-              log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
-            }
+            log("highest_time_delta: %, tick_dist: %, tick_dist_s: %, time_dist_s: %, ratio: %, ghost.tick_speed: %",
+              highest_time_delta, tick_dist, tick_dist_seconds, time_dist_seconds, ratio, ghost.tick_speed);
           }
         }
         else
         {
           #if PLAYER_LOGS if is_player_index {
-            log("highest_time_delta: %", highest_time_delta);
+            log("highest_time_delta: %, tick_dist: %", highest_time_delta, tick_dist);
           }
         }
       }
-
-      // Calculate desired from/dest tick values.
-      desired_from_tick := ghost.at.tick;
-      desired_dest_tick := (desired_from_tick + 1).(ServerTick);
-
-      best_from := *ghost.from;
-      best_dest := *ghost.dest;
-
-      // @todo simplify the loop by assuming queue is sorted.
-      for * snapshot_queue
+      else
       {
-        // - Pick FROM -
-        if it.tick > best_from.tick && it.tick <= desired_from_tick
-        {
-          // We are getting prefect hit or at least we are getting closer to it.
-          best_from = it;
+        #if PLAYER_LOGS if is_player_index {
+          log("highest_time_delta: %", highest_time_delta);
         }
+      }
+    }
 
-        // - Pick DEST-
-        if it.tick == desired_dest_tick
+    // Calculate desired from/dest tick values.
+    desired_from_tick := ghost.at.tick;
+    desired_dest_tick := (desired_from_tick + 1).(ServerTick);
+
+    best_from := *ghost.from;
+    best_dest := *ghost.dest;
+
+    // @todo simplify the loop by assuming queue is sorted.
+    for * snapshot_queue
+    {
+      // - Pick FROM -
+      if it.tick > best_from.tick && it.tick <= desired_from_tick
+      {
+        // We are getting prefect hit or at least we are getting closer to it.
+        best_from = it;
+      }
+
+      // - Pick DEST-
+      if it.tick == desired_dest_tick
+      {
+        // Perfect case.
+        best_dest = it;
+      }
+
+      if best_dest.tick < desired_dest_tick
+      {
+        // If BEST is under desired_dest_tick -> pick IT if it's larger.
+        if it.tick > best_dest.tick
         {
-          // Perfect case.
           best_dest = it;
         }
-
-        if best_dest.tick < desired_dest_tick
+      }
+      else if best_dest.tick > desired_dest_tick
+      {
+        // If BEST and IT are over desired_dest_tick -> pick IT if it's smaller.
+        if it.tick > desired_dest_tick
         {
-          // If BEST is under desired_dest_tick -> pick IT if it's larger.
-          if it.tick > best_dest.tick
+          if it.tick < best_dest.tick
           {
             best_dest = it;
           }
         }
-        else if best_dest.tick > desired_dest_tick
-        {
-          // If BEST and IT are over desired_dest_tick -> pick IT if it's smaller.
-          if it.tick > desired_dest_tick
-          {
-            if it.tick < best_dest.tick
-            {
-              best_dest = it;
-            }
-          }
-        }
-      }
-
-      if best_from != *ghost.from || best_dest != *ghost.dest
-      {
-        // @todo check if dest is under desired_dest_tick -> this means we are extrapolating.
-        // If we are extraplating a lot we should stop and signal dropped connection to the user.
-        // Also what if the server was slow/client is too fast and we got ahead -> this case needs a fixup!
-
-        // Update lerp_speed and lerp_t.
-        tick_range := best_dest.tick.(s64) - best_from.tick.(s64);
-        if tick_range >= 1
-        {
-          // Overwrite ghost from, dest
-          ghost.from = best_from.*;
-          ghost.dest = best_dest.*;
-        }
-      }
-
-      #if PLAYER_LOGS if is_player_index {
-        log("[player playback] SQ.min=%; SQ.count=%; at: %, from: %, dest: %, tick_t: %",
-          snapshot_queue.min, QueueCount(snapshot_queue),
-          ghost.at.tick, ghost.from.tick, ghost.dest.tick,
-          ghost.tick_t);
       }
     }
 
-    snap_range := max(ghost.dest.tick - ghost.from.tick, 1);
-    snap_progress := ghost.at.tick - ghost.from.tick;
-    snap_t := snap_progress / snap_range;
+    if best_from != *ghost.from || best_dest != *ghost.dest
+    {
+      // @todo check if dest is under desired_dest_tick -> this means we are extrapolating.
+      // If we are extraplating a lot we should stop and signal dropped connection to the user.
+      // Also what if the server was slow/client is too fast and we got ahead -> this case needs a fixup!
 
-    tick_t := ghost.tick_t / snap_range;
-    lerp_t := snap_t + tick_t;
+      // Update lerp_speed and lerp_t.
+      tick_range := best_dest.tick.(s64) - best_from.tick.(s64);
+      if tick_range >= 1
+      {
+        // Overwrite ghost from, dest
+        ghost.from = best_from.*;
+        ghost.dest = best_dest.*;
+      }
+    }
 
-    ghost.at.obj = lerp(ghost.from.obj, ghost.dest.obj, lerp_t);
+    #if PLAYER_LOGS if is_player_index {
+      log("[player playback] SQ.min=%; SQ.count=%; at: %, from: %, dest: %, tick_t: %",
+        snapshot_queue.min, QueueCount(snapshot_queue),
+        ghost.at.tick, ghost.from.tick, ghost.dest.tick,
+        ghost.tick_t);
+    }
+  }
 
-    if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
-    if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
-    if IsTickDue(ghost.at.obj.creation_tick, ghost) ghost.creation_time = G.frame_timestamp;
-    if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
+  snap_range := max(ghost.dest.tick - ghost.from.tick, 1);
+  snap_progress := ghost.at.tick - ghost.from.tick;
+  snap_t := snap_progress / snap_range;
+
+  tick_t := ghost.tick_t / snap_range;
+  lerp_t := snap_t + tick_t;
+
+  ghost.at.obj = lerp(ghost.from.obj, ghost.dest.obj, lerp_t);
+
+  if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
+  if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
+  if IsTickDue(ghost.at.obj.creation_tick, ghost) ghost.creation_time = G.frame_timestamp;
+  if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
+}
+
+G_ProcessSnapshotsForAllGhosts :: ()
+{
+  PerfFunc();
+  for ghost, ghost_index: G.shared_ghosts
+  {
+    inline G_ProcessSnapshotForGhost(xx ghost_index);
   }
 }
 

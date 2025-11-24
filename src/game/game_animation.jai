@@ -179,153 +179,158 @@ ANIMATION_InitSkeletons :: ()
   }
 }
 
-ANIMATION_AnimateObjects :: ()
+ANIMATION_AdvanceAnimationForGhost :: (ghost_index: ObjIndex)
+{
+  ghost := *G.all_ghosts[ghost_index];
+
+  activity := *ghost.activity;
+  animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
+  animate_position := OBJ_HasAnyFlag(ghost, .ANIMATE_POSITION);
+
+  if OBJ_HasAnyFlag(ghost, .IS_TURRET)
+  {
+    t := WrapFloat(activity.attack_t, 0.0, ghost.attack_cooldown_t);
+    max_t := min(1.25, ghost.attack_cooldown_t);
+    t = min(t, max_t) / max_t;
+
+    pos_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
+    rot_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
+
+    ghost.animated_p.xy = ghost.p.xy;
+    if activity.is_attacking || activity.attack_t < 0.0
+    {
+      ghost.animated_p.z = pos_t * 1.0;
+      ghost.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
+    }
+    else
+    {
+      animate_rotation = true;
+      animate_position = true;
+    }
+  }
+
+  if OBJ_HasAnyFlag(ghost, .TARGETED_PROJECTILE)
+  {
+    rng := OBJ_EntropyFromObj(ghost);
+    weight0 := RngF_01(*rng);
+    weight1 := (1.0 - weight0)*0.5 + RngF_01(*rng)*0.5;
+    offset0 := RngF_01(*rng);
+    offset1 := RngF_01(*rng);
+
+    t := Elapsed(G.frame_timestamp, ghost.creation_time);
+    ghost.animated_rot =
+    RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
+    RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
+  }
+
+  if animate_rotation
+  {
+    ROTATION_SPEED :: 16.0;
+
+    q0 := ghost.animated_rot;
+    q1 := ghost.rotation;
+
+    w1 := min(1.0, G.dt * ROTATION_SPEED);
+    w0 := 1.0 - w1;
+
+    if dot(q0, q1) < 0.0
+    w1 = -w1;
+
+    ghost.animated_rot = normalize(Mix(q0, q1, w0, w1));
+  }
+  else if !OBJ_HasAnyFlag(ghost, .MANUAL_ROTATION)
+  {
+    ghost.animated_rot = ghost.rotation;
+  }
+
+  if animate_position
+  {
+    POSITION_SPEED :: 10.0;
+
+    delta := ghost.p - ghost.animated_p;
+    move_by := delta * (G.dt * POSITION_SPEED);
+    ghost.animated_p += move_by;
+
+    for *ghost.animated_p.component
+    {
+      if abs(delta.component[it_index]) < 0.01
+      it.* = ghost.p.component[it_index];
+    }
+  }
+  else if !OBJ_HasAnyFlag(ghost, .MANUAL_POSITION)
+  {
+    ghost.animated_p = ghost.p;
+  }
+
+  if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
+  {
+    as := *ghost.anim;
+    model := GetModel(ghost.model);
+    if model.is_skinned
+    {
+      WALK_T_SPEED :: 0.016;
+      WALK_TO_RUN :: 0.2;
+      RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
+
+      moved_distance := length(ghost.moved_dp);
+      moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
+
+      as.walk_cycle += moved_cycle_delta;
+      as.walk_cycle = WrapFloat(as.walk_cycle, 0, 100);
+
+      target_is_walking := 0.0;
+      if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
+      if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
+      is_walking_t := clamp(G.dt * 10.0, 0, 1);
+      as.is_walking = lerp(as.is_walking, target_is_walking, is_walking_t);
+      as.is_walking = Snap01(as.is_walking, 0.001);
+
+      as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+      as.is_attacking = clamp(as.is_attacking, 0, 1);
+
+      if (ghost.key == G.player_key) {
+        // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
+      }
+
+
+
+
+      as.tracks[0].weight = 1.0;
+      as.tracks[0].id = .IDLE;
+      as.tracks[0].t += G.dt;
+      as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].id, as.tracks[0].t);
+
+      as.tracks[1].weight = clamp(as.is_walking, 0, 1);
+      as.tracks[1].id = .WALK;
+      as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].id, WrapFloat(as.walk_cycle, 0, 1));
+
+      as.tracks[2].weight = clamp(as.is_walking - 1.0, 0, 1);
+      as.tracks[2].id = .RUN;
+      as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].id, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
+
+      as.tracks[3].weight = as.is_attacking;
+      as.tracks[3].id = .PUNCH;
+      as.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
+      as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
+      as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].id, as.tracks[3].t);
+
+      as.tracks[4].weight = sqrt(as.is_attacking);
+      as.tracks[4].id = .PUNCH_HANDS;
+      as.tracks[4].t = as.tracks[3].t;
+
+      as.tracks[5].id = .DEATH;
+      as.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
+      as.tracks[5].weight = ifx ghost.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
+    }
+  }
+}
+
+ANIMATION_AdvanceAnimationForAllGhosts :: ()
 {
   PerfFunc();
-  AssertThatScopeIsSingleThreaded();
-
-  for *ghost: G.all_ghosts
+  for ghost, ghost_index: G.all_ghosts
   {
-    activity := *ghost.activity;
-    animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
-    animate_position := OBJ_HasAnyFlag(ghost, .ANIMATE_POSITION);
-
-    if OBJ_HasAnyFlag(ghost, .IS_TURRET)
-    {
-      t := WrapFloat(activity.attack_t, 0.0, ghost.attack_cooldown_t);
-      max_t := min(1.25, ghost.attack_cooldown_t);
-      t = min(t, max_t) / max_t;
-
-      pos_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
-      rot_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
-
-      ghost.animated_p.xy = ghost.p.xy;
-      if activity.is_attacking || activity.attack_t < 0.0
-      {
-        ghost.animated_p.z = pos_t * 1.0;
-        ghost.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
-      }
-      else
-      {
-        animate_rotation = true;
-        animate_position = true;
-      }
-    }
-
-    if OBJ_HasAnyFlag(ghost, .TARGETED_PROJECTILE)
-    {
-      rng := OBJ_EntropyFromObj(ghost);
-      weight0 := RngF_01(*rng);
-      weight1 := (1.0 - weight0)*0.5 + RngF_01(*rng)*0.5;
-      offset0 := RngF_01(*rng);
-      offset1 := RngF_01(*rng);
-
-      t := Elapsed(G.frame_timestamp, ghost.creation_time);
-      ghost.animated_rot =
-        RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
-        RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
-    }
-
-    if animate_rotation
-    {
-      ROTATION_SPEED :: 16.0;
-
-      q0 := ghost.animated_rot;
-      q1 := ghost.rotation;
-
-      w1 := min(1.0, G.dt * ROTATION_SPEED);
-      w0 := 1.0 - w1;
-
-      if dot(q0, q1) < 0.0
-        w1 = -w1;
-
-      ghost.animated_rot = normalize(Mix(q0, q1, w0, w1));
-    }
-    else if !OBJ_HasAnyFlag(ghost, .MANUAL_ROTATION)
-    {
-      ghost.animated_rot = ghost.rotation;
-    }
-
-    if animate_position
-    {
-      POSITION_SPEED :: 10.0;
-
-      delta := ghost.p - ghost.animated_p;
-      move_by := delta * (G.dt * POSITION_SPEED);
-      ghost.animated_p += move_by;
-
-      for *ghost.animated_p.component
-      {
-        if abs(delta.component[it_index]) < 0.01
-          it.* = ghost.p.component[it_index];
-      }
-    }
-    else if !OBJ_HasAnyFlag(ghost, .MANUAL_POSITION)
-    {
-      ghost.animated_p = ghost.p;
-    }
-
-    if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
-    {
-      as := *ghost.anim;
-      model := GetModel(ghost.model);
-      if model.is_skinned
-      {
-        WALK_T_SPEED :: 0.016;
-        WALK_TO_RUN :: 0.2;
-        RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
-
-        moved_distance := length(ghost.moved_dp);
-        moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
-
-        as.walk_cycle += moved_cycle_delta;
-        as.walk_cycle = WrapFloat(as.walk_cycle, 0, 100);
-
-        target_is_walking := 0.0;
-        if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
-        if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
-        is_walking_t := clamp(G.dt * 10.0, 0, 1);
-        as.is_walking = lerp(as.is_walking, target_is_walking, is_walking_t);
-        as.is_walking = Snap01(as.is_walking, 0.001);
-
-        as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
-        as.is_attacking = clamp(as.is_attacking, 0, 1);
-
-        if (ghost.key == G.player_key) {
-          // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
-        }
-
-
-
-
-        as.tracks[0].weight = 1.0;
-        as.tracks[0].id = .IDLE;
-        as.tracks[0].t += G.dt;
-        as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].id, as.tracks[0].t);
-
-        as.tracks[1].weight = clamp(as.is_walking, 0, 1);
-        as.tracks[1].id = .WALK;
-        as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].id, WrapFloat(as.walk_cycle, 0, 1));
-
-        as.tracks[2].weight = clamp(as.is_walking - 1.0, 0, 1);
-        as.tracks[2].id = .RUN;
-        as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].id, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
-
-        as.tracks[3].weight = as.is_attacking;
-        as.tracks[3].id = .PUNCH;
-        as.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
-        as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
-        as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].id, as.tracks[3].t);
-
-        as.tracks[4].weight = sqrt(as.is_attacking);
-        as.tracks[4].id = .PUNCH_HANDS;
-        as.tracks[4].t = as.tracks[3].t;
-
-        as.tracks[5].id = .DEATH;
-        as.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-        as.tracks[5].weight = ifx ghost.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
-      }
-    }
+    inline ANIMATION_AdvanceAnimationForGhost(xx ghost_index);
   }
 }
 

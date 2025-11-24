@@ -92,191 +92,197 @@ WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices
   GPU_BATCH_TransferUploadBytes(mesh_batch, vertices, transfer_size, vertices_count);
 }
 
-WORLD_DrawObjects :: ()
+WORLD_DrawObject :: (ghost_index: ObjIndex)
 {
-  PerfFunc();
+  ghost := G.all_ghosts[ghost_index];
 
-  for *ghost: G.all_ghosts
+  draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
+  draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
+  debug_colliders := DEV.show_colliders;
+  draw_hp := OBJ_HasAnyFlag(ghost, .HAS_HP);
+
+  if draw_model
   {
-    draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
-    draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
-    debug_colliders := DEV.show_colliders;
-    draw_hp := OBJ_HasAnyFlag(ghost, .HAS_HP);
+    transform := TranslationMatrix(ghost.animated_p);
+    transform = transform * RotationMatrix(ghost.animated_rot); // rotate first, translate second
 
-    if draw_model
+    hover_color := C4.{1,1,1,1};
+    if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
+    if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
+
+    WORLD_DrawModel(ghost.model, transform, ghost.anim.tracks,
+      C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));
+  }
+
+  if draw_hp
+  {
+    bar_height := 10.0;
+    start_x := -ghost.max_hp / 2;
+    start_y := -bar_height*2;
+    alpha := 1.0;
+
+    if ghost.death_tick
     {
-      transform := TranslationMatrix(ghost.animated_p);
-      transform = transform * RotationMatrix(ghost.animated_rot); // rotate first, translate second
-
-      hover_color := C4.{1,1,1,1};
-      if ghost.key == G.hover_object         then hover_color.x   *= 0.25*Cos01(G.at*1.5);
-      if ghost.key == DEV.selected_object  then hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
-
-      WORLD_DrawModel(ghost.model, transform, ghost.anim.tracks,
-                      C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));
+      death_t := Elapsed(G.frame_timestamp, ghost.death_time);
+      death_t = clamp(death_t * 2.0, 0.0, 1.0);
+      alpha = 1.0 - death_t;
     }
 
-    if draw_hp
+    max_hp_bar := UI_Shape.{
+      rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.max_hp, bar_height}),
+      color = Color32_RGBAf(0, 0, 0, alpha)
+    };
+    active_hp_bar := UI_Shape.{
+      rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.hp), bar_height}),
+      color = Color32_RGBAf(0.1, 1, 0, alpha)
+    };
+
+    UI_Draw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
+    UI_Draw3D(ghost.p + .{0,0,1.75}, active_hp_bar);
+
+    if ghost.team
     {
-      bar_height := 10.0;
-      start_x := -ghost.max_hp / 2;
-      start_y := -bar_height*2;
-      alpha := 1.0;
+      color: Color32;
+      if ghost.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
+      if ghost.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
 
-      if ghost.death_tick
-      {
-        death_t := Elapsed(G.frame_timestamp, ghost.death_time);
-        death_t = clamp(death_t * 2.0, 0.0, 1.0);
-        alpha = 1.0 - death_t;
-      }
+      bar_dim := bar_height;
 
-      max_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.max_hp, bar_height}),
-        color = Color32_RGBAf(0, 0, 0, alpha)
+      team_square := UI_Shape.{
+        rect = MakeRectMinDim(.{start_x - bar_dim, start_y}, .{bar_dim, bar_dim}),
+        color = color
       };
-      active_hp_bar := UI_Shape.{
-        rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.hp), bar_height}),
-        color = Color32_RGBAf(0.1, 1, 0, alpha)
-      };
+      UI_Draw3D(ghost.p + .{0,0,1.75}, team_square);
+    }
+  }
 
-      UI_Draw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
-      UI_Draw3D(ghost.p + .{0,0,1.75}, active_hp_bar);
+  if draw_colliders || debug_colliders
+  {
+    height := ghost.height;
+    material := ghost.material;
 
-      if ghost.team
+    if debug_colliders && draw_model
+    {
+      if !height  height = 0.2;
+      if IsZeroKey(material)  material = MaterialKey("tex.Leather011");
+    }
+
+    face_count := cast(u32) ifx height then 6 else 1;
+    vertices_per_face: u32 = 3 * 2;
+    mesh_verts_count: u32 = face_count * vertices_per_face;
+    mesh_verts: [6 * 3 * 2] WORLD_Vertex; // CPU side temporary buffer
+
+    bot_z := ghost.p.z;
+    top_z := bot_z + height;
+
+    collider := ghost.collider;
+    {
+      cube_verts := V3.[
+        V3.{xy=collider.vertices[0], z=bot_z}, // 0
+        V3.{xy=collider.vertices[1], z=bot_z}, // 1
+        V3.{xy=collider.vertices[2], z=bot_z}, // 2
+        V3.{xy=collider.vertices[3], z=bot_z}, // 3
+        V3.{xy=collider.vertices[0], z=top_z}, // 4
+        V3.{xy=collider.vertices[1], z=top_z}, // 5
+        V3.{xy=collider.vertices[2], z=top_z}, // 6
+        V3.{xy=collider.vertices[3], z=top_z}, // 7
+      ];
+
+      // mapping to expand verts to walls (each wall is made out of 2 triangles)
+      cube_verts_map_array := u32.[
+        0,5,4,0,1,5, // E
+        2,7,6,2,3,7, // W
+        1,6,5,1,2,6, // N
+        3,4,7,3,0,4, // S
+        6,4,5,6,7,4, // Top
+        1,3,2,1,0,3, // Bottom
+      ];
+
+      cube_verts_map := cube_verts_map_array.data;
+      if (face_count == 1) // generate top mesh only
+      cube_verts_map += 6*WORLD_Dir.T.(u32);
+
+      for mesh_index: MakeRange(mesh_verts_count)
       {
-        color: Color32;
-        if ghost.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
-        if ghost.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
-
-        bar_dim := bar_height;
-
-        team_square := UI_Shape.{
-          rect = MakeRectMinDim(.{start_x - bar_dim, start_y}, .{bar_dim, bar_dim}),
-          color = color
-        };
-        UI_Draw3D(ghost.p + .{0,0,1.75}, team_square);
+        cube_index := cube_verts_map[mesh_index];
+        mesh_verts[mesh_index].p = cube_verts[cube_index];
+        mesh_verts[mesh_index].p.x += ghost.p.x;
+        mesh_verts[mesh_index].p.y += ghost.p.y;
       }
     }
 
-    if draw_colliders || debug_colliders
+    w0 := length(collider.vertices[0] - collider.vertices[1]);
+    w1 := length(collider.vertices[1] - collider.vertices[2]);
+    w2 := length(collider.vertices[2] - collider.vertices[3]);
+    w3 := length(collider.vertices[3] - collider.vertices[0]);
+
+    for face_i: MakeRange(face_count)
     {
-      height := ghost.height;
-      material := ghost.material;
+      face_dir := face_i.(WORLD_Dir);
+      if (face_count == 1) face_dir = .T;
 
-      if debug_colliders && draw_model
+      face_uvs := V2.[
+        .{0, 1},
+        .{1, 0},
+        .{0, 0},
+        .{0, 1},
+        .{1, 1},
+        .{1, 0},
+      ];
+
+      // If texture_texels_per_m is set - scale texture uvs
+      if (ghost.texture_texels_per_m)
       {
-        if !height  height = 0.2;
-        if IsZeroKey(material)  material = MaterialKey("tex.Leather011");
-      }
-
-      face_count := cast(u32) ifx height then 6 else 1;
-      vertices_per_face: u32 = 3 * 2;
-      mesh_verts_count: u32 = face_count * vertices_per_face;
-      mesh_verts: [6 * 3 * 2] WORLD_Vertex; // CPU side temporary buffer
-
-      bot_z := ghost.p.z;
-      top_z := bot_z + height;
-
-      collider := ghost.collider;
-      {
-        cube_verts := V3.[
-          V3.{xy=collider.vertices[0], z=bot_z}, // 0
-          V3.{xy=collider.vertices[1], z=bot_z}, // 1
-          V3.{xy=collider.vertices[2], z=bot_z}, // 2
-          V3.{xy=collider.vertices[3], z=bot_z}, // 3
-          V3.{xy=collider.vertices[0], z=top_z}, // 4
-          V3.{xy=collider.vertices[1], z=top_z}, // 5
-          V3.{xy=collider.vertices[2], z=top_z}, // 6
-          V3.{xy=collider.vertices[3], z=top_z}, // 7
-        ];
-
-        // mapping to expand verts to walls (each wall is made out of 2 triangles)
-        cube_verts_map_array := u32.[
-          0,5,4,0,1,5, // E
-          2,7,6,2,3,7, // W
-          1,6,5,1,2,6, // N
-          3,4,7,3,0,4, // S
-          6,4,5,6,7,4, // Top
-          1,3,2,1,0,3, // Bottom
-        ];
-
-        cube_verts_map := cube_verts_map_array.data;
-        if (face_count == 1) // generate top mesh only
-          cube_verts_map += 6*WORLD_Dir.T.(u32);
-
-        for mesh_index: MakeRange(mesh_verts_count)
-        {
-          cube_index := cube_verts_map[mesh_index];
-          mesh_verts[mesh_index].p = cube_verts[cube_index];
-          mesh_verts[mesh_index].p.x += ghost.p.x;
-          mesh_verts[mesh_index].p.y += ghost.p.y;
-        }
-      }
-
-      w0 := length(collider.vertices[0] - collider.vertices[1]);
-      w1 := length(collider.vertices[1] - collider.vertices[2]);
-      w2 := length(collider.vertices[2] - collider.vertices[3]);
-      w3 := length(collider.vertices[3] - collider.vertices[0]);
-
-      for face_i: MakeRange(face_count)
-      {
-        face_dir := face_i.(WORLD_Dir);
-        if (face_count == 1) face_dir = .T;
-
-        face_uvs := V2.[
-          .{0, 1},
-          .{1, 0},
-          .{0, 0},
-          .{0, 1},
-          .{1, 1},
-          .{1, 0},
-        ];
-
-        // If texture_texels_per_m is set - scale texture uvs
-        if (ghost.texture_texels_per_m)
-        {
-          // face texture UVs
-          face_dim: V2;
-          if face_dir ==
-          {
-            case .E; face_dim = V2.{w0, height};
-            case .W; face_dim = V2.{w2, height};
-            case .N; face_dim = V2.{w3, height};
-            case .S; face_dim = V2.{w1, height};
-            case .T; face_dim = V2.{w0, w1}; // works for rects only
-            case .B; face_dim = V2.{w0, w1}; // works for rects only
-          }
-
-          face_scale := face_dim * ghost.texture_texels_per_m;
-          for *face_uvs
-            it.* *= face_scale;
-        }
-
-        obj_norm_E := V3.{xy=collider.normals[0]};
-        obj_norm_W := V3.{xy=collider.normals[2]};
-        obj_norm_N := V3.{xy=collider.normals[1]};
-        obj_norm_S := V3.{xy=collider.normals[3]};
-        normal: V3;
+        // face texture UVs
+        face_dim: V2;
         if face_dir ==
         {
-          case .E; normal = obj_norm_E;
-          case .W; normal = obj_norm_W;
-          case .N; normal = obj_norm_N;
-          case .S; normal = obj_norm_S;
-          case .T; normal = V3.{0,0,1};
-          case .B; normal = V3.{0,0,-1};
+          case .E; face_dim = V2.{w0, height};
+          case .W; face_dim = V2.{w2, height};
+          case .N; face_dim = V2.{w3, height};
+          case .S; face_dim = V2.{w1, height};
+          case .T; face_dim = V2.{w0, w1}; // works for rects only
+          case .B; face_dim = V2.{w0, w1}; // works for rects only
         }
 
-        for vert_i: MakeRange(vertices_per_face)
-        {
-          i := (face_i * vertices_per_face) + vert_i;
-          mesh_verts[i].uv = face_uvs[vert_i];
-          mesh_verts[i].normal = normal;
-        }
+        face_scale := face_dim * ghost.texture_texels_per_m;
+        for *face_uvs
+        it.* *= face_scale;
       }
 
-      // Transfer verts to GPU
-      WORLD_DrawVertices(material, mesh_verts.data, mesh_verts_count);
+      obj_norm_E := V3.{xy=collider.normals[0]};
+      obj_norm_W := V3.{xy=collider.normals[2]};
+      obj_norm_N := V3.{xy=collider.normals[1]};
+      obj_norm_S := V3.{xy=collider.normals[3]};
+      normal: V3;
+      if face_dir ==
+      {
+        case .E; normal = obj_norm_E;
+        case .W; normal = obj_norm_W;
+        case .N; normal = obj_norm_N;
+        case .S; normal = obj_norm_S;
+        case .T; normal = V3.{0,0,1};
+        case .B; normal = V3.{0,0,-1};
+      }
+
+      for vert_i: MakeRange(vertices_per_face)
+      {
+        i := (face_i * vertices_per_face) + vert_i;
+        mesh_verts[i].uv = face_uvs[vert_i];
+        mesh_verts[i].normal = normal;
+      }
     }
+
+    // Transfer verts to GPU
+    WORLD_DrawVertices(material, mesh_verts.data, mesh_verts_count);
+  }
+}
+
+WORLD_DrawAllObjects :: ()
+{
+  PerfFunc();
+  for ghost, ghost_index: G.all_ghosts
+  {
+    inline WORLD_DrawObject(xx ghost_index);
   }
 }
