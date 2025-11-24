@@ -310,14 +310,14 @@ UI_DrawDeveloperFontAtlas :: ()
     dim := box.inner;
     shade := ifx it_index == FONT.active_layer_index then 1.0 else 0.7;
 
-    shape := UI_Shape.{
+    shape := RD_UIShape.{
       rect = MakeRectMinDim(p, dim),
       clip_rect = clip,
       tex_rect = MakeRectMinDim(.{}, tex_dim),
       tex_layer = xx it_index,
       color = White(shade = shade),
     };
-    UI_Draw2D(shape);
+    RD_UIDraw2D(shape);
   }
 }
 

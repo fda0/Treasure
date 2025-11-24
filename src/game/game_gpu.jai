@@ -44,7 +44,7 @@ GPU_State :: struct
   ui_pipeline: *SDL_GPUGraphicsPipeline;
 
   bound_uniform_hash: u64;
-  world_uniform: WORLD_Uniform;
+  world_uniform: RD_WorldUniform;
 
   mesh_tex_sampler: *SDL_GPUSampler;
 
@@ -59,10 +59,10 @@ GPU_State :: struct
     indices: [1024 * 64] u32;
     indices_count: u32;
 
-    shapes: [1024 * 16] UI_Shape;
+    shapes: [1024 * 16] RD_UIShape;
     shapes_count: u32;
 
-    shapes3d: [1024 * 2] UI_ShapeIn3D;
+    shapes3d: [1024 * 2] RD_UIShapeIn3D;
     shapes3d_count: u32;
   };
   ui: UI_GPU;
@@ -240,7 +240,7 @@ GPU_InitPipelines :: ()
 
     VERTEX_BUFFERS :: SDL_GPUVertexBufferDescription.[
       .{slot = 0,
-        pitch = size_of(WORLD_Vertex),
+        pitch = size_of(RD_WorldVertex),
         input_rate = .SDL_GPU_VERTEXINPUTRATE_VERTEX,
         instance_step_rate = 0,
       },
@@ -251,23 +251,23 @@ GPU_InitPipelines :: ()
     VERTEX_ATTRIBS :: SDL_GPUVertexAttribute.[
       .{format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
         location = 0,
-        offset = #run offset_of(WORLD_Vertex, "p"), // 0
+        offset = #run offset_of(RD_WorldVertex, "p"), // 0
       },
       .{format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
         location = 1,
-        offset = #run offset_of(WORLD_Vertex, "normal"),
+        offset = #run offset_of(RD_WorldVertex, "normal"),
       },
       .{format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
         location = 2,
-        offset = #run offset_of(WORLD_Vertex, "uv"),
+        offset = #run offset_of(RD_WorldVertex, "uv"),
       },
       .{format = .SDL_GPU_VERTEXELEMENTFORMAT_UINT,
         location = 3,
-        offset = #run offset_of(WORLD_Vertex, "joints_packed4"),
+        offset = #run offset_of(RD_WorldVertex, "joints_packed4"),
       },
       .{format = .SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
         location = 4,
-        offset = #run offset_of(WORLD_Vertex, "joint_weights"),
+        offset = #run offset_of(RD_WorldVertex, "joint_weights"),
       },
     ];
     pipeline.vertex_input_state.num_vertex_attributes = VERTEX_ATTRIBS.count;
@@ -404,7 +404,7 @@ GPU_Iterate :: ()
         material := GetMaterial(gpu_verts.target.material_key);
 
         // Uniforms
-        WORLD_ApplyMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
+        RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
         if MatchKey(material.key, MaterialKey("tex.Clay002")) ||
            MatchKey(material.key, MaterialKey("tex.Grass004"))
         {
@@ -454,7 +454,7 @@ GPU_Iterate :: ()
         material := GetMaterial(mesh.material);
 
         // Uniforms
-        WORLD_ApplyMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
+        RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
         GPU.world_uniform.flags |= .UseInstanceBuffer;
         if model.is_skinned then GPU.world_uniform.flags |= .DoMeshSkinning;
         if MatchKey(model.key, ModelKey("Tree"))
@@ -505,7 +505,7 @@ GPU_Iterate :: ()
     cycle = true,
   };
 
-  GPU.world_uniform = WORLD_Uniform.{
+  GPU.world_uniform = RD_WorldUniform.{
     camera_transform = G.sun_camera_transform,
     shadow_transform = G.sun_camera_transform,
     camera_position = G.camera_p,
@@ -606,7 +606,7 @@ GPU_Iterate :: ()
   if GPU.ui.indices_count
   {
     // Upload uniform
-    uniform := UI_Uniform.{
+    uniform := RD_UIUniform.{
       window_dim = G.window_dim,
       texture_dim = V2.{xx FONT.texture_dim, xx FONT.texture_dim},
     };
@@ -907,7 +907,7 @@ GPU_TransferBuffer :: (cmd: *SDL_GPUCommandBuffer, gpu_buffer: *SDL_GPUBuffer, d
   SDL_ReleaseGPUTransferBuffer(GPU.device, buf_transfer);
 }
 
-GPU_UpdateWorldUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: WORLD_Uniform)
+GPU_UpdateWorldUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: RD_WorldUniform)
 {
   uniform_hash := Hash64Any(uniform);
   if (GPU.bound_uniform_hash != uniform_hash)
@@ -918,7 +918,7 @@ GPU_UpdateWorldUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: WORLD_Uniform)
   }
 }
 
-GPU_UpdateUIUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: UI_Uniform)
+GPU_UpdateUIUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: RD_UIUniform)
 {
   uniform_hash := Hash64Any(uniform);
   if (GPU.bound_uniform_hash != uniform_hash)

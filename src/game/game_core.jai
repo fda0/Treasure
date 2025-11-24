@@ -79,6 +79,17 @@ GameState :: struct
   all_ghosts: [] Ghost;
 }
 
+Direction3D :: enum u8
+{
+  E; // +X
+  W; // -X
+  N; // +Y
+  S; // -Y
+  T; // +Z
+  B; // -Z
+  COUNT;
+}
+
 G_Init :: ()
 {
   PerfFunc();
@@ -89,7 +100,7 @@ G_Init :: ()
   ASSET_InitPostGPU();
   ANIMATION_InitSkeletons();
   FONT_Init();
-  UI_ClearRenderCounters();
+  RD_UIClearRenderCounters();
   HR_InitWatcher();
   CL_Init();
 
@@ -263,7 +274,7 @@ G_Iterate :: ()
   // Post frame work
   if IsLaneTaskIdx(0) && !G.headless
   {
-    UI_Translate3DShapes();
+    RD_UITranslate3DShapes();
     UI_ProcessBoxRenderCommands();
     UI_DrawDeveloperFontAtlas();
 
@@ -271,7 +282,7 @@ G_Iterate :: ()
 
     // Post frame calls
     GPU_BATCH_PostFrame();
-    UI_ClearRenderCounters();
+    RD_UIClearRenderCounters();
     ASSET_PostFrame();
 
     HR_Iterate();
@@ -324,7 +335,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
       inline G_ProcessSnapshotForGhost(ghost, ghost_index);
     }
     inline ANIMATION_AdvanceAnimationForGhost(ghost);
-    inline WORLD_DrawObject(ghost);
+    inline RD_WorldDrawObject(ghost);
   }
 }
 

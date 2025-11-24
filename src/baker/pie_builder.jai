@@ -5,7 +5,7 @@ PIE_Builder :: struct
   active_list: *PIE_List;
   active_list_type: Type;
 
-  vertices: [..] WORLD_Vertex;
+  vertices: [..] RD_WorldVertex;
   indices: [..] u16;
 
   models: [..] PIE_Model;

@@ -2,7 +2,7 @@ TEXT_LineParams :: struct
 {
   draw: bool;
   draw_p: V2; // .y is the baseline position - it's under the text.
-  draw_clip: Rect = UI_Shape.INIT_CLIP;
+  draw_clip: Rect = RD_UIShape.INIT_CLIP;
   draw_color: Color32;
 
   dimensions: V2; // out
@@ -41,14 +41,14 @@ TEXT_ProcessLine :: (text: string, font: FONT_Family, pixel_height: u16, using p
         p.x = Round(p.x);
         p.y = Round(p.y);
 
-        shape := UI_Shape.{
+        shape := RD_UIShape.{
           rect = MakeRangeMinDim(p, tex_dim),
           clip_rect = draw_clip,
           tex_rect = MakeRangeMinDim(tex_p, tex_dim),
           tex_layer = xx glyph.layer,
           color = draw_color,
         };
-        UI_Draw2D(shape);
+        RD_UIDraw2D(shape);
       }
 
       text_pos.x += glyph.advance;
@@ -58,7 +58,7 @@ TEXT_ProcessLine :: (text: string, font: FONT_Family, pixel_height: u16, using p
   }
 }
 
-TEXT_DrawLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2, clip := UI_Shape.INIT_CLIP)
+TEXT_DrawLine :: (text: string, font: FONT_Family, pixel_height: u16, color: Color32, pos: V2, clip := RD_UIShape.INIT_CLIP)
 {
   params := TEXT_LineParams.{
     draw = true,

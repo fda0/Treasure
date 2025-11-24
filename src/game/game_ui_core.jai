@@ -67,7 +67,7 @@ UI_ProcessBoxRenderCommands :: ()
     c4 := C4_from_C32(cmd.color);
     c32 := C32_from_C4(c4);
 
-    shape := UI_Shape.{
+    shape := RD_UIShape.{
       rect = MakeRangeMinDim(cmd.p, cmd.dim),
       clip_rect = MakeRange(cmd.clip_min, cmd.clip_max),
       color = c32,
@@ -89,7 +89,7 @@ UI_ProcessBoxRenderCommands :: ()
       TEXT_DrawLine(cmd.text, xx cmd.font, xx cmd.font_size_px, cmd.color, cmd.p, shape.clip_rect);
     }
 
-    if draw_shape UI_Draw2D(shape);
+    if draw_shape RD_UIDraw2D(shape);
   }
 }
 

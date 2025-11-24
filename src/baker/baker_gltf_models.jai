@@ -554,7 +554,7 @@ BK_GLTF_ExportModelToPie :: (bk_model: BK_GLTF_Model)
     // vertices
     for vert_i: MakeRange(bk_mesh.verts_count)
     {
-      vert: WORLD_Vertex;
+      vert: RD_WorldVertex;
 
       // POS
       vert.p = V3.{

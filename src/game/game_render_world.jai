@@ -2,24 +2,13 @@
 using,only(CL,DEV,G) COMPS;
 #scope_export;
 
-WORLD_Dir :: enum u32
-{
-  E; // +X
-  W; // -X
-  N; // +Y
-  S; // -Y
-  T; // +Z
-  B; // -Z
-  COUNT;
-};
-
-WORLD_Uniform :: struct
+RD_WorldUniform :: struct
 {
   camera_transform: Mat4;
   shadow_transform: Mat4;
   camera_position: V3 #align 16;
   sun_dir: V3 #align 16;
-  flags: WORLD_ShaderFlags;
+  flags: RD_WorldShaderFlags;
 
   fog_color: Color32; // RGBA
   sky_ambient: Color32; // RGBA
@@ -32,7 +21,7 @@ WORLD_Uniform :: struct
   material_loaded_t: float;
 };
 
-WORLD_InstanceModel :: struct
+RD_WorldModel :: struct
 {
   transform: Mat4;
   color: Color32;
@@ -40,7 +29,7 @@ WORLD_InstanceModel :: struct
   pose_offset: u32; // in indices; unused for rigid
 };
 
-WORLD_ApplyMaterialToUniform :: (uniform: *WORLD_Uniform, material: *Material, simplified_pipeline: bool)
+RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, simplified_pipeline: bool)
 {
   uniform.material_loaded_t = material.stream.loaded_t;
   uniform.material_diffuse = xx material.params.diffuse;
@@ -62,10 +51,10 @@ WORLD_ApplyMaterialToUniform :: (uniform: *WORLD_Uniform, material: *Material, s
   }
 }
 
-WORLD_DrawModel :: (model_key: MODEL_Key, transform: Mat4, animation_tracks: [] ANIMATION_Track,
+RD_WorldDrawModel :: (model_key: MODEL_Key, transform: Mat4, animation_tracks: [] ANIMATION_Track,
                     color: Color32, picking_color: Color32 = 0)
 {
-  instance := WORLD_InstanceModel.{
+  instance := RD_WorldModel.{
     transform = transform,
     color = color,
     picking_color = picking_color
@@ -85,14 +74,14 @@ WORLD_DrawModel :: (model_key: MODEL_Key, transform: Mat4, animation_tracks: [] 
   GPU_BATCH_TransferUploadBytes(instance_batch, *instance, size_of(type_of(instance)), 1);
 }
 
-WORLD_DrawVertices :: (material: MATERIAL_Key, vertices: *WORLD_Vertex, vertices_count: u32)
+RD_WorldDrawVertices :: (material: MATERIAL_Key, vertices: *RD_WorldVertex, vertices_count: u32)
 {
   mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_key=material});
   transfer_size: u32 = vertices_count * size_of(type_of(vertices[0]));
   GPU_BATCH_TransferUploadBytes(mesh_batch, vertices, transfer_size, vertices_count);
 }
 
-WORLD_DrawObject :: (ghost: Ghost)
+RD_WorldDrawObject :: (ghost: Ghost)
 {
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
@@ -108,7 +97,7 @@ WORLD_DrawObject :: (ghost: Ghost)
     if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
     if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
-    WORLD_DrawModel(ghost.model, transform, ghost.anim.tracks,
+    RD_WorldDrawModel(ghost.model, transform, ghost.anim.tracks,
       C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));
   }
 
@@ -126,17 +115,17 @@ WORLD_DrawObject :: (ghost: Ghost)
       alpha = 1.0 - death_t;
     }
 
-    max_hp_bar := UI_Shape.{
+    max_hp_bar := RD_UIShape.{
       rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.max_hp, bar_height}),
       color = Color32_RGBAf(0, 0, 0, alpha)
     };
-    active_hp_bar := UI_Shape.{
+    active_hp_bar := RD_UIShape.{
       rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.hp), bar_height}),
       color = Color32_RGBAf(0.1, 1, 0, alpha)
     };
 
-    UI_Draw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
-    UI_Draw3D(ghost.p + .{0,0,1.75}, active_hp_bar);
+    RD_UIDraw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
+    RD_UIDraw3D(ghost.p + .{0,0,1.75}, active_hp_bar);
 
     if ghost.team
     {
@@ -146,11 +135,11 @@ WORLD_DrawObject :: (ghost: Ghost)
 
       bar_dim := bar_height;
 
-      team_square := UI_Shape.{
+      team_square := RD_UIShape.{
         rect = MakeRectMinDim(.{start_x - bar_dim, start_y}, .{bar_dim, bar_dim}),
         color = color
       };
-      UI_Draw3D(ghost.p + .{0,0,1.75}, team_square);
+      RD_UIDraw3D(ghost.p + .{0,0,1.75}, team_square);
     }
   }
 
@@ -168,7 +157,7 @@ WORLD_DrawObject :: (ghost: Ghost)
     face_count := cast(u32) ifx height then 6 else 1;
     vertices_per_face: u32 = 3 * 2;
     mesh_verts_count: u32 = face_count * vertices_per_face;
-    mesh_verts: [6 * 3 * 2] WORLD_Vertex; // CPU side temporary buffer
+    mesh_verts: [6 * 3 * 2] RD_WorldVertex; // CPU side temporary buffer
 
     bot_z := ghost.p.z;
     top_z := bot_z + height;
@@ -198,7 +187,7 @@ WORLD_DrawObject :: (ghost: Ghost)
 
       cube_verts_map := cube_verts_map_array.data;
       if (face_count == 1) // generate top mesh only
-      cube_verts_map += 6*WORLD_Dir.T.(u32);
+      cube_verts_map += 6*Direction3D.T.(u32);
 
       for mesh_index: MakeRange(mesh_verts_count)
       {
@@ -216,7 +205,7 @@ WORLD_DrawObject :: (ghost: Ghost)
 
     for face_i: MakeRange(face_count)
     {
-      face_dir := face_i.(WORLD_Dir);
+      face_dir := face_i.(Direction3D);
       if (face_count == 1) face_dir = .T;
 
       face_uvs := V2.[
@@ -272,6 +261,6 @@ WORLD_DrawObject :: (ghost: Ghost)
     }
 
     // Transfer verts to GPU
-    WORLD_DrawVertices(material, mesh_verts.data, mesh_verts_count);
+    RD_WorldDrawVertices(material, mesh_verts.data, mesh_verts_count);
   }
 }

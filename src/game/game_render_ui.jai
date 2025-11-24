@@ -2,13 +2,13 @@
 using,only(G,GPU) COMPS;
 #scope_export;
 
-UI_Uniform :: struct
+RD_UIUniform :: struct
 {
   window_dim: V2;
   texture_dim: V2;
 }
 
-UI_Shape :: struct
+RD_UIShape :: struct
 {
   rect: Rect;
   tex_rect: Rect;
@@ -22,19 +22,19 @@ UI_Shape :: struct
   INIT_CLIP :: Rect.{.{0, 0}, .{FLOAT32_MAX, FLOAT32_MAX}};
 }
 
-UI_ShapeIn3D :: struct
+RD_UIShapeIn3D :: struct
 {
   world_p: V3;
-  shape: UI_Shape;
+  shape: RD_UIShape;
 }
 
 
-UI_Draw2D :: (shape: UI_Shape)
+RD_UIDraw2D :: (shape: RD_UIShape)
 {
   if (GPU.ui.indices_count + 6 > GPU.ui.indices.count) ||
      (GPU.ui.shapes_count + 6 > GPU.ui.shapes.count)
   {
-    log_error("Out of space in UI_Draw2D");
+    log_error("Out of space in RD_UIDraw2D");
     return;
   }
 
@@ -54,11 +54,11 @@ UI_Draw2D :: (shape: UI_Shape)
   GPU.ui.indices[index_i + 5] = 3 | encoded;
 }
 
-UI_Draw3D :: (world_p: V3, shape: UI_Shape)
+RD_UIDraw3D :: (world_p: V3, shape: RD_UIShape)
 {
   if GPU.ui.shapes3d_count + 1 > GPU.ui.shapes3d.count
   {
-    log_error("Out of space in UI_Draw3D");
+    log_error("Out of space in RD_UIDraw3D");
     return;
   }
 
@@ -66,7 +66,7 @@ UI_Draw3D :: (world_p: V3, shape: UI_Shape)
   GPU.ui.shapes3d_count += 1;
 }
 
-UI_Translate3DShapes :: ()
+RD_UITranslate3DShapes :: ()
 {
   PerfFunc();
 
@@ -82,11 +82,11 @@ UI_Translate3DShapes :: ()
 
     shape.rect.min += screen_p;
     shape.rect.max += screen_p;
-    UI_Draw2D(shape);
+    RD_UIDraw2D(shape);
   }
 }
 
-UI_ClearRenderCounters :: ()
+RD_UIClearRenderCounters :: ()
 {
   GPU.ui.indices_count = 0;
   GPU.ui.shapes_count = 0;
