@@ -323,15 +323,6 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
   }
 }
 
-ANIMATION_AdvanceAnimationForAllGhosts :: ()
-{
-  PerfFunc();
-  for * ghost: G.all_ghosts
-  {
-    inline ANIMATION_AdvanceAnimationForGhost(ghost);
-  }
-}
-
 ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) -> [] Mat4
 {
   PerfFunc();

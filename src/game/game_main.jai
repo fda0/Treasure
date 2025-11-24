@@ -12,7 +12,7 @@ main :: ()
 
   // Setup lane multithreading; Start client game loop.
   GLOBAL.core_count = get_number_of_processors();
-  lane_group := LaneGroupCreate(4);
+  lane_group := LaneGroupCreate(GLOBAL.core_count);
   LaneGroupLaunch(G_LoopThreadEntry, lane_group, true);
   exit(0);
 }
@@ -82,7 +82,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/game_render_world_shared.jai";
 #import "tr_hash_table";
 
-#import "superluminal"()(ENABLE_PROFILER = true);
+#import "superluminal"()(ENABLE_PROFILER = false);
 BOX :: #import "tr_box_layout"(Color=Color32);
 
 #import "Basic";

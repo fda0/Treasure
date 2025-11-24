@@ -275,12 +275,3 @@ WORLD_DrawObject :: (ghost: Ghost)
     WORLD_DrawVertices(material, mesh_verts.data, mesh_verts_count);
   }
 }
-
-WORLD_DrawAllObjects :: ()
-{
-  PerfFunc();
-  for ghost: G.all_ghosts
-  {
-    inline WORLD_DrawObject(ghost);
-  }
-}

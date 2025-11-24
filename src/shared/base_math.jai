@@ -91,7 +91,7 @@ operator == :: (a: Range($T), b: Range(T)) -> bool
   return a.min == b.min && a.max == b.max;
 }
 
-RangeLength :: (r: Range) -> r.T
+Count :: (r: Range) -> r.T
 {
   if r.max < r.min return 0;
   return r.max - r.min;

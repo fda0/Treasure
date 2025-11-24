@@ -191,18 +191,22 @@ G_Iterate :: ()
 
   {
     worker_count := LaneCount();
-    per_lane := OBJ_ALL_COUNT / worker_count;
+    worker_count = 1; // temp
+    if LaneIdx() < worker_count
+    {
+      per_lane := OBJ_ALL_COUNT / worker_count;
 
-    work_count := per_lane;
-    if LaneIdx() == worker_count - 1 {
-      reminder := OBJ_ALL_COUNT % worker_count;
-      work_count += reminder;
+      work_count := per_lane;
+      if LaneIdx() == worker_count - 1 {
+        reminder := OBJ_ALL_COUNT % worker_count;
+        work_count += reminder;
+      }
+
+      work_start := per_lane * LaneIdx();
+      work_range := MakeRangeMinDim(work_start.(ObjIdx), work_count.(ObjIdx));
+
+      G_UpdateGhostsInRange(work_range);
     }
-
-    work_start := per_lane * LaneIdx();
-    work_range := MakeRangeMinDim(work_start.(ObjIdx), work_count.(ObjIdx));
-
-    G_UpdateGhostsInRange(work_range);
   }
 
   // UI work
@@ -304,6 +308,23 @@ G_Iterate :: ()
     // This should be solved in a better way (waiting on network msg or something)
     // once scheduling and multithreading is further along.
     SDL_Delay(0);
+  }
+}
+
+G_UpdateGhostsInRange :: (range: Range(ObjIdx))
+{
+  // auto_release_temp();
+  // NewArray(Count(range), initialized = false);
+  for ghost_index: range
+  {
+    ghost := *G.all_ghosts[ghost_index];
+
+    is_shared := ghost_index < OBJ_SHARED_COUNT;
+    if is_shared {
+      inline G_ProcessSnapshotForGhost(ghost, ghost_index);
+    }
+    inline ANIMATION_AdvanceAnimationForGhost(ghost);
+    inline WORLD_DrawObject(ghost);
   }
 }
 
@@ -664,34 +685,6 @@ G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
   if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
   if IsTickDue(ghost.at.obj.creation_tick, ghost) ghost.creation_time = G.frame_timestamp;
   if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
-}
-
-G_UpdateGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
-{
-  is_shared := ghost_index < OBJ_SHARED_COUNT;
-  if is_shared {
-    inline G_ProcessSnapshotForGhost(ghost, xx ghost_index);
-  }
-  inline ANIMATION_AdvanceAnimationForGhost(ghost);
-  inline WORLD_DrawObject(ghost);
-}
-
-G_UpdateGhostsInRange :: (range: Range(ObjIdx))
-{
-  for ghost_index: range
-  {
-    ghost := *G.all_ghosts[ghost_index];
-    inline G_UpdateGhost(ghost, ghost_index);
-  }
-}
-
-G_ProcessSnapshotsForAllGhosts :: ()
-{
-  PerfFunc();
-  for * ghost, ghost_index: G.shared_ghosts
-  {
-    inline G_ProcessSnapshotForGhost(ghost, xx ghost_index);
-  }
 }
 
 G_ParseCommandLineArguments :: (args: [] string)
