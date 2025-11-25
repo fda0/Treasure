@@ -2,8 +2,8 @@ Fixed :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
 {
   ELEMENT_SIZE :: size_of(T);
   DATA_SIZE :: CAPACITY * ELEMENT_SIZE;
-  #if zero_init  data: [CAPACITY] T;
-  else           data: [CAPACITY] T = ---;
+  #if zero_init  buf: [CAPACITY] T;
+  else           buf: [CAPACITY] T = ---;
   count: s64;
 }
 
@@ -36,7 +36,7 @@ for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand
     if it_index >= f.count break;
     defer it_index += 1;
 
-    `it := f.data[it_index];
+    `it := f.buf[it_index];
     #insert body;
   }
 }
@@ -62,7 +62,7 @@ array_add :: (f: *Fixed, item: f.T) -> bool
   if f.count < f.CAPACITY
   {
     added = true;
-    f.data[f.count] = item;
+    f.buf[f.count] = item;
     f.count += 1;
   }
   return added;
@@ -93,10 +93,12 @@ array_add_many :: (f: *Fixed, alloc_count: s64, $initialize:=true) -> allocated_
 
   res: [] f.T;
   res.count = alloc_count;
-  res.data = *f.data[f.count];
+  res.data = *f.buf[f.count];
 
-  // @todo Call Ini if it exists for this type
-  memset(res.data, 0, res.count);
+  #if initialize {
+    // @todo Call Ini if it exists for this type
+    memset(res.data, 0, res.count);
+  }
 
   f.count += alloc_count;
   return res, !truncated;

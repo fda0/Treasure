@@ -112,7 +112,7 @@ PACKET_Create :: (from_tick: $T/AnyTick, things: ..Any) -> PACKET_Full
 
 PACKET_PayloadAsString :: (payload: PACKET_Payload) -> string
 {
-  return string.{data = payload.data.data, count = payload.count};
+  return string.{data = payload.buf.data, count = payload.count};
 }
 
 PACKET_FullAsString :: (full: PACKET_Full) -> string

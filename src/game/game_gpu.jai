@@ -597,10 +597,10 @@ GPU_Iterate :: ()
       texture_dim = V2.{xx FONT.texture_dim, xx FONT.texture_dim},
     };
     GPU_UpdateUIUniform(cmd, uniform);
-    GPU_TransferBuffer(cmd, GPU.ui_indices, RD.ui_indices.data.data, xx array_size_bytes(RD.ui_indices));
+    GPU_TransferBuffer(cmd, GPU.ui_indices, RD.ui_indices.buf.data, xx array_size_bytes(RD.ui_indices));
 
     if RD.ui_shapes.count > 0 {
-      GPU_TransferBuffer(cmd, GPU.ui_shape_buffer, RD.ui_shapes.data.data, xx array_size_bytes(RD.ui_shapes));
+      GPU_TransferBuffer(cmd, GPU.ui_shape_buffer, RD.ui_shapes.buf.data, xx array_size_bytes(RD.ui_shapes));
     }
 
     // Start pass

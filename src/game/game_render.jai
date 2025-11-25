@@ -58,36 +58,6 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
   }
 }
 
-RD_WorldDrawModel :: (model_key: MODEL_Key, transform: Mat4, animation_tracks: [] ANIMATION_Track,
-                    color: Color32, picking_color: Color32 = 0)
-{
-  instance := RD_WorldModel.{
-    transform = transform,
-    color = color,
-    picking_color = picking_color
-  };
-
-  model := GetModel(model_key);
-  if model.is_skinned
-  {
-    instance.pose_offset = GPU_BATCH_GetPosesBatch().element_count;
-
-    transforms := ANIMATION_GetPoseTransforms(model.skeleton, animation_tracks);
-    transfer_size := transforms.count * size_of(type_of(transforms[0]));
-    GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(), transforms.data, xx transfer_size, xx transforms.count);
-  }
-
-  instance_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_key = model_key});
-  GPU_BATCH_TransferUploadBytes(instance_batch, *instance, size_of(type_of(instance)), 1);
-}
-
-RD_WorldDrawVertices :: (material: MATERIAL_Key, vertices: *RD_WorldVertex, vertices_count: u32)
-{
-  mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_key=material});
-  transfer_size: u32 = vertices_count * size_of(type_of(vertices[0]));
-  GPU_BATCH_TransferUploadBytes(mesh_batch, vertices, transfer_size, vertices_count);
-}
-
 RD_WorldDrawObject :: (ghost: Ghost)
 {
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
@@ -104,8 +74,24 @@ RD_WorldDrawObject :: (ghost: Ghost)
     if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
     if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
-    RD_WorldDrawModel(ghost.model, transform, ghost.anim.tracks,
-      C32_from_C4(hover_color), OBJ_KeyToColor(ghost.key));
+    instance := RD_WorldModel.{
+      transform = transform,
+      color = C32_from_C4(hover_color),
+      picking_color = OBJ_KeyToColor(ghost.key)
+    };
+
+    model := GetModel(ghost.model);
+    if model.is_skinned
+    {
+      instance.pose_offset = GPU_BATCH_GetPosesBatch().element_count;
+
+      transforms := ANIMATION_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
+      transfer_size := transforms.count * size_of(type_of(transforms[0]));
+      GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(), transforms.data, xx transfer_size, xx transforms.count);
+    }
+
+    instance_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_key = ghost.model});
+    GPU_BATCH_TransferUploadBytes(instance_batch, *instance, size_of(type_of(instance)), 1);
   }
 
   if draw_hp
@@ -268,7 +254,9 @@ RD_WorldDrawObject :: (ghost: Ghost)
     }
 
     // Transfer verts to GPU
-    RD_WorldDrawVertices(material, mesh_verts.data, mesh_verts_count);
+    mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_key=material});
+    transfer_size: u32 = mesh_verts_count * size_of(type_of(mesh_verts.data[0]));
+    GPU_BATCH_TransferUploadBytes(mesh_batch, mesh_verts.data, transfer_size, mesh_verts_count);
   }
 }
 
