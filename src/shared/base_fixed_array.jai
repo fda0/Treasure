@@ -1,5 +1,7 @@
 Fixed :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
 {
+  ELEMENT_SIZE :: size_of(T);
+  DATA_SIZE :: CAPACITY * ELEMENT_SIZE;
   #if zero_init  data: [CAPACITY] T;
   else           data: [CAPACITY] T = ---;
   count: s64;
@@ -31,7 +33,7 @@ for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand
   `it_index := 0;
   while true
   {
-    if it_index >= range.count break;
+    if it_index >= f.count break;
     defer it_index += 1;
 
     `it := f.data[it_index];
@@ -39,9 +41,19 @@ for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand
   }
 }
 
-array_space_left :: (f: *Fixed) -> s64
+array_size_bytes :: (f: Fixed) -> s64
+{
+  return f.count * f.ELEMENT_SIZE;
+}
+
+array_space_left :: (f: Fixed) -> s64
 {
   return f.CAPACITY - f.count;
+}
+
+array_reset :: (f: *Fixed)
+{
+  f.count = 0;
 }
 
 array_add :: (f: *Fixed, item: f.T) -> bool

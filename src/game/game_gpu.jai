@@ -1,5 +1,5 @@
 #scope_file;
-using,only(AST,DEV,FONT,G,GPU) COMPS;
+using,only(AST,DEV,FONT,G,GPU,RD) COMPS;
 #scope_export;
 
 GPU_USE_MSAA :: true;
@@ -48,24 +48,10 @@ GPU_State :: struct
 
   mesh_tex_sampler: *SDL_GPUSampler;
 
-  UI_GPU :: struct
-  {
-    gpu_atlas_texture: *SDL_GPUTexture;
-    gpu_atlas_sampler: *SDL_GPUSampler;
-    gpu_indices: *SDL_GPUBuffer;
-    gpu_shape_buffer: *SDL_GPUBuffer;
-
-    // @todo move some of these things to game_render_ui.jai and use GPU_BATCH?
-    indices: [1024 * 64] u32;
-    indices_count: u32;
-
-    shapes: [1024 * 16] RD_UIShape;
-    shapes_count: u32;
-
-    shapes3d: [1024 * 2] RD_UIShapeIn3D;
-    shapes3d_count: u32;
-  };
-  ui: UI_GPU;
+  ui_atlas_texture: *SDL_GPUTexture;
+  ui_atlas_sampler: *SDL_GPUSampler;
+  ui_indices: *SDL_GPUBuffer;
+  ui_shape_buffer: *SDL_GPUBuffer;
 
   // sdl properties
   clear_depth_props: SDL_PropertiesID;
@@ -145,15 +131,15 @@ GPU_Init :: ()
       min_filter = .SDL_GPU_FILTER_LINEAR,
       mag_filter = .SDL_GPU_FILTER_LINEAR,
     };
-    GPU.ui.gpu_atlas_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
+    GPU.ui_atlas_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
   // UI buffers
   {
-    GPU.ui.gpu_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
-      size_of(type_of(GPU.ui.indices)), "UI Index Buffer");
-    GPU.ui.gpu_shape_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-      size_of(type_of(GPU.ui.shapes)), "UI Shapes Storage Buffer");
+    GPU.ui_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
+      RD.ui_indices.DATA_SIZE, "UI Index Buffer");
+    GPU.ui_shape_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+      RD.ui_shapes.DATA_SIZE, "UI Shapes Storage Buffer");
   }
 
   GPU_InitPipelines();
@@ -603,7 +589,7 @@ GPU_Iterate :: ()
   }
 
   // UI render pass
-  if GPU.ui.indices_count
+  if RD.ui_indices.count > 0
   {
     // Upload uniform
     uniform := RD_UIUniform.{
@@ -611,16 +597,10 @@ GPU_Iterate :: ()
       texture_dim = V2.{xx FONT.texture_dim, xx FONT.texture_dim},
     };
     GPU_UpdateUIUniform(cmd, uniform);
+    GPU_TransferBuffer(cmd, GPU.ui_indices, RD.ui_indices.data.data, xx array_size_bytes(RD.ui_indices));
 
-    // Upload buffers to GPU
-    {
-      transfer_size := size_of(type_of(GPU.ui.indices[0])) * GPU.ui.indices_count;
-      GPU_TransferBuffer(cmd, GPU.ui.gpu_indices, GPU.ui.indices.data, xx transfer_size);
-    }
-    if GPU.ui.shapes_count
-    {
-      transfer_size := size_of(type_of(GPU.ui.shapes[0])) * GPU.ui.shapes_count;
-      GPU_TransferBuffer(cmd, GPU.ui.gpu_shape_buffer, GPU.ui.shapes.data, xx transfer_size);
+    if RD.ui_shapes.count > 0 {
+      GPU_TransferBuffer(cmd, GPU.ui_shape_buffer, RD.ui_shapes.data.data, xx array_size_bytes(RD.ui_shapes));
     }
 
     // Start pass
@@ -636,23 +616,21 @@ GPU_Iterate :: ()
 
     // Bind texture & sampler
     sampler_binding := SDL_GPUTextureSamplerBinding.{
-      texture = GPU.ui.gpu_atlas_texture,
-      sampler = GPU.ui.gpu_atlas_sampler,
+      texture = GPU.ui_atlas_texture,
+      sampler = GPU.ui_atlas_sampler,
     };
     SDL_BindGPUFragmentSamplers(pass, 0, *sampler_binding, 1);
 
     // Bind storage buffers
-    storage_bufs := *SDL_GPUBuffer.[
-      GPU.ui.gpu_shape_buffer,
-    ];
+    storage_bufs := *SDL_GPUBuffer.[GPU.ui_shape_buffer];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
 
     // Bind index buffer
-    binding_ind := SDL_GPUBufferBinding.{buffer = GPU.ui.gpu_indices};
+    binding_ind := SDL_GPUBufferBinding.{buffer = GPU.ui_indices};
     SDL_BindGPUIndexBuffer(pass, *binding_ind, .SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
     // Draw
-    SDL_DrawGPUIndexedPrimitives(pass, GPU.ui.indices_count, 1, 0, 0, 0);
+    SDL_DrawGPUIndexedPrimitives(pass, xx RD.ui_indices.count, 1, 0, 0, 0);
 
     // End pass
     SDL_EndGPURenderPass(pass);
@@ -951,8 +929,8 @@ GPU_Deinit :: ()
   SDL_ReleaseGPUSampler(GPU.device, GPU.mesh_tex_sampler);
 
   // UI
-  SDL_ReleaseGPUTexture(GPU.device, GPU.ui.gpu_atlas_texture);
-  SDL_ReleaseGPUSampler(GPU.device, GPU.ui.gpu_atlas_sampler);
-  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui.gpu_indices);
-  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui.gpu_shape_buffer);
+  SDL_ReleaseGPUTexture(GPU.device, GPU.ui_atlas_texture);
+  SDL_ReleaseGPUSampler(GPU.device, GPU.ui_atlas_sampler);
+  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_indices);
+  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_shape_buffer);
 }

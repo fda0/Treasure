@@ -88,7 +88,7 @@ FONT_MaybeResizeAtlasTexture :: ()
     FONT.texture_dim = new_texture_dim;
 
     {
-      SDL_ReleaseGPUTexture(GPU.device, GPU.ui.gpu_atlas_texture);
+      SDL_ReleaseGPUTexture(GPU.device, GPU.ui_atlas_texture);
       tex_info := SDL_GPUTextureCreateInfo.{
         type = .SDL_GPU_TEXTURETYPE_2D_ARRAY,
         format = .SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
@@ -98,8 +98,8 @@ FONT_MaybeResizeAtlasTexture :: ()
         num_levels = 1,
         usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
       };
-      GPU.ui.gpu_atlas_texture = SDL_CreateGPUTexture(GPU.device, *tex_info);
-      SDL_SetGPUTextureName(GPU.device, GPU.ui.gpu_atlas_texture, "UI Atlas Texture");
+      GPU.ui_atlas_texture = SDL_CreateGPUTexture(GPU.device, *tex_info);
+      SDL_SetGPUTextureName(GPU.device, GPU.ui_atlas_texture, "UI Atlas Texture");
     }
 
     ZeroArray(FONT.layers);
@@ -452,7 +452,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
         assert(slot.p.x + slot.dim.x + margin <= FONT.texture_dim);
         assert(slot.p.y + slot.dim.y + margin <= FONT.texture_dim);
         dst_region := SDL_GPUTextureRegion.{
-          texture = GPU.ui.gpu_atlas_texture,
+          texture = GPU.ui_atlas_texture,
           layer = slot.layer,
           x = slot.p.x - margin,
           y = slot.p.y - margin,

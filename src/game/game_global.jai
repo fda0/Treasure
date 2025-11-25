@@ -13,6 +13,7 @@ ComponentState :: struct
   HR: HotReloadState;
   LOG: LOG_State;
   NET: NET_State;
+  RD: RenderState;
   STATS: STATS_State;
   SV: ServerState;
 }
