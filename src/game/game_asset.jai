@@ -39,7 +39,7 @@ ShaderType :: enum
   UI_PS;
 };
 
-AssetCategory :: enum u8
+AssetKind :: enum u8
 {
   Material;
   Model;
@@ -170,14 +170,14 @@ AssetMaterialIdx :: u32;
 //
 AssetHash :: u64;
 
-AssetHashFromName :: (category: AssetCategory, name: string) -> AssetHash
+AssetHashFromName :: (kind: AssetKind, name: string) -> AssetHash
 {
-  hash := Hash64Any(category, name);
-  type4_hash60 := (category).(u64) | (hash << 4);
+  hash := Hash64Any(kind, name);
+  type4_hash60 := (kind).(u64) | (hash << 4);
   return type4_hash60;
 }
 
-TypeIDToAssetCategory :: (T: Type) -> AssetCategory, bool
+AssetKindFromType :: (T: Type) -> AssetKind, bool
 {
   if T == {
     case MaterialID; return .Material, true;
@@ -192,12 +192,12 @@ AssetIDFromAssetHash :: ($T: Type, hash: AssetHash) -> T
     b: String_Builder;
     append(*b, "if hash == {\n");
 
-    category, known_type := TypeIDToAssetCategory(T);
+    kind, known_type := AssetKindFromType(T);
     assert(known_type, "Unexpected T % in AssetIDFromAssetHash", T);
 
     info := type_info(T);
     for info.names {
-      print_to_builder(*b, "case %; return .%;", AssetHashFromName(category, it), it);
+      print_to_builder(*b, "case %; return .%;", AssetHashFromName(kind, it), it);
     }
 
     append(*b, "}\n");
