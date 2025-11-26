@@ -22,8 +22,8 @@ GPU_BATCH_Type :: enum // @todo this will be replaced by simpler U64 key/hash in
 GPU_BATCH_Target :: struct // @todo this will be replaced by simpler U64 key/hash in the future
 {
   type: GPU_BATCH_Type;
-  material_key: MATERIAL_Key;
-  model_key: MODEL_Key;
+  material_idx: AssetMaterialIdx;
+  model_idx: AssetModelIdx;
 };
 
 GPU_BATCH_Transfer :: struct
@@ -71,13 +71,13 @@ GPU_BATCH_State :: struct
 
 GPU_BATCH_TargetMatch :: (a: GPU_BATCH_Target, b: GPU_BATCH_Target) -> bool
 {
-  if (a.type == b.type)
+  if a.type == b.type
   {
     if (a.type == .MeshVertices)
-      return MatchKey(a.material_key, b.material_key);
+      return a.material_idx == b.material_idx;
 
     if (a.type == .ModelInstances)
-      return MatchKey(a.model_key, b.model_key);
+      return a.model_idx == b.model_idx;
   }
   return false;
 }

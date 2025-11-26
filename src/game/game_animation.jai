@@ -6,7 +6,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
-  animation_records: [#run EnumMaxPlus1(AnimationId)] ANIMATION_Record;
+  animation_records: [#run EnumOnePastMax(AnimationID)] ANIMATION_Record;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
@@ -52,7 +52,7 @@ ANIMATION_Record :: struct
   // count = 0 -> all weights are equal to one
 }
 
-AnimationId :: enum u8
+AnimationID :: enum u8
 {
   IDLE;
   WALK;
@@ -68,12 +68,12 @@ AnimationId :: enum u8
 ANIMATION_Request :: struct
 {
   tick: ServerTick;
-  id: AnimationId;
+  id: AnimationID;
 }
 
 ANIMATION_Track :: struct
 {
-  id: AnimationId;
+  id: AnimationID;
   t: float;
   weight: float;
 }
@@ -87,10 +87,10 @@ ANIMATION_InitSkeletons :: ()
     WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
-  skeleton := GetModel(ModelKey("Dude")).skeleton;
+  skeleton := GetModel(.Dude).skeleton;
   if skeleton
   {
-    for enum_values_as_enum(AnimationId)
+    for enum_values_as_enum(AnimationID)
     {
       r := *skeleton.animation_records[it];
 
@@ -135,14 +135,14 @@ ANIMATION_InitSkeletons :: ()
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights,, AST.arena);
+      if has_non_one then r.joint_weights = array_copy(temp_weights);
     }
   }
 
-  skeleton = GetModel(ModelKey("Zombie")).skeleton;
+  skeleton = GetModel(.Zombie).skeleton;
   if skeleton
   {
-    for enum_values_as_enum(AnimationId)
+    for enum_values_as_enum(AnimationID)
     {
       r := *skeleton.animation_records[it];
 
@@ -174,7 +174,7 @@ ANIMATION_InitSkeletons :: ()
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights,, AST.arena);
+      if has_non_one then r.joint_weights = array_copy(temp_weights);
     }
   }
 }
@@ -459,17 +459,17 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) 
 }
 
 #scope_file;
-RecordFromType :: (skeleton: Skeleton, id: AnimationId) -> *ANIMATION_Record
+RecordFromType :: (skeleton: Skeleton, id: AnimationID) -> *ANIMATION_Record
 {
   return *skeleton.animation_records[id];
 }
 
-AnimationFromType :: (skeleton: Skeleton, id: AnimationId) -> *Animation
+AnimationFromType :: (skeleton: Skeleton, id: AnimationID) -> *Animation
 {
   return *skeleton.animations[RecordFromType(skeleton, id).animation_index];
 }
 
-WrapTime :: (skeleton: Skeleton, id: AnimationId, t: float) -> float
+WrapTime :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
 {
   anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];
@@ -477,7 +477,7 @@ WrapTime :: (skeleton: Skeleton, id: AnimationId, t: float) -> float
   return result;
 }
 
-Time01ToAnimT :: (skeleton: Skeleton, id: AnimationId, t: float) -> float
+Time01ToAnimT :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
 {
   anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];

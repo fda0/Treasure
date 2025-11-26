@@ -48,7 +48,7 @@ SIM_AdvanceByTick :: ()
          .ANIMATE_TRACKS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
       if !OBJ_IsNil(sleeper)
       {
-        sleeper.model = ModelKey("Zombie");
+        sleeper.model = .Zombie;
         sleeper.hp = 60.0;
         sleeper.max_hp = 60.0;
         dim := 0.3;
@@ -151,7 +151,7 @@ SIM_AdvanceByTick :: ()
         projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
         {
-          projectile.model = ModelKey("Potion");
+          projectile.model = .Potion;
           projectile.p.xy = turret.p.xy;
           projectile.p.z = 4.1;
           projectile.activity.target = attack_target.key;
@@ -544,7 +544,7 @@ SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   QueuePush(*obj.sound_requests, .{SV.tick, type});
 }
-SIM_PlayAnimation :: (obj: *Object, id: AnimationId)
+SIM_PlayAnimation :: (obj: *Object, id: AnimationID)
 {
   QueuePush(*obj.animation_requests, .{SV.tick, id});
 }
@@ -573,7 +573,7 @@ SIM_InitObjects :: ()
           dim := 0.4;
           turret.collider = OBJ_ColliderFromRect(.{dim,dim});
 
-          turret.model = ModelKey("Plank");
+          turret.model = .Plank;
 
           turret.max_hp = 400;
           turret.hp = 400;
@@ -586,19 +586,19 @@ SIM_InitObjects :: ()
   }
 
   {
-    hero := SV_CreateHero(ModelKey("Dude"), .RED);
+    hero := SV_CreateHero(.Dude, .RED);
     if !OBJ_IsNil(hero)
     {
       hero.p.x = 3.0;
       hero.p.y = 1.0;
     }
-    hero = SV_CreateHero(ModelKey("Dude"), .RED);
+    hero = SV_CreateHero(.Dude, .RED);
     if !OBJ_IsNil(hero)
     {
       hero.p.x = 3.2;
       hero.p.y = 2.0;
     }
-    hero = SV_CreateHero(ModelKey("Dude"), .BLUE);
+    hero = SV_CreateHero(.Dude, .BLUE);
     if !OBJ_IsNil(hero)
     {
       hero.p.x = 3.4;

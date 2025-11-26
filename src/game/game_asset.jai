@@ -5,11 +5,10 @@ using,only(AST,G) COMPS;
 ASSET_State :: struct
 {
   pie: ASSET_PieFile;
-  arena: Arena;
 
   // Materials
-  nil_material: Material;
-  materials: [] Material;
+  // nil_material: Material;
+  materials: [..] Material; // reserve 0 for nil
 
   // Texture loading thread
   tex_load_needed: bool;
@@ -17,8 +16,8 @@ ASSET_State :: struct
   tex_thread: Thread;
 
   // Models
-  nil_model: Model;
-  models: [] Model;
+  // nil_model: Model;
+  models: [..] Model; // reserve 0 for nil
   model_vertices: *SDL_GPUBuffer;
   model_indices: *SDL_GPUBuffer;
   skeletons: [] Skeleton;
@@ -27,6 +26,9 @@ ASSET_State :: struct
   shaders: [] string;
   fonts: [] string;
   sounds: [] AUDIO_Sound;
+
+  model_id_to_idx: [ModelID_Count] AssetModelIdx;
+  material_id_to_idx: [MaterialID_Count] AssetMaterialIdx;
 };
 
 ShaderType :: enum
@@ -37,59 +39,13 @@ ShaderType :: enum
   UI_PS;
 };
 
-ASSET_Type :: enum
+AssetCategory :: enum u8
 {
   Material;
   Model;
-};
-
-ASSET_Key :: struct
-{
-  type4_hash60: u64;
-  name: string;
-  // @info name is used for debugging/logging only -
-  // - and might be excluded from shipping builds.
-  // The constraint is this string's buffer has to be stored externally and
-  // it has to be valid through the whole lifetime of the program.
-  // This is fine for now. In the future if we add .pie file reloading we might
-  // decide to store these names in some lookup table outside of MATERIAL_Key itself.
-
-  // material name format:
-  //   tex.Bricks071
-  //   Tree.Bark_diffuse
-};
-
-MATERIAL_Key :: #type,isa ASSET_Key;
-MODEL_Key ::  #type,isa ASSET_Key;
-
-AssetCreateKey :: (type: ASSET_Type, name: string /* EXTERNALLY OWNED STRING */) -> ASSET_Key
-{
-  hash := Hash64Any(type, name);
-
-  res: ASSET_Key;
-  res.type4_hash60 = (cast(u64) type) | (hash << 4);
-  res.name = name;
-  return res;
-}
-MaterialKey :: (name: string) -> MATERIAL_Key { return cast(MATERIAL_Key) AssetCreateKey(.Material, name); }
-ModelKey    :: (name: string) -> MODEL_Key    { return cast(MODEL_Key)    AssetCreateKey(.Model, name); }
-
-MatchKey :: (a: ASSET_Key, b: ASSET_Key) -> bool
-{
-  return a.type4_hash60 == b.type4_hash60;
 }
 
-KeyType :: (key: ASSET_Key) -> ASSET_Type
-{
-  return cast(ASSET_Type) (key.type4_hash60 & 0b1111);
-}
-
-IsZeroKey :: (key: ASSET_Key) -> bool
-{
-  return !key.type4_hash60;
-}
-
-ASSET_Streamable :: struct
+AssetStream :: struct
 {
   last_touched_frame: s64;
   loaded_t: float;
@@ -102,11 +58,16 @@ ASSET_Streamable :: struct
   };
 }
 
+AssetBase :: struct
+{
+  name: string;
+  hash: AssetHash;
+}
+
 Material :: struct
 {
-  stream: ASSET_Streamable;
-  key: MATERIAL_Key;
-
+  using base: AssetBase;
+  stream: AssetStream;
   params: PIE_MaterialParams;
   has_texture: bool;
   texture_layers: s32;
@@ -115,7 +76,8 @@ Material :: struct
 
 Mesh :: struct
 {
-  material: MATERIAL_Key;
+  using base: AssetBase;
+  material: AssetMaterialIdx;
   vertices_start_index: u32;
   indices_start_index: u32;
   indices_count: u32;
@@ -123,11 +85,14 @@ Mesh :: struct
 
 Model :: struct
 {
-  key: MODEL_Key;
+  using base: AssetBase;
   is_skinned: bool;
   skeleton: *Skeleton; // can be null
   meshes: [] Mesh;
 };
+
+IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
+IsNil :: (a: *Model) -> bool { return a == *AST.models[0]; }
 
 ASSET_PieFile :: struct
 {
@@ -143,66 +108,100 @@ ASSET_PieFile :: struct
   sounds: [] PIE_Sound;
 };
 
-MaterialIsNil :: (a: *Material) -> bool
+GetMaterial :: (idx: AssetMaterialIdx) -> *Material
 {
-  return a == *AST.nil_material;
-}
-
-GetMaterial :: (key: MATERIAL_Key) -> *Material
-{
-  // @speed hash table lookup in the future
-  asset := *AST.nil_material;
-  for *AST.materials
+  material := *AST.materials[idx];
+  if idx > 0
   {
-    if (MatchKey(it.key, key))
-    {
-      asset = it;
-      break;
-    }
+    material.stream.last_touched_frame = G.frame_number;
+    if !(material.stream.flags & .LOADED) AST.tex_load_needed = true;
   }
-
-  if !MaterialIsNil(asset)
-  {
-    asset.stream.last_touched_frame = G.frame_number;
-    if !(asset.stream.flags & .LOADED)  AST.tex_load_needed = true;
-  }
-
-  return asset;
+  return material;
 }
 
-PrefetchMaterial :: (key: MATERIAL_Key)
-{
-  GetMaterial(key);
-}
+GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetAssetIdx(id)); }
+GetModel :: (idx: AssetModelIdx) -> *Model { return *AST.models[idx]; }
+GetModel :: (id: ModelID) -> *Model { return GetModel(GetAssetIdx(id)); }
 
-// Model
-ModelIsNil :: (a: *Model) -> bool
-{
-  return a == *AST.nil_model;
-}
-
-GetModel :: (key: MODEL_Key, silent := false) -> *Model
-{
-  // @speed hash table lookup in the future
-  asset := *AST.nil_model;
-  for *AST.models
-  {
-    if (MatchKey(it.key, key))
-    {
-      asset = it;
-      break;
-    }
-  }
-
-  if !silent && asset == *AST.nil_model
-    log("Model % not found", key, flags = .WARNING|.CONTENT);
-
-  return asset;
-}
-
-// Shader
 GetShader :: (type: ShaderType) -> string
 {
   if xx type >= AST.shaders.count then return "";
   return AST.shaders[type];
+}
+
+//
+// User facing enum API
+//
+ModelID :: enum u16
+{
+  None;
+  Dude;
+  Flag;
+  Tree;
+  Zombie;
+  Plank;
+  Potion;
+}
+
+MaterialID :: enum u16
+{
+  None;
+  Leather011;
+  Grass004;
+  Ground075;
+  Clay002;
+}
+
+ModelID_Count :: #run EnumOnePastMax(ModelID);
+MaterialID_Count :: #run EnumOnePastMax(MaterialID);
+
+GetAssetIdx :: (id: ModelID) -> AssetModelIdx { return AST.model_id_to_idx[id]; }
+GetAssetIdx :: (id: MaterialID) -> AssetMaterialIdx { return AST.material_id_to_idx[id]; }
+
+//
+// Currently loaded memory asset offsets
+//
+AssetModelIdx :: u32;
+AssetMaterialIdx :: u32;
+
+//
+// Name based asset hash.
+// Used to match assets between game and pie file.
+//
+AssetHash :: u64;
+
+AssetHashFromName :: (category: AssetCategory, name: string) -> AssetHash
+{
+  hash := Hash64Any(category, name);
+  type4_hash60 := (category).(u64) | (hash << 4);
+  return type4_hash60;
+}
+
+TypeIDToAssetCategory :: (T: Type) -> AssetCategory, bool
+{
+  if T == {
+    case MaterialID; return .Material, true;
+    case ModelID; return .Model, true;
+  }
+  return .Material, false;
+}
+
+AssetIDFromAssetHash :: ($T: Type, hash: AssetHash) -> T
+{
+  #insert -> string {
+    b: String_Builder;
+    append(*b, "if hash == {\n");
+
+    category, known_type := TypeIDToAssetCategory(T);
+    assert(known_type, "Unexpected T % in AssetIDFromAssetHash", T);
+
+    info := type_info(T);
+    for info.names {
+      print_to_builder(*b, "case %; return .%;", AssetHashFromName(category, it), it);
+    }
+
+    append(*b, "}\n");
+    append(*b, "return 0;\n");
+    return builder_to_string(*b);
+  }
 }

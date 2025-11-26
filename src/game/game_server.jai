@@ -131,7 +131,7 @@ SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
   return nearest;
 }
 
-SV_CreateHero :: (model: MODEL_Key, team: OBJ_Team) -> *Object
+SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(
     .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
@@ -238,15 +238,15 @@ SV_IterateSend :: ()
     {
       if OBJ_KeyIsZero(user.key)
       {
-        model_keys := MODEL_Key.[
-          ModelKey("Dude"),
-          ModelKey("Zombie"),
-          // ModelKey("Worker"),
-          // ModelKey("Formal"),
-          // ModelKey("Casual"),
+        model_ids := ModelID.[
+          .Dude,
+          .Zombie,
+          // .Worker,
+          // .Formal,
+          // .Casual,
         ];
 
-        model := model_keys[user_index % model_keys.count];
+        model := model_ids[user_index % model_ids.count];
         team := (user_index % 2 + 1).(OBJ_Team);
         player := SV_CreateHero(model, team);
         if !OBJ_IsNil(player)

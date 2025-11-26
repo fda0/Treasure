@@ -231,7 +231,7 @@ BK_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
   pie_material := array_add(*B.pie.materials);
   BK_SetDefaultsPIEMaterial(pie_material);
 
-  PIE_ListSetPrint(*pie_material.name, "tex.%", tex_name);
+  PIE_ListSetPrint(*pie_material.name, "%", tex_name);
   pie_material.params.specular = xx specular_color;
 
   {

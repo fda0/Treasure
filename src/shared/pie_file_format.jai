@@ -54,7 +54,7 @@ PIE_Skeleton :: struct
 
 PIE_Mesh :: struct
 {
-  material_index: u32;
+  material_index: u32; // @todo replace with material_hash?
 
   vertices_start_index: u32;
   indices_start_index: u32;

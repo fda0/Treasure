@@ -10,7 +10,7 @@ SameSizePointerCast :: ($DstType: Type, ptr: *$SrcType) -> *DstType #expand
   return ptr.(*DstType);
 }
 
-EnumMaxPlus1 :: ($t: Type) -> s64
+EnumOnePastMax :: ($t: Type) -> s64
 {
   return enum_highest_value(t) + 1;
 }

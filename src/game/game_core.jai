@@ -256,7 +256,7 @@ G_Iterate :: ()
       if G.input.type == .PATHING
       {
         marker.flags |= .DRAW_MODEL;
-        marker.model = ModelKey("Flag");
+        marker.model = .Flag;
         marker.p = G.input.world_p;
         marker.animated_p.xy = marker.p.xy;
         G.pathing_marker_set = true;
@@ -753,7 +753,7 @@ G_InitLocalObjects :: ()
   // Sun
   {
     sun := G_CreateLocalObject(.DRAW_COLLIDERS);
-    sun.material = MaterialKey("tex.Leather011");
+    sun.material = .Leather011;
     sun.height = 0.5;
     sun.collider = OBJ_ColliderFromRect(.{.5, .5});
     G.sun = sun.key;
@@ -768,8 +768,8 @@ G_InitLocalObjects :: ()
   {
     r := 32;
     d := 1.0;
-    grass := MaterialKey("tex.Grass004");
-    ground1 := MaterialKey("tex.Ground075");
+    grass := MaterialID.Grass004;
+    ground1 := MaterialID.Ground075;
 
     for y: MakeRange(-r, r)
     {
@@ -813,7 +813,7 @@ G_InitLocalObjects :: ()
           block.p = V3.{x, y, 0};
           block.collider = OBJ_ColliderFromRect(.{d,d});
           block.height = d;
-          block.material = MaterialKey("tex.Clay002");
+          block.material = .Clay002;
           block.texture_texels_per_m = 1.0 / d;
         }
       }
@@ -846,7 +846,7 @@ G_InitLocalObjects :: ()
         if !OBJ_IsNil(tree)
         {
           tree.p = pos;
-          tree.model = ModelKey("Tree");
+          tree.model = .Tree;
         }
       }
     }

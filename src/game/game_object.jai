@@ -112,8 +112,8 @@ Object :: struct
   // visuals
   color: Color32 = 0xffff_ffff; // unused?
   rotation: Quat;
-  model: MODEL_Key; // used by DrawModel
-  material: MATERIAL_Key; // used by DrawCollision
+  model: ModelID; // used by DrawModel
+  material: MaterialID; // used by DrawCollision
   height: float; // used by DrawCollision
   texture_texels_per_m: float; // used by DrawCollision
 
