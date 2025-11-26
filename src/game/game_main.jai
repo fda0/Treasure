@@ -31,6 +31,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
     G_Iterate();
     LaneSync();
   }
+  exit(0);
   return 0;
 }
 
@@ -83,7 +84,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/game_render_shared.jai";
 #import "tr_hash_table";
 
-#import "superluminal"()(ENABLE_PROFILER = false);
+#import "superluminal"()(ENABLE_PROFILER = true);
 BOX :: #import "tr_box_layout"(Color=Color32);
 
 #import "Basic";

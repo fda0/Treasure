@@ -206,8 +206,7 @@ G_Iterate :: ()
   {
     PerfScope("Update ghosts scope");
 
-    worker_count := LaneCount();
-    worker_count = 1; // temp
+    worker_count := max(LaneCount() - 1, 1);
     if LaneIdx() < worker_count
     {
       per_lane := OBJ_ALL_COUNT / worker_count;
@@ -231,23 +230,20 @@ G_Iterate :: ()
     PerfScope("UI workload");
     UI_DeveloperKeyShortcuts();
     UI_BeginBoxLayout();
-    UI_BuildHUD();
     UI_BuildDeveloperWindow();
-    UI_FinishBoxLayout();
   }
 
   LaneSync();
 
-  if IsLaneTaskIdx(0) {
+  if IsLaneTaskIdx(0)
+  {
     RD_UploadAllBatchesToGPU();
   }
 
-  // Play sounds
   if IsLaneTaskIdx(1) && !G.headless
   {
-    // Play debug sound
-    if KEY_Pressed(.M) AUDIO_PlaySound(.HIT);
-    AUDIO_PlayObjectSounds();
+    UI_BuildHUD();
+    UI_FinishBoxLayout();
   }
 
   // Prepare client player input and send it
@@ -256,8 +252,16 @@ G_Iterate :: ()
     G_ProcessInputAndSendToClient();
   }
 
-  // Update marker object
+  // Play sounds
   if IsLaneTaskIdx(3) && !G.headless
+  {
+    // Play debug sound
+    if KEY_Pressed(.M) AUDIO_PlaySound(.HIT);
+    AUDIO_PlayObjectSounds();
+  }
+
+  // Update marker object
+  if IsLaneTaskIdx(4) && !G.headless
   {
     marker := G_GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
