@@ -391,8 +391,8 @@ GPU_Iterate :: ()
 
         // Uniforms
         RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
-        if gpu_verts.target.material_idx == GetAssetIdx(MaterialID.Clay002) ||
-           gpu_verts.target.material_idx == GetAssetIdx(MaterialID.Grass004)
+        if gpu_verts.target.material_idx == GetMaterialIdx(.Clay002) ||
+           gpu_verts.target.material_idx == GetMaterialIdx(.Grass004)
         {
           GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
         }
@@ -443,7 +443,7 @@ GPU_Iterate :: ()
         RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
         GPU.world_uniform.flags |= .UseInstanceBuffer;
         if model.is_skinned then GPU.world_uniform.flags |= .DoMeshSkinning;
-        if gpu_instances.target.model_idx == GetAssetIdx(ModelID.Tree)
+        if gpu_instances.target.model_idx == GetModelIdx(.Tree)
         {
           //GPU.world_uniform.flags |= .LessShadows;
         }

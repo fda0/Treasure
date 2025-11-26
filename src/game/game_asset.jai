@@ -119,9 +119,9 @@ GetMaterial :: (idx: AssetMaterialIdx) -> *Material
   return material;
 }
 
-GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetAssetIdx(id)); }
+GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetMaterialIdx(id)); }
 GetModel :: (idx: AssetModelIdx) -> *Model { return *AST.models[idx]; }
-GetModel :: (id: ModelID) -> *Model { return GetModel(GetAssetIdx(id)); }
+GetModel :: (id: ModelID) -> *Model { return GetModel(GetModelIdx(id)); }
 
 GetShader :: (type: ShaderType) -> string
 {
@@ -155,8 +155,8 @@ MaterialID :: enum u16
 ModelID_Count :: #run EnumOnePastMax(ModelID);
 MaterialID_Count :: #run EnumOnePastMax(MaterialID);
 
-GetAssetIdx :: (id: ModelID) -> AssetModelIdx { return AST.model_id_to_idx[id]; }
-GetAssetIdx :: (id: MaterialID) -> AssetMaterialIdx { return AST.material_id_to_idx[id]; }
+GetModelIdx :: (id: ModelID) -> AssetModelIdx { return AST.model_id_to_idx[id]; }
+GetMaterialIdx :: (id: MaterialID) -> AssetMaterialIdx { return AST.material_id_to_idx[id]; }
 
 //
 // Currently loaded memory asset offsets

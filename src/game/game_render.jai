@@ -90,7 +90,7 @@ RD_WorldDrawObject :: (ghost: Ghost)
       GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(), transforms.data, xx transfer_size, xx transforms.count);
     }
 
-    instance_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_idx = GetAssetIdx(ghost.model)});
+    instance_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_idx = GetModelIdx(ghost.model)});
     GPU_BATCH_TransferUploadBytes(instance_batch, *instance, size_of(type_of(instance)), 1);
   }
 
@@ -254,7 +254,7 @@ RD_WorldDrawObject :: (ghost: Ghost)
     }
 
     // Transfer verts to GPU
-    mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_idx = GetAssetIdx(material)});
+    mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_idx = GetMaterialIdx(material)});
     transfer_size: u32 = mesh_verts_count * size_of(type_of(mesh_verts.data[0]));
     GPU_BATCH_TransferUploadBytes(mesh_batch, mesh_verts.data, transfer_size, mesh_verts_count);
   }
