@@ -47,32 +47,19 @@ LaneGroupLaunch :: (proc: Thread_Proc, group: *LaneGroup, launch_lane0_on_this_t
   }
 }
 
-IsLaneTaskIdx :: (i: s64) -> bool {
+LaneIdx :: () -> s64 #expand { return context.lane.lane_id; }
+LaneCount :: () -> s64 #expand { return context.lane.lane_count; }
+LaneFromTaskIdx :: (task_id: s64) -> s64 #expand { return task_id % context.lane.lane_count; }
+LaneSync :: () #expand { BarrierWait(context.lane.barrier); }
+IsLaneTaskIdx :: (i: s64) -> bool #expand {
   if (i == 0) return LaneIdx() == 0;
   return LaneIdx() == LaneFromTaskIdx(i);
-}
-
-LaneIdx :: () -> s64 {
-  assert(context.lane.lane_count > 0);
-  return context.lane.lane_id;
-}
-
-LaneCount :: () -> s64 {
-  return context.lane.lane_count;
-}
-
-LaneFromTaskIdx :: (task_id: s64) -> s64 {
-  return task_id % context.lane.lane_count;
-}
-
-LaneSync :: () {
-  BarrierWait(context.lane.barrier);
 }
 
 //
 // Assert helpers
 //
-AssertThatSingleThreadReachesThisCodepath :: () #expand {
+AssertThatOnlyOneLaneEverReachedThisCodepath :: () #expand {
   unique_s64 := #run UniqueS64(-1);
   lane_idx := LaneIdx();
   if unique_s64.* < 0 {

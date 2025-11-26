@@ -2,6 +2,7 @@ main :: ()
 {
   // Initialize client / server
   PLATFORM_PreInit();
+  GLOBAL.core_count = get_number_of_processors();
   GLOBAL.is_client |= !GLOBAL.is_server;
 
   NET_Init();
@@ -11,7 +12,6 @@ main :: ()
   PLATFORM_PostInit();
 
   // Setup lane multithreading; Start client game loop.
-  GLOBAL.core_count = get_number_of_processors();
   lane_group := LaneGroupCreate(GLOBAL.core_count);
   LaneGroupLaunch(G_LoopThreadEntry, lane_group, true);
   exit(0);
@@ -22,7 +22,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
 
-  RD_InitializeWorldBatch(*context.world_batch);
+  RD_InitializeWorldBatch();
   LaneSync();
 
   while !GLOBAL.in_shutdown

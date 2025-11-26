@@ -1,5 +1,5 @@
 #scope_file;
-using,only(CL,DEV,G) COMPS;
+using,only(CL,DEV,G,RD) COMPS;
 #scope_export;
 
 GameState :: struct
@@ -104,6 +104,9 @@ G_Init :: ()
   HR_InitWatcher();
   CL_Init();
 
+  // Allocate RenderState
+  RD.world_batches = NewArray(GLOBAL.core_count, RD_WorldBatch);
+
   // Allocate objects
   {
     G.local_objects_creation_serials = NewArray(OBJ_LOCAL_COUNT, u8);
@@ -201,6 +204,8 @@ G_Iterate :: ()
   LaneSync();
 
   {
+    PerfScope("Update ghosts scope");
+
     worker_count := LaneCount();
     worker_count = 1; // temp
     if LaneIdx() < worker_count
@@ -233,8 +238,12 @@ G_Iterate :: ()
 
   LaneSync();
 
+  if IsLaneTaskIdx(0) {
+    RD_UploadAllBatchesToGPU();
+  }
+
   // Play sounds
-  if IsLaneTaskIdx(3) && !G.headless
+  if IsLaneTaskIdx(1) && !G.headless
   {
     // Play debug sound
     if KEY_Pressed(.M) AUDIO_PlaySound(.HIT);
@@ -242,13 +251,13 @@ G_Iterate :: ()
   }
 
   // Prepare client player input and send it
-  if IsLaneTaskIdx(0) && !G.headless
+  if IsLaneTaskIdx(2) && !G.headless
   {
     G_ProcessInputAndSendToClient();
   }
 
   // Update marker object
-  if IsLaneTaskIdx(0) && !G.headless
+  if IsLaneTaskIdx(3) && !G.headless
   {
     marker := G_GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
@@ -333,28 +342,8 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
     inline ANIMATION_AdvanceAnimationForGhost(ghost);
-    inline RD_WorldDrawObject(ghost, *context.world_batch);
+    inline RD_WorldDrawObject(ghost);
   }
-
-  batch := *context.world_batch;
-  GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(),
-    batch.transforms.data, xx array_size_bytes(batch.transforms), xx batch.transforms.count);
-
-  for batch.models {
-    if it.buf.count > 0 {
-      gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_slot = xx it_index});
-      GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
-    }
-  }
-
-  for batch.meshes {
-    if it.buf.count > 0 {
-      gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .MeshVertices, material_slot = xx it_index});
-      GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
-    }
-  }
-
-  RD_ResetWorldBatch(batch);
 }
 
 G_CalculateCameraAndMouseInput :: ()

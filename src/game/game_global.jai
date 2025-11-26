@@ -1,7 +1,7 @@
 COMPS: ComponentState;
 GLOBAL: GLOBAL_State;
 
-#add_context world_batch: RD_WorldBatch;
+CACHELINE_SIZE :: 64;
 
 ComponentState :: struct
 {

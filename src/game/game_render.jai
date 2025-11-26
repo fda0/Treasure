@@ -7,6 +7,8 @@ RenderState :: struct
   ui_indices: Fixed(1024 * 64, u32);
   ui_shapes: Fixed(1024 * 16, RD_UIShape);
   ui_shapes3d: Fixed(1024 * 2, RD_UIShapeIn3D);
+
+  world_batches: [] RD_WorldBatch; // indexed by LaneIdx()
 }
 
 RD_WorldUniform :: struct
@@ -38,7 +40,7 @@ RD_WorldModel :: struct
 
 RD_WorldBatch :: struct
 {
-  models: [] ModelBatch; // indexed with ModelSlot
+  models: [] ModelBatch #align CACHELINE_SIZE; // indexed with ModelSlot
   meshes: [] MeshBatch; // indexed with MeshSlot
   transforms: [..] Mat4;
 
@@ -50,10 +52,39 @@ RD_WorldBatch :: struct
   }
 }
 
-RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
+RD_InitializeWorldBatch :: ()
 {
+  batch := *RD.world_batches[LaneIdx()];
   batch.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);
   batch.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
+}
+
+RD_UploadAllBatchesToGPU :: ()
+{
+  AssertThatOnlyOneLaneEverReachedThisCodepath();
+  for * batch: RD.world_batches
+  {
+    if batch.transforms.count > 0 {
+    GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(),
+      batch.transforms.data, xx array_size_bytes(batch.transforms), xx batch.transforms.count);
+    }
+
+    for batch.models {
+      if it.buf.count > 0 {
+        gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_slot = xx it_index});
+        GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
+      }
+    }
+
+    for batch.meshes {
+      if it.buf.count > 0 {
+        gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .MeshVertices, material_slot = xx it_index});
+        GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
+      }
+    }
+
+    RD_ResetWorldBatch(batch);
+  }
 }
 
 RD_ResetWorldBatch :: (batch: *RD_WorldBatch)
@@ -89,8 +120,10 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
   }
 }
 
-RD_WorldDrawObject :: (ghost: Ghost, batch: *RD_WorldBatch)
+RD_WorldDrawObject :: (ghost: Ghost)
 {
+  batch := *RD.world_batches[LaneIdx()];
+
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
