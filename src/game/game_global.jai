@@ -1,6 +1,8 @@
 COMPS: ComponentState;
 GLOBAL: GLOBAL_State;
 
+#add_context world_batch: RD_WorldBatch;
+
 ComponentState :: struct
 {
   AST: ASSET_State;

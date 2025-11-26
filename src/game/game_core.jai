@@ -324,19 +324,37 @@ G_Iterate :: ()
 
 G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 {
-  // auto_release_temp();
-  // NewArray(Count(range), initialized = false);
   for ghost_index: range
   {
     ghost := *G.all_ghosts[ghost_index];
 
     is_shared := ghost_index < OBJ_SHARED_COUNT;
     if is_shared {
-      inline G_ProcessSnapshotForGhost(ghost, ghost_index);
+      inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
     inline ANIMATION_AdvanceAnimationForGhost(ghost);
-    inline RD_WorldDrawObject(ghost);
+    inline RD_WorldDrawObject(ghost, *context.world_batch);
   }
+
+  batch := *context.world_batch;
+  GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(),
+    batch.transforms.data, xx array_size_bytes(batch.transforms), xx batch.transforms.count);
+
+  for batch.models {
+    if it.buf.count > 0 {
+      gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_slot = xx it_index});
+      GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
+    }
+  }
+
+  for batch.meshes {
+    if it.buf.count > 0 {
+      gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .MeshVertices, material_slot = xx it_index});
+      GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
+    }
+  }
+
+  RD_ResetWorldBatch(batch);
 }
 
 G_CalculateCameraAndMouseInput :: ()
@@ -520,7 +538,7 @@ G_ProcessInputAndSendToClient :: ()
   CL_FlushPlayerInput();
 }
 
-G_ProcessSnapshotForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
+G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
 {
   // PerfFunc();
   PLAYER_LOGS :: false;

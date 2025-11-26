@@ -331,12 +331,11 @@ ASSET_InitMaterials :: ()
   }
 
   // fill material_id_to_idx
-  for material, material_idx: AST.materials
+  for material, material_slot: AST.materials
   {
     material_id := AssetIDFromAssetHash(MaterialID, material.hash);
-    if material_id > 0
-    {
-      AST.material_id_to_idx[material_id] = xx material_idx;
+    if material_id > 0 {
+      AST.material_id_to_slot[material_id] = xx material_slot;
     }
   }
 }
@@ -401,12 +400,11 @@ ASSET_InitModels :: ()
   }
 
   // fill model_id_to_idx
-  for model, model_idx: AST.models
+  for model, model_slot: AST.models
   {
     model_id := AssetIDFromAssetHash(ModelID, model.hash);
-    if model_id > 0
-    {
-      AST.model_id_to_idx[model_id] = xx model_idx;
+    if model_id > 0 {
+      AST.model_id_to_slot[model_id] = xx model_slot;
     }
   }
 }

@@ -1,5 +1,5 @@
 #scope_file;
-using,only(DEV,G,GPU,RD) COMPS;
+using,only(AST,DEV,G,GPU,RD) COMPS;
 #scope_export;
 
 RenderState :: struct
@@ -36,6 +36,37 @@ RD_WorldModel :: struct
   pose_offset: u32; // in indices; unused for rigid
 };
 
+RD_WorldBatch :: struct
+{
+  models: [] ModelBatch; // indexed with ModelSlot
+  meshes: [] MeshBatch; // indexed with MeshSlot
+  transforms: [..] Mat4;
+
+  ModelBatch :: struct {
+    buf: [..] RD_WorldModel;
+  }
+  MeshBatch :: struct {
+    buf: [..] RD_WorldVertex;
+  }
+}
+
+RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
+{
+  batch.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);
+  batch.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
+}
+
+RD_ResetWorldBatch :: (batch: *RD_WorldBatch)
+{
+  for * batch.models {
+    array_reset_keeping_memory(*it.buf);
+  }
+  for * batch.meshes {
+    array_reset_keeping_memory(*it.buf);
+  }
+  array_reset_keeping_memory(*batch.transforms);
+}
+
 RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, simplified_pipeline: bool)
 {
   uniform.material_loaded_t = material.stream.loaded_t;
@@ -58,7 +89,7 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
   }
 }
 
-RD_WorldDrawObject :: (ghost: Ghost)
+RD_WorldDrawObject :: (ghost: Ghost, batch: *RD_WorldBatch)
 {
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
@@ -81,17 +112,14 @@ RD_WorldDrawObject :: (ghost: Ghost)
     };
 
     model := GetModel(ghost.model);
-    if model.is_skinned
-    {
-      instance.pose_offset = GPU_BATCH_GetPosesBatch().element_count;
-
+    if model.is_skinned {
+      instance.pose_offset = xx batch.transforms.count;
       transforms := ANIMATION_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
-      transfer_size := transforms.count * size_of(type_of(transforms[0]));
-      GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(), transforms.data, xx transfer_size, xx transforms.count);
+      array_add_from_array(*batch.transforms, transforms);
     }
 
-    instance_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_idx = GetModelIdx(ghost.model)});
-    GPU_BATCH_TransferUploadBytes(instance_batch, *instance, size_of(type_of(instance)), 1);
+    model_slot := GetModelSlot(ghost.model);
+    array_add(*batch.models[model_slot].buf, instance);
   }
 
   if draw_hp
@@ -254,9 +282,8 @@ RD_WorldDrawObject :: (ghost: Ghost)
     }
 
     // Transfer verts to GPU
-    mesh_batch := GPU_BATCH_FindOrCreateBundle(.{type=.MeshVertices, material_idx = GetMaterialIdx(material)});
-    transfer_size: u32 = mesh_verts_count * size_of(type_of(mesh_verts.data[0]));
-    GPU_BATCH_TransferUploadBytes(mesh_batch, mesh_verts.data, transfer_size, mesh_verts_count);
+    material_slot := GetMaterialSlot(material);
+    array_add_many(*batch.meshes[material_slot].buf, mesh_verts.data, mesh_verts_count);
   }
 }
 

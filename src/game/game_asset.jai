@@ -27,8 +27,8 @@ ASSET_State :: struct
   fonts: [] string;
   sounds: [] AUDIO_Sound;
 
-  model_id_to_idx: [ModelID_Count] AssetModelIdx;
-  material_id_to_idx: [MaterialID_Count] AssetMaterialIdx;
+  model_id_to_slot: [ModelID_Count] ModelSlot;
+  material_id_to_slot: [MaterialID_Count] MaterialSlot;
 };
 
 ShaderType :: enum
@@ -77,7 +77,7 @@ Material :: struct
 Mesh :: struct
 {
   using base: AssetBase;
-  material: AssetMaterialIdx;
+  material: MaterialSlot;
   vertices_start_index: u32;
   indices_start_index: u32;
   indices_count: u32;
@@ -108,7 +108,7 @@ ASSET_PieFile :: struct
   sounds: [] PIE_Sound;
 };
 
-GetMaterial :: (idx: AssetMaterialIdx) -> *Material
+GetMaterial :: (idx: MaterialSlot) -> *Material
 {
   material := *AST.materials[idx];
   if idx > 0
@@ -119,9 +119,9 @@ GetMaterial :: (idx: AssetMaterialIdx) -> *Material
   return material;
 }
 
-GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetMaterialIdx(id)); }
-GetModel :: (idx: AssetModelIdx) -> *Model { return *AST.models[idx]; }
-GetModel :: (id: ModelID) -> *Model { return GetModel(GetModelIdx(id)); }
+GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetMaterialSlot(id)); }
+GetModel :: (idx: ModelSlot) -> *Model { return *AST.models[idx]; }
+GetModel :: (id: ModelID) -> *Model { return GetModel(GetModelSlot(id)); }
 
 GetShader :: (type: ShaderType) -> string
 {
@@ -155,14 +155,14 @@ MaterialID :: enum u16
 ModelID_Count :: #run EnumOnePastMax(ModelID);
 MaterialID_Count :: #run EnumOnePastMax(MaterialID);
 
-GetModelIdx :: (id: ModelID) -> AssetModelIdx { return AST.model_id_to_idx[id]; }
-GetMaterialIdx :: (id: MaterialID) -> AssetMaterialIdx { return AST.material_id_to_idx[id]; }
+GetModelSlot :: (id: ModelID) -> ModelSlot { return AST.model_id_to_slot[id]; }
+GetMaterialSlot :: (id: MaterialID) -> MaterialSlot { return AST.material_id_to_slot[id]; }
 
 //
 // Currently loaded memory asset offsets
 //
-AssetModelIdx :: u32;
-AssetMaterialIdx :: u32;
+ModelSlot :: u32;
+MaterialSlot :: u32;
 
 //
 // Name based asset hash.
