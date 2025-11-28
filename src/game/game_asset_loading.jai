@@ -390,7 +390,7 @@ ASSET_InitModels :: ()
         tprint("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count),
         critical = false)
       {
-        mesh.material = pie_mesh.material_index + 1;
+        mesh.material_slot = pie_mesh.material_index + 1;
       }
 
       mesh.vertices_start_index = pie_mesh.vertices_start_index;

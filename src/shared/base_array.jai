@@ -19,13 +19,13 @@ ArrayMinMax :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
 }
 Subarray :: (array: [] $T, offset: s64, count: s64) -> [] T
 {
-  offset = clamp(offset, 0, str.count);
-  count = min(count, str.count - offset);
+  offset = clamp(offset, 0, array.count);
+  count = min(count, array.count - offset);
   count = max(count, 0);
 
   res: [] T;
   res.count = count;
-  res.data = str.data + offset;
+  res.data = array.data + offset;
   return res;
 }
 Skip :: (array: [] $T, distance: s64) -> [] T
@@ -64,15 +64,11 @@ Suffix :: (array: [] $T, count: s64) -> [] T
   return res;
 }
 
-IndexInBounds :: (array: [] $T, index: $Y) -> bool
-{
-  index_s64: s64 = xx index;
-  return index_s64 >= 0 && index_s64 < array.count;
+is_index_in_bounds :: (array: [] $T, index: s64) -> bool {
+  return index >= 0 && index < array.count;
 }
-
-StringToBytes :: (str: string) -> [] u8
-{
-  return [] u8.{data = str.data, count = str.count};
+is_pointer_in_bounds :: (array: [] $T, pointer: *T) -> bool {
+  return array.data <= pointer && (array.data + array.count) > pointer;
 }
 
 array_size_bytes :: (array: [] $T) -> s64 {

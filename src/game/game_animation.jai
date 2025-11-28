@@ -87,7 +87,7 @@ ANIMATION_InitSkeletons :: ()
     WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
-  skeleton := GetModel(.Dude).skeleton;
+  skeleton := ModelFromID(.Dude).skeleton;
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -139,7 +139,7 @@ ANIMATION_InitSkeletons :: ()
     }
   }
 
-  skeleton = GetModel(.Zombie).skeleton;
+  skeleton = ModelFromID(.Zombie).skeleton;
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -263,7 +263,7 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
   if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
   {
     as := *ghost.anim;
-    model := GetModel(ghost.model);
+    model := ModelFromID(ghost.model);
     if model.is_skinned
     {
       WALK_T_SPEED :: 0.016;

@@ -96,16 +96,13 @@ G_Init :: ()
 
   ASSET_InitPreGPU();
   GPU_Init();
-  GPU_BATCH_Init();
   ASSET_InitPostGPU();
   ANIMATION_InitSkeletons();
   FONT_Init();
   RD_UIClearRenderCounters();
   HR_InitWatcher();
   CL_Init();
-
-  // Allocate RenderState
-  RD.world_batches = NewArray(GLOBAL.core_count, RD_WorldBatch);
+  RD_Init();
 
   // Allocate objects
   {
@@ -237,7 +234,7 @@ G_Iterate :: ()
 
   if IsLaneTaskIdx(0)
   {
-    RD_UploadAllBatchesToGPU();
+    RD_TransferAllWorldBatchesToGPU();
   }
 
   if IsLaneTaskIdx(1) && !G.headless
@@ -294,7 +291,6 @@ G_Iterate :: ()
     GPU_Iterate();
 
     // Post frame calls
-    GPU_BATCH_PostFrame();
     RD_UIClearRenderCounters();
     ASSET_PostFrame();
 
@@ -337,6 +333,7 @@ G_Iterate :: ()
 
 G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 {
+  batch := RD_GetLaneWorldBatch();
   for ghost_index: range
   {
     ghost := *G.all_ghosts[ghost_index];
@@ -346,7 +343,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
     inline ANIMATION_AdvanceAnimationForGhost(ghost);
-    inline RD_WorldDrawObject(ghost);
+    inline RD_WorldDrawObject(ghost, batch);
   }
 }
 

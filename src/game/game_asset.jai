@@ -77,7 +77,7 @@ Material :: struct
 Mesh :: struct
 {
   using base: AssetBase;
-  material: MaterialSlot;
+  material_slot: MaterialSlot;
   vertices_start_index: u32;
   indices_start_index: u32;
   indices_count: u32;
@@ -108,7 +108,7 @@ ASSET_PieFile :: struct
   sounds: [] PIE_Sound;
 };
 
-GetMaterial :: (idx: MaterialSlot) -> *Material
+MaterialFromSlot :: (idx: MaterialSlot) -> *Material
 {
   material := *AST.materials[idx];
   if idx > 0
@@ -119,9 +119,9 @@ GetMaterial :: (idx: MaterialSlot) -> *Material
   return material;
 }
 
-GetMaterial :: (id: MaterialID) -> *Material { return GetMaterial(GetMaterialSlot(id)); }
-GetModel :: (idx: ModelSlot) -> *Model { return *AST.models[idx]; }
-GetModel :: (id: ModelID) -> *Model { return GetModel(GetModelSlot(id)); }
+MaterialFromID :: (id: MaterialID) -> *Material { return MaterialFromSlot(MaterialSlotFromID(id)); }
+ModelFromSlot :: (idx: ModelSlot) -> *Model { return *AST.models[idx]; }
+ModelFromID :: (id: ModelID) -> *Model { return ModelFromSlot(ModelSlotFromID(id)); }
 
 GetShader :: (type: ShaderType) -> string
 {
@@ -155,8 +155,8 @@ MaterialID :: enum u16
 ModelID_Count :: #run EnumOnePastMax(ModelID);
 MaterialID_Count :: #run EnumOnePastMax(MaterialID);
 
-GetModelSlot :: (id: ModelID) -> ModelSlot { return AST.model_id_to_slot[id]; }
-GetMaterialSlot :: (id: MaterialID) -> MaterialSlot { return AST.material_id_to_slot[id]; }
+ModelSlotFromID :: (id: ModelID) -> ModelSlot { return AST.model_id_to_slot[id]; }
+MaterialSlotFromID :: (id: MaterialID) -> MaterialSlot { return AST.material_id_to_slot[id]; }
 
 //
 // Currently loaded memory asset offsets

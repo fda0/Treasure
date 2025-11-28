@@ -22,7 +22,6 @@ GPU_FrameReadback :: struct
 GPU_State :: struct
 {
   device: *SDL_GPUDevice;
-  mem: GPU_BATCH_State;
 
   readback_queue: Queue(8, GPU_FrameReadback);
 
@@ -369,29 +368,26 @@ GPU_Iterate :: ()
     {
       storage_bufs := *SDL_GPUBuffer.[
         GPU.dummy_instance_buffer,
-        GPU_BATCH_GetPosesBatch().buffer.handle,
+        RD.transforms_staging.buffer_handle,
       ];
       SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
-
     }
     //
     // Dynamic meshes
     //
-    for batch_index: MakeRange(GPU.mem.batches_count)
+    for staging, material_slot: RD.meshes_stagings
     {
-      gpu_verts := *GPU.mem.batches[batch_index];
-      if (gpu_verts.target.type != .MeshVertices) continue;
-      if (!gpu_verts.element_count) continue;
+      if staging.element_count == 0 continue;
 
       // Bind vertex buffer
-      SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = gpu_verts.buffer.handle}), 1);
+      SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = staging.buffer_handle}), 1);
 
-      material := GetMaterial(gpu_verts.target.material_slot);
+      material := MaterialFromSlot(xx material_slot);
 
       // Uniforms
       RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
-      if gpu_verts.target.material_slot == GetMaterialSlot(.Clay002) ||
-         gpu_verts.target.material_slot == GetMaterialSlot(.Grass004)
+      if material_slot == MaterialSlotFromID(.Clay002) ||
+         material_slot == MaterialSlotFromID(.Grass004)
       {
         GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
       }
@@ -404,7 +400,7 @@ GPU_Iterate :: ()
       };
       SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
 
-      SDL_DrawGPUPrimitives(pass, gpu_verts.element_count, 1, 0, 0);
+      SDL_DrawGPUPrimitives(pass, xx staging.element_count, 1, 0, 0);
     }
 
     //
@@ -418,31 +414,28 @@ GPU_Iterate :: ()
     //
     // Models
     //
-    for batch_index: MakeRange(GPU.mem.batches_count)
+    for staging, model_slot: RD.models_stagings
     {
-      gpu_instances := *GPU.mem.batches[batch_index];
-      if gpu_instances.target.type != .ModelInstances  continue;
-      if !gpu_instances.element_count  continue;
+      if staging.element_count == 0 continue;
 
-      model := GetModel(gpu_instances.target.model_slot);
+      model := ModelFromSlot(xx model_slot);
 
       // bind instance storage buffer
       storage_bufs := *SDL_GPUBuffer.[
-        gpu_instances.buffer.handle,
-        GPU_BATCH_GetPosesBatch().buffer.handle,
+        staging.buffer_handle,
+        RD.transforms_staging.buffer_handle,
       ];
       SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
 
       for mesh: model.meshes
       {
-        material := GetMaterial(mesh.material);
+        material := MaterialFromSlot(mesh.material_slot);
 
         // Uniforms
         RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
         GPU.world_uniform.flags |= .UseInstanceBuffer;
-        if model.is_skinned then GPU.world_uniform.flags |= .DoMeshSkinning;
-        if gpu_instances.target.model_slot == GetModelSlot(.Tree)
-        {
+        if (model.is_skinned) GPU.world_uniform.flags |= .DoMeshSkinning;
+        if model_slot == ModelSlotFromID(.Tree) {
           //GPU.world_uniform.flags |= .LessShadows;
         }
         GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
@@ -457,7 +450,7 @@ GPU_Iterate :: ()
           SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
         }
 
-        SDL_DrawGPUIndexedPrimitives(pass, mesh.indices_count, gpu_instances.element_count,
+        SDL_DrawGPUIndexedPrimitives(pass, mesh.indices_count, xx staging.element_count,
           mesh.indices_start_index, xx mesh.vertices_start_index, 0);
       }
     }
@@ -478,7 +471,11 @@ GPU_Iterate :: ()
     return;
   }
 
-  GPU_BATCH_UploadAllBatches(cmd);
+  {
+    copy_pass := SDL_BeginGPUCopyPass(cmd);
+    RD_StagingsToGPUBuffers(copy_pass);
+    SDL_EndGPUCopyPass(copy_pass);
+  }
 
   depth_target := SDL_GPUDepthStencilTargetInfo.{
     clear_depth = GPU_CLEAR_DEPTH_FLOAT,
@@ -875,7 +872,7 @@ GPU_TransferBuffer :: (cmd: *SDL_GPUCommandBuffer, gpu_buffer: *SDL_GPUBuffer, d
       offset = 0,
       size = data_size,
     };
-    SDL_UploadToGPUBuffer(copy_pass, *buf_location, *dst_region, false);
+    SDL_UploadToGPUBuffer(copy_pass, *buf_location, *dst_region, false); // @todo should this be true?
 
     SDL_EndGPUCopyPass(copy_pass);
   }

@@ -8,7 +8,22 @@ RenderState :: struct
   ui_shapes: Fixed(1024 * 16, RD_UIShape);
   ui_shapes3d: Fixed(1024 * 2, RD_UIShapeIn3D);
 
-  world_batches: [] RD_WorldBatch; // indexed by LaneIdx()
+  world_batches: [] RD_WorldBatch; // count = LaneCount(); indexed by LaneIdx()
+
+  all_stagings: [] RD_Staging;
+  transforms_staging: *RD_Staging;
+  models_stagings: [] RD_Staging; // count = AST.models.count
+  meshes_stagings: [] RD_Staging; // count = AST.materials.count
+}
+
+RD_Staging :: struct
+{
+  transfer_handle: *SDL_GPUTransferBuffer;
+  element_count: s64;
+  bytes: s64;
+
+  buffer_handle: *SDL_GPUBuffer;
+  buffer_capacity: s64;
 }
 
 RD_WorldUniform :: struct
@@ -44,46 +59,188 @@ RD_WorldBatch :: struct
   meshes: [] MeshBatch; // indexed with MeshSlot
   transforms: [..] Mat4;
 
-  ModelBatch :: struct {
-    buf: [..] RD_WorldModel;
-  }
-  MeshBatch :: struct {
-    buf: [..] RD_WorldVertex;
+  ModelBatch :: struct { buf: [..] RD_WorldModel; }
+  MeshBatch :: struct { buf: [..] RD_WorldVertex; }
+}
+
+RD_Init :: ()
+{
+  RD.world_batches = NewArray(GLOBAL.core_count, RD_WorldBatch);
+  RD.all_stagings = NewArray(1 + AST.models.count + AST.materials.count, RD_Staging);
+  RD.transforms_staging = *RD.all_stagings[0];
+  RD.models_stagings = Subarray(RD.all_stagings, 1, AST.models.count);
+  RD.meshes_stagings = Subarray(RD.all_stagings, 1 + AST.models.count, AST.materials.count);
+
+  for * RD.all_stagings {
+    it.buffer_handle = GPU.dummy_instance_buffer;
   }
 }
 
-RD_InitializeWorldBatch :: ()
+RD_GetLaneWorldBatch :: inline () -> *RD_WorldBatch
 {
-  batch := *RD.world_batches[LaneIdx()];
+  return *RD.world_batches[LaneIdx()];
+}
+
+RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
+{
   batch.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);
   batch.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
 }
 
-RD_UploadAllBatchesToGPU :: ()
+RD_TransferAllWorldBatchesToGPU :: ()
 {
   AssertThatOnlyOneLaneEverReachedThisCodepath();
-  for * batch: RD.world_batches
-  {
-    if batch.transforms.count > 0 {
-    GPU_BATCH_TransferUploadBytes(GPU_BATCH_GetPosesBatch(),
-      batch.transforms.data, xx array_size_bytes(batch.transforms), xx batch.transforms.count);
-    }
+  if RD.world_batches.count <= 0 return;
 
+  auto_release_temp();
+  transforms_sum := 0;
+  models_sums := NewArray(AST.models.count, s64,, temp);
+  meshes_sums := NewArray(AST.materials.count, s64,, temp);
+
+  // Count all transforms, models, meshes + patch model's pose_offset
+  for batch: RD.world_batches
+  {
     for batch.models {
-      if it.buf.count > 0 {
-        gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .ModelInstances, model_slot = xx it_index});
-        GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
+      models_sums[it_index] += it.buf.count;
+      for * it.buf { // patch pose_offsets with cumulative lane offset
+        it.pose_offset += xx transforms_sum;
       }
     }
 
     for batch.meshes {
-      if it.buf.count > 0 {
-        gpu_batch := GPU_BATCH_FindOrCreateBundle(.{type = .MeshVertices, material_slot = xx it_index});
-        GPU_BATCH_TransferUploadBytes(gpu_batch, it.buf.data, xx array_size_bytes(it.buf), xx it.buf.count);
-      }
+      meshes_sums[it_index] += it.buf.count;
     }
 
+    transforms_sum += batch.transforms.count;
+  }
+
+  // @todo Following 3 code blocks are a bit fragile copypasta.
+  //       Could be compressed with some effort.
+
+  // Upload transforms to GPU
+  {
+    sum := transforms_sum;
+
+    staging := RD.transforms_staging;
+    staging.element_count = sum;
+    staging.bytes = staging.element_count * size_of(Mat4);
+    if staging.bytes > 0
+    {
+      transfer_desc := SDL_GPUTransferBufferCreateInfo.{
+        usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = xx staging.bytes,
+      };
+      staging.transfer_handle = SDL_CreateGPUTransferBuffer(GPU.device, *transfer_desc);
+
+      // CPU -> GPU transfer buffer
+      mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
+      mapped_dst := mapped_memory;
+      for batch: RD.world_batches
+      {
+        src := *batch.transforms;
+        size := array_size_bytes(src.*);
+        memcpy(mapped_dst, src.data, size);
+        mapped_dst += size;
+      }
+      assert(mapped_dst - mapped_memory == staging.bytes);
+      SDL_UnmapGPUTransferBuffer(GPU.device, staging.transfer_handle);
+    }
+  }
+
+  // Upload models to GPU
+  for sum, slot: models_sums
+  {
+    staging := *RD.models_stagings[slot];
+    staging.element_count = sum;
+    staging.bytes = staging.element_count * size_of(RD_WorldModel);
+    if staging.bytes == 0 continue;
+
+    transfer_desc := SDL_GPUTransferBufferCreateInfo.{
+      usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = xx staging.bytes,
+    };
+    staging.transfer_handle = SDL_CreateGPUTransferBuffer(GPU.device, *transfer_desc);
+
+    // CPU -> GPU transfer buffer
+    mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
+    mapped_dst := mapped_memory;
+    for batch: RD.world_batches
+    {
+      src := *batch.models[slot].buf;
+      size := array_size_bytes(src.*);
+      memcpy(mapped_dst, src.data, size);
+      mapped_dst += size;
+    }
+    assert(mapped_dst - mapped_memory == staging.bytes);
+    SDL_UnmapGPUTransferBuffer(GPU.device, staging.transfer_handle);
+  }
+
+  // Upload meshes to GPU
+  for sum, slot: meshes_sums
+  {
+    staging := *RD.meshes_stagings[slot];
+    staging.element_count = sum;
+    staging.bytes = staging.element_count * size_of(RD_WorldVertex);
+    if staging.bytes == 0 continue;
+
+    transfer_desc := SDL_GPUTransferBufferCreateInfo.{
+      usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, size = xx staging.bytes,
+    };
+    staging.transfer_handle = SDL_CreateGPUTransferBuffer(GPU.device, *transfer_desc);
+
+    // CPU -> GPU transfer buffer
+    mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
+    mapped_dst := mapped_memory;
+    for batch: RD.world_batches
+    {
+      src := *batch.meshes[slot].buf;
+      size := array_size_bytes(src.*);
+      memcpy(mapped_dst, src.data, size);
+      mapped_dst += size;
+    }
+    assert(mapped_dst - mapped_memory == staging.bytes);
+    SDL_UnmapGPUTransferBuffer(GPU.device, staging.transfer_handle);
+  }
+
+  // Clear world batch CPU arrays
+  for * batch: RD.world_batches
+  {
     RD_ResetWorldBatch(batch);
+  }
+}
+
+RD_StagingsToGPUBuffers :: (copy_pass: *SDL_GPUCopyPass)
+{
+  for * RD.all_stagings
+  {
+    if it.bytes == 0 continue;
+
+    if it.buffer_capacity < it.bytes
+    {
+      if it.buffer_handle && it.buffer_handle != GPU.dummy_instance_buffer // @todo collapse it into "nil buffer" concept
+      {
+        SDL_ReleaseGPUBuffer(GPU.device, it.buffer_handle);
+        it.buffer_handle = null;
+      }
+      it.buffer_capacity = 0;
+    }
+
+    if !it.buffer_handle || it.buffer_handle == GPU.dummy_instance_buffer
+    {
+      it.buffer_capacity = xx CeilPow2(xx (it.bytes * 2));
+
+      info := SDL_GPUBufferCreateInfo.{size = xx it.buffer_capacity};
+      if is_pointer_in_bounds(RD.meshes_stagings, it) info.usage |= SDL_GPU_BUFFERUSAGE_VERTEX;
+      else info.usage |= SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
+
+      it.buffer_handle = SDL_CreateGPUBuffer(GPU.device, *info);
+    }
+
+    src := SDL_GPUTransferBufferLocation.{transfer_buffer = it.transfer_handle};
+    dst := SDL_GPUBufferRegion.{buffer = it.buffer_handle, size = xx it.bytes};
+    SDL_UploadToGPUBuffer(copy_pass, *src, *dst, true); // @todo can this be false instead? does copy_pass part take care of cycling?
+
+    // Release transfer buffer
+    SDL_ReleaseGPUTransferBuffer(GPU.device, it.transfer_handle);
+    it.transfer_handle = null;
   }
 }
 
@@ -120,10 +277,8 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
   }
 }
 
-RD_WorldDrawObject :: (ghost: Ghost)
+RD_WorldDrawObject :: (ghost: Ghost, batch: *RD_WorldBatch)
 {
-  batch := *RD.world_batches[LaneIdx()];
-
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
@@ -144,14 +299,14 @@ RD_WorldDrawObject :: (ghost: Ghost)
       picking_color = OBJ_KeyToColor(ghost.key)
     };
 
-    model := GetModel(ghost.model);
+    model := ModelFromID(ghost.model);
     if model.is_skinned {
       instance.pose_offset = xx batch.transforms.count;
       transforms := ANIMATION_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
       array_add_from_array(*batch.transforms, transforms);
     }
 
-    model_slot := GetModelSlot(ghost.model);
+    model_slot := ModelSlotFromID(ghost.model);
     array_add(*batch.models[model_slot].buf, instance);
   }
 
@@ -315,7 +470,7 @@ RD_WorldDrawObject :: (ghost: Ghost)
     }
 
     // Transfer verts to GPU
-    material_slot := GetMaterialSlot(material);
+    material_slot := MaterialSlotFromID(material);
     array_add_many(*batch.meshes[material_slot].buf, mesh_verts.data, mesh_verts_count);
   }
 }

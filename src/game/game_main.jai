@@ -22,7 +22,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
 
-  RD_InitializeWorldBatch();
+  RD_InitializeWorldBatch(RD_GetLaneWorldBatch());
   LaneSync();
 
   while !GLOBAL.in_shutdown
@@ -59,7 +59,6 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_server.jai";
 #load "game_audio.jai";
 #load "game_gpu.jai";
-#load "game_gpu_batch.jai";
 #load "game_render.jai";
 #load "game_font.jai";
 #load "game_tests.jai";

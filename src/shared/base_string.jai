@@ -80,6 +80,11 @@ EndsWith :: (haystack: string, needle: string, flags: MatchFlags = 0) -> bool
   return Match(h, needle, flags);
 }
 
+ToArray :: (str: string) -> [] u8
+{
+  return [] u8.{data = str.data, count = str.count};
+}
+
 IsWhite :: (b: u8) -> bool
 {
   res := false;
