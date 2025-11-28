@@ -90,8 +90,9 @@ RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
 RD_TransferAllWorldBatchesToGPU :: ()
 {
   AssertThatOnlyOneLaneEverReachedThisCodepath();
-  if RD.world_batches.count <= 0 return;
+  if RD.world_batches.count == 0 return;
 
+  // @todo counting could be done directly on staging
   auto_release_temp();
   transforms_sum := 0;
   models_sums := NewArray(AST.models.count, s64,, temp);
@@ -114,8 +115,11 @@ RD_TransferAllWorldBatchesToGPU :: ()
     transforms_sum += batch.transforms.count;
   }
 
-  // @todo Following 3 code blocks are a bit fragile copypasta.
-  //       Could be compressed with some effort.
+  // @todo 1. Following 3 code blocks are a bit fragile copypasta.
+  //          Could be compressed with some effort.
+
+  // @todo 2. Calling SDL_CreateGPUTransferBuffer all the time shows up in the profiler actually.
+  //          Reuse transfer buffer unless it's too small. Use SDL's built-in cycling.
 
   // Upload transforms to GPU
   {
