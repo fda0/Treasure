@@ -87,7 +87,7 @@ RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
   batch.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
 }
 
-RD_TransferAllWorldBatchesToGPU :: ()
+RD_UploadWorldBatchesToGPUTransferBuffers :: ()
 {
   AssertThatOnlyOneLaneEverReachedThisCodepath();
   if RD.world_batches.count == 0 return;
@@ -211,7 +211,7 @@ RD_TransferAllWorldBatchesToGPU :: ()
   }
 }
 
-RD_StagingsToGPUBuffers :: (copy_pass: *SDL_GPUCopyPass)
+RD_CopyFromTransferBuffersToBuffers :: (copy_pass: *SDL_GPUCopyPass)
 {
   for * RD.all_stagings
   {

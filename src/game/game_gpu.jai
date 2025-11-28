@@ -473,7 +473,7 @@ GPU_Iterate :: ()
 
   {
     copy_pass := SDL_BeginGPUCopyPass(cmd);
-    RD_StagingsToGPUBuffers(copy_pass);
+    RD_CopyFromTransferBuffersToBuffers(copy_pass);
     SDL_EndGPUCopyPass(copy_pass);
   }
 

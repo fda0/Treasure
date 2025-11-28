@@ -234,7 +234,7 @@ G_Iterate :: ()
 
   if IsLaneTaskIdx(0)
   {
-    RD_TransferAllWorldBatchesToGPU();
+    RD_UploadWorldBatchesToGPUTransferBuffers();
   }
 
   if IsLaneTaskIdx(1) && !G.headless
