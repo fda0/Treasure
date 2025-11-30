@@ -277,17 +277,18 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
       an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
 
       target_is_walking := 0.0;
-      if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
-      if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
+      if (moved_distance > .00001*TICK_RATE) target_is_walking += 1; // walk
+      if (moved_distance > .00030*TICK_RATE) target_is_walking += 1; // run
+
       is_walking_t := clamp(G.dt * 10.0, 0, 1);
       an.is_walking = lerp(an.is_walking, target_is_walking, is_walking_t);
-      an.is_walking = Snap01(an.is_walking, 0.001);
 
       an.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
       an.is_attacking = clamp(an.is_attacking, 0, 1);
 
       if (ghost.key == G.player_key) {
-        // log("moved_distance: %; an.is_walking %; is_attacking %", moved_distance, an.is_walking, an.is_attacking);
+        // log("moved_distance: %; an.is_walking %; is_attacking %; target_is_walking: %; X %",
+        //   moved_distance, an.is_walking, an.is_attacking, target_is_walking, .0001*TICK_RATE);
       }
 
 
@@ -298,11 +299,11 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
       an.tracks[0].t += G.dt;
       an.tracks[0].t = WrapTime(model.skeleton, an.tracks[0].id, an.tracks[0].t);
 
-      an.tracks[1].weight = clamp(an.is_walking, 0, 1);
+      an.tracks[1].weight = Smoothstep(an.is_walking, 0, 1);
       an.tracks[1].id = .WALK;
       an.tracks[1].t = Time01ToAnimT(model.skeleton, an.tracks[1].id, WrapFloat(an.walk_cycle, 0, 1));
 
-      an.tracks[2].weight = clamp(an.is_walking - 1.0, 0, 1);
+      an.tracks[2].weight = Smoothstep(an.is_walking, 1, 2);
       an.tracks[2].id = .RUN;
       an.tracks[2].t = Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN, 0, 1));
 

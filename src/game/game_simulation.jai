@@ -78,7 +78,7 @@ SIM_AdvanceByTick :: ()
     // temp - decay move_speed towards base
     player.move_speed_boost_t = max(0.0, player.move_speed_boost_t - TICK_FLOAT_STEP);
 
-    player.move_speed = player.base_move_speed + Smoothstep(player.move_speed_boost_t, 0.0, 1.0)*player.base_move_speed*2;
+    player.move_speed = player.base_move_speed + player.move_speed_boost_t*0.1;
   }
 
   // transfer input to player objects
@@ -291,6 +291,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 
   if input.skills & .E
   {
+    obj.move_speed_boost_t += 20.0;
     // @todo blink somewhere and deal dmg
   }
 
@@ -380,6 +381,7 @@ SIM_ProcessActivity :: (obj: *Object)
     if distance >= MINIMUM_MOVE_START_DISTANCE then pathing_direction = obj_to_destination;
 
     obj_speed := obj.move_speed * TICK_FLOAT_STEP;
+    obj_speed = min(obj_speed, distance);
     obj.desired_dp = V3.{xy = normalize(pathing_direction) * obj_speed, z = 0};
   }
   else

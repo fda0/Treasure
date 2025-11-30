@@ -50,9 +50,6 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
     dropped := QueuePop(*user.received_inputs);
     skills_merge |= dropped.input.skills;
   }
-  if skills_merge & .W {
-    log("SV_GetNextPlayerInput - skills_merge has .W");
-  }
   Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
 
   result := user.last_input;
