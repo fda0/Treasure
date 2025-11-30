@@ -6,7 +6,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
-  animation_records: [#run EnumOnePastMax(AnimationID)] ANIMATION_Record;
+  animation_records: [#run EnumOnePastMax(AnimationID)] AnimationRecord;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
@@ -23,10 +23,10 @@ Animation :: struct
 {
   name: string;
   t_min, t_max: float;
-  channels: [] ANIMATION_Channel;
+  channels: [] AnimationChannel;
 };
 
-ANIMATION_Channel :: struct
+AnimationChannel :: struct
 {
   type: PIE_AnimationChannelType;
   joint_index: u32;
@@ -37,15 +37,8 @@ ANIMATION_Channel :: struct
 //
 //
 //
-ANIMATION_AdvanceMode :: enum
-{
-  TIME;
-  DISTANCE;
-  MANUAL01;
-  MANUAL;
-}
 
-ANIMATION_Record :: struct
+AnimationRecord :: struct
 {
   animation_index: s32;
   joint_weights: [] float; // Animations like punching shouldn't really apply to legs etc
@@ -65,26 +58,26 @@ AnimationID :: enum u8
   DEATH;
 }
 
-ANIMATION_Request :: struct
+AnimationRequest :: struct
 {
   tick: ServerTick;
   id: AnimationID;
 }
 
-ANIMATION_Track :: struct
+AnimationTrack :: struct
 {
   id: AnimationID;
   t: float;
   weight: float;
 }
 
-ANIMATION_InitSkeletons :: ()
+AN_InitSkeletons :: ()
 {
   PerfFunc();
 
   MaskJoints :: (joint_name: string, value: float) #expand
   {
-    WaterfallToChildren(.ASSIGN, `skeleton, JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
+    AN_WaterfallToChildren(.ASSIGN, `skeleton, AN_JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
   skeleton := ModelFromID(.Dude).skeleton;
@@ -99,38 +92,38 @@ ANIMATION_InitSkeletons :: ()
 
       if it == {
         case .IDLE;
-        r.animation_index = AnimationNameToIndex(skeleton, "Idle_Loop");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle_Loop");
 
         case .WALK;
-        r.animation_index = AnimationNameToIndex(skeleton, "Walk_Loop");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk_Loop");
 
         case .RUN;
-        r.animation_index = AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
-        // temp_weights[JointNameToIndex(skeleton, "DEF-spine.001")] = 0.5;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
+        // temp_weights[AN_JointNameToIndex(skeleton, "DEF-spine.001")] = 0.5;
 
         case .PUNCH_HANDS;
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.003", 1.0);
         #through;
         case .PUNCH;
-        r.animation_index = AnimationNameToIndex(skeleton, "Punch_Cross");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Cross");
 
         case .JAB_HANDS;
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.003", 1.0);
         #through;
         case .JAB;
-        r.animation_index = AnimationNameToIndex(skeleton, "Punch_Jab");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Jab");
 
         case .HIT;
-        r.animation_index = AnimationNameToIndex(skeleton, "Hit_Head");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Hit_Head");
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.001", 1.0);
         MaskJoints("DEF-shoulder.L", 0.0);
         MaskJoints("DEF-shoulder.R", 0.0);
 
         case .DEATH;
-        r.animation_index = AnimationNameToIndex(skeleton, "Death01");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death01");
       }
 
       has_non_one := false;
@@ -151,25 +144,25 @@ ANIMATION_InitSkeletons :: ()
 
       if it == {
         case .IDLE;
-        r.animation_index = AnimationNameToIndex(skeleton, "Idle");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle");
 
         case .WALK;
-        r.animation_index = AnimationNameToIndex(skeleton, "Walk");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk");
 
         case .RUN;
-        r.animation_index = AnimationNameToIndex(skeleton, "Run");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Run");
 
         case .PUNCH_HANDS; #through;
         case .PUNCH; #through;
         case .JAB_HANDS; #through;
         case .JAB;
-        r.animation_index = AnimationNameToIndex(skeleton, "Punch");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch");
 
         case .HIT;
-        r.animation_index = AnimationNameToIndex(skeleton, "HitReact");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "HitReact");
 
         case .DEATH;
-        r.animation_index = AnimationNameToIndex(skeleton, "Death");
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death");
       }
 
       has_non_one := false;
@@ -179,7 +172,7 @@ ANIMATION_InitSkeletons :: ()
   }
 }
 
-ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
+AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
 {
   activity := *ghost.activity;
   animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
@@ -297,21 +290,21 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
       an.tracks[0].weight = 1.0;
       an.tracks[0].id = .IDLE;
       an.tracks[0].t += G.dt;
-      an.tracks[0].t = WrapTime(model.skeleton, an.tracks[0].id, an.tracks[0].t);
+      an.tracks[0].t = AN_WrapTime(model.skeleton, an.tracks[0].id, an.tracks[0].t);
 
       an.tracks[1].weight = Smoothstep(an.is_walking, 0, 1);
       an.tracks[1].id = .WALK;
-      an.tracks[1].t = Time01ToAnimT(model.skeleton, an.tracks[1].id, WrapFloat(an.walk_cycle, 0, 1));
+      an.tracks[1].t = AN_Time01ToAnimT(model.skeleton, an.tracks[1].id, WrapFloat(an.walk_cycle, 0, 1));
 
       an.tracks[2].weight = Smoothstep(an.is_walking, 1, 2);
       an.tracks[2].id = .RUN;
-      an.tracks[2].t = Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN, 0, 1));
+      an.tracks[2].t = AN_Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN, 0, 1));
 
       an.tracks[3].weight = an.is_attacking;
       an.tracks[3].id = .PUNCH;
       an.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
       an.tracks[3].t = WrapFloat(an.tracks[3].t, 0.0, 1.0);
-      an.tracks[3].t = Time01ToAnimT(model.skeleton, an.tracks[3].id, an.tracks[3].t);
+      an.tracks[3].t = AN_Time01ToAnimT(model.skeleton, an.tracks[3].id, an.tracks[3].t);
 
       an.tracks[4].weight = sqrt(an.is_attacking);
       an.tracks[4].id = .PUNCH_HANDS;
@@ -324,7 +317,7 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
   }
 }
 
-ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) -> [] Mat4
+AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Mat4
 {
   PerfFunc();
   push_allocator(temp);
@@ -357,7 +350,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) 
       translations = array_copy(skeleton.bind_translations);
     }
 
-    record := RecordFromType(skeleton, track.id);
+    record := AN_RecordFromType(skeleton, track.id);
 
     // Overwrite translations, rotations, scales with values from animation
     {
@@ -450,7 +443,7 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) 
     it.* = trans * (rot * scale);
   }
 
-  WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
+  AN_WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
 
   for *result_matrices
   {
@@ -460,17 +453,17 @@ ANIMATION_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] ANIMATION_Track) 
 }
 
 #scope_file;
-RecordFromType :: (skeleton: Skeleton, id: AnimationID) -> *ANIMATION_Record
+AN_RecordFromType :: (skeleton: Skeleton, id: AnimationID) -> *AnimationRecord
 {
   return *skeleton.animation_records[id];
 }
 
-AnimationFromType :: (skeleton: Skeleton, id: AnimationID) -> *Animation
+AN_AnimationFromType :: (skeleton: Skeleton, id: AnimationID) -> *Animation
 {
-  return *skeleton.animations[RecordFromType(skeleton, id).animation_index];
+  return *skeleton.animations[AN_RecordFromType(skeleton, id).animation_index];
 }
 
-WrapTime :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
+AN_WrapTime :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
 {
   anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];
@@ -478,7 +471,7 @@ WrapTime :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
   return result;
 }
 
-Time01ToAnimT :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
+AN_Time01ToAnimT :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
 {
   anim_index := skeleton.animation_records[id].animation_index;
   anim := skeleton.animations[anim_index];
@@ -486,7 +479,7 @@ Time01ToAnimT :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
   return result;
 }
 
-WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
+AN_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
   skeleton: Skeleton, joint_index: u32, values: [] $T, parent_value: T)
 {
   // This function traverses skeleton joint hierarchy from root joint to children.
@@ -512,14 +505,14 @@ WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
     }
 
     child_joint_index := skeleton.child_index_buffer[it];
-    WaterfallToChildren(mode, skeleton, child_joint_index, values, values[joint_index]);
+    AN_WaterfallToChildren(mode, skeleton, child_joint_index, values, values[joint_index]);
   }
 }
 
 //
 //
 //
-AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, found: bool
+AN_AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, found: bool
 {
   for skeleton.animations
   {
@@ -530,7 +523,7 @@ AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, found:
   return 0, false;
 }
 
-JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32, found: bool
+AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32, found: bool
 {
   for skeleton.joint_names
   {

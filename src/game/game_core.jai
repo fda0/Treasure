@@ -97,7 +97,7 @@ G_Init :: ()
   ASSET_InitPreGPU();
   GPU_Init();
   ASSET_InitPostGPU();
-  ANIMATION_InitSkeletons();
+  AN_InitSkeletons();
   FONT_Init();
   RD_UIClearRenderCounters();
   HR_InitWatcher();
@@ -342,8 +342,8 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
     if is_shared {
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
-    inline ANIMATION_AdvanceAnimationForGhost(ghost);
-    inline RD_WorldDrawObject(ghost, batch);
+    inline AN_UpdateGhostAnimationTracks(ghost);
+    inline RD_DrawGhost(ghost, batch);
   }
 }
 

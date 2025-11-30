@@ -109,7 +109,7 @@ Object :: struct
 
   // game state
   activity: OBJ_ActivityState;
-  animation_requests: Queue(3, ANIMATION_Request);
+  animation_requests: Queue(3, AnimationRequest);
   sound_requests: Queue(3, AUDIO_Request);
 
   skill_cooldowns: [4] float;

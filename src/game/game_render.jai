@@ -281,7 +281,7 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
   }
 }
 
-RD_WorldDrawObject :: (ghost: Ghost, batch: *RD_WorldBatch)
+RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
 {
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
@@ -306,7 +306,7 @@ RD_WorldDrawObject :: (ghost: Ghost, batch: *RD_WorldBatch)
     model := ModelFromID(ghost.model);
     if model.is_skinned {
       instance.pose_offset = xx batch.transforms.count;
-      transforms := ANIMATION_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
+      transforms := AN_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
       array_add_from_array(*batch.transforms, transforms);
     }
 
