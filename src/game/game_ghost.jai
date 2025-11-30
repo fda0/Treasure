@@ -18,16 +18,15 @@ Ghost :: struct
   creation_time: Timestamp;
   death_time: Timestamp;
 
-  // Object data that's kept on client side only
-  animated_rot: Quat; // animates towards rotation
-  animated_p: V3; // animates towards (V3){p.x, p.y, p.z}
-
   anim: struct {
-    is_walking: float; // 0=idle; 1=walking; 2=running
-    walk_cycle: float;
+    rotation: Quat; // animates towards at.obj.rotation
+    position: V3; // animates towards at.obj.p
 
-    is_attacking: float;
-    is_hit: float;
+    idle_cycle: float;
+    walk_cycle: float;
+    is_walking_weight: float; // 0=idle; 1=walking; 2=running
+    is_attacking_weight: float;
+    is_hit_weight: float;
 
     tracks: [10] AnimationTrack;
   };

@@ -268,7 +268,7 @@ G_Iterate :: ()
         marker.flags |= .DRAW_MODEL;
         marker.model = .Flag;
         marker.p = G.input.world_p;
-        marker.animated_p.xy = marker.p.xy;
+        marker.anim.position.xy = marker.p.xy;
         G.pathing_marker_set = true;
       }
       else
@@ -342,7 +342,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
     if is_shared {
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
-    inline AN_UpdateGhostAnimationTracks(ghost);
+    inline AN_UpdateGhostTimers(ghost);
     inline RD_DrawGhost(ghost, batch);
   }
 }
@@ -518,7 +518,7 @@ G_ProcessInputAndSendToClient :: ()
       if move_pressed
       {
         marker := G_GetGhost(.LOCAL, G.pathing_marker);
-        if !OBJ_IsNil(marker) marker.animated_p.z = 0.5;
+        if !OBJ_IsNil(marker) marker.anim.position.z = 0.5;
       }
     }
   }
@@ -698,10 +698,23 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
 
   ghost.at.obj = OBJ_LerpObject(ghost.from.obj, ghost.dest.obj, lerp_t);
 
+  init_ghost_anim := false;
+
   if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
   if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
-  if IsTickDue(ghost.at.obj.creation_tick, ghost) ghost.creation_time = G.frame_timestamp;
+  if IsTickDue(ghost.at.obj.creation_tick, ghost) {
+    ghost.creation_time = G.frame_timestamp;
+    init_ghost_anim = true;
+  }
   if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
+
+  if init_ghost_anim
+  {
+    ghost.anim = .{
+      rotation = ghost.rotation,
+      position = ghost.p,
+    };
+  }
 }
 
 G_ParseCommandLineArguments :: (args: [] string)

@@ -290,8 +290,8 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
 
   if draw_model
   {
-    transform := TranslationMatrix(ghost.animated_p);
-    transform = transform * RotationMatrix(ghost.animated_rot); // rotate first, translate second
+    transform := TranslationMatrix(ghost.anim.position);
+    transform = transform * RotationMatrix(ghost.anim.rotation); // rotate first, translate second
 
     hover_color := C4.{1,1,1,1};
     if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
@@ -304,10 +304,12 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     };
 
     model := ModelFromID(ghost.model);
-    if model.is_skinned {
+    if model.is_skinned
+    {
       instance.pose_offset = xx batch.transforms.count;
-      transforms := AN_GetPoseTransforms(model.skeleton, ghost.anim.tracks);
-      array_add_from_array(*batch.transforms, transforms);
+      tracks := AN_GetAnimationTracks(ghost);
+      transforms := AN_GetPoseTransforms(model.skeleton, tracks);
+      array_add_from_another_array(*batch.transforms, transforms);
     }
 
     model_slot := ModelSlotFromID(ghost.model);

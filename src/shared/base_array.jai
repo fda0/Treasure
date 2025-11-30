@@ -99,7 +99,7 @@ array_alloc :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocat
   return result;
 }
 
-array_add_from_array :: (array: *[..] $T, src: [] T) -> new_elements: [] T
+array_add_from_another_array :: (array: *[..] $T, src: [] T) -> new_elements: [] T
 {
   dst := array_alloc(array, src.count, initialize=false);
   memcpy(dst.data, src.data, src.count*size_of(T));

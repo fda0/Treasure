@@ -66,17 +66,17 @@ BOTH_TEAMS :: OBJ_Team.[.BLUE, .RED];
 
 OBJ_Activity :: struct
 {
-  is_walking: bool; @lerp_ifx
-  wants_to_attack: bool; @lerp_ifx
-  is_attacking: bool; @lerp_ifx
+  is_walking: bool;
+  wants_to_attack: bool;
+  is_attacking: bool;
 
   walking_to: V2; @lerp
 
   attack_t: float; @lerp
   visual_attack_t: float; @lerp
 
-  target: OBJ_Key; @lerp_ifx
-  last_projectile: OBJ_Key; @lerp_ifx
+  target: OBJ_Key;
+  last_projectile: OBJ_Key;
 }
 
 Object :: struct
@@ -87,8 +87,8 @@ Object :: struct
   team: OBJ_Team;
   init: bool;
 
-  creation_tick: ServerTick; @lerp_ifx
-  death_tick: ServerTick; @lerp_ifx
+  creation_tick: ServerTick;
+  death_tick: ServerTick;
   p: V3; @lerp // XY center, Z at bottom
   desired_dp: V3; @lerp // move that Object wanted to make
   moved_dp: V3; @lerp // move that Object did after collision simulation
@@ -109,25 +109,25 @@ Object :: struct
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
-  animation_requests: Queue(3, AnimationRequest); @lerp_ifx
-  sound_requests: Queue(3, AUDIO_Request); @lerp_ifx
+  animation_requests: Queue(3, AnimationRequest);
+  sound_requests: Queue(3, AUDIO_Request);
 
   skill_cooldowns: [4] float; // @todo - support array lerp
 
   // visuals
   color: Color32 = 0xffff_ffff; @lerp // unused?
   rotation: Quat; @Slerp
-  model: ModelID; @lerp_ifx // used by DrawModel
-  material: MaterialID; @lerp_ifx // used by DrawCollision
+  model: ModelID; // used by DrawModel
+  material: MaterialID; // used by DrawCollision
   height: float; @lerp // used by DrawCollision
   texture_texels_per_m: float; @lerp // used by DrawCollision
 
-  collider: OBJ_Collider; @lerp_ifx
+  collider: OBJ_Collider;
 };
 
 OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
 {
-  result := prev;
+  result := ifx t < 0.5 then prev else next;
 
   #insert -> string {
     GenerateStructLerp :: (b: *String_Builder, struct_type: *Type_Info_Struct, prefix: string)
@@ -139,10 +139,6 @@ OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
         if Contains(it.notes, "Slerp") basic_lerp = "Slerp";
         if basic_lerp {
           print_to_builder(b, "result%1.%2 = %3(prev%1.%2, next%1.%2, t);\n", prefix, it.name, basic_lerp);
-        }
-
-        if Contains(it.notes, "lerp_ifx") {
-          print(b, "result%1.%2 = ifx t < 0.5 then prev%1.%2 else next%1.%2;\n", prefix, it.name);
         }
 
         if Contains(it.notes, "lerp_recurse")

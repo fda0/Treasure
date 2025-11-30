@@ -172,7 +172,7 @@ AN_InitSkeletons :: ()
   }
 }
 
-AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
+AN_UpdateGhostTimers :: (ghost: *Ghost)
 {
   activity := *ghost.activity;
   animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
@@ -187,11 +187,11 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
     pos_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
     rot_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
-    ghost.animated_p.xy = ghost.p.xy;
+    ghost.anim.position.xy = ghost.p.xy;
     if activity.is_attacking || activity.attack_t < 0.0
     {
-      ghost.animated_p.z = pos_t * 1.0;
-      ghost.animated_rot = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
+      ghost.anim.position.z = pos_t * 1.0;
+      ghost.anim.rotation = RotationAroundAxis(AxisV3(.Z), rot_t*0.5);
     }
     else
     {
@@ -209,7 +209,7 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
     offset1 := RngF_01(*rng);
 
     t := Elapsed(G.frame_timestamp, ghost.creation_time);
-    ghost.animated_rot =
+    ghost.anim.rotation =
     RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
     RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
   }
@@ -218,7 +218,7 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
   {
     ROTATION_SPEED :: 16.0;
 
-    q0 := ghost.animated_rot;
+    q0 := ghost.anim.rotation;
     q1 := ghost.rotation;
 
     w1 := min(1.0, G.dt * ROTATION_SPEED);
@@ -227,22 +227,22 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
     if dot(q0, q1) < 0.0
     w1 = -w1;
 
-    ghost.animated_rot = normalize(Mix(q0, q1, w0, w1));
+    ghost.anim.rotation = normalize(Mix(q0, q1, w0, w1));
   }
   else if !OBJ_HasAnyFlag(ghost, .MANUAL_ROTATION)
   {
-    ghost.animated_rot = ghost.rotation;
+    ghost.anim.rotation = ghost.rotation;
   }
 
   if animate_position
   {
     POSITION_SPEED :: 10.0;
 
-    delta := ghost.p - ghost.animated_p;
+    delta := ghost.p - ghost.anim.position;
     move_by := delta * (G.dt * POSITION_SPEED);
-    ghost.animated_p += move_by;
+    ghost.anim.position += move_by;
 
-    for *ghost.animated_p.component
+    for *ghost.anim.position.component
     {
       if abs(delta.component[it_index]) < 0.01
       it.* = ghost.p.component[it_index];
@@ -250,7 +250,7 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
   }
   else if !OBJ_HasAnyFlag(ghost, .MANUAL_POSITION)
   {
-    ghost.animated_p = ghost.p;
+    ghost.anim.position = ghost.p;
   }
 
   if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
@@ -260,8 +260,12 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
     if model.is_skinned
     {
       DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
-      WALK_TO_RUN_COEFFICIENT :: 0.2;
 
+      // idle_cycle
+      an.idle_cycle += G.dt;
+      an.idle_cycle = WrapFloat(an.idle_cycle, 0, 1);
+
+      // walk_cycle
       moved_distance := length(ghost.moved_dp);
       meters_per_second := moved_distance * TICK_RATE;
 
@@ -269,52 +273,71 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
       an.walk_cycle += moved_cycle_delta;
       an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
 
+      // is_walking_weight
       target_is_walking := 0.0;
       if (meters_per_second > 0) target_is_walking += 1; // walk
       if (meters_per_second > 3.0) target_is_walking += 1; // run
 
       is_walking_t := clamp(G.dt * 10.0, 0, 1);
-      an.is_walking = lerp(an.is_walking, target_is_walking, is_walking_t);
+      an.is_walking_weight = lerp(an.is_walking_weight, target_is_walking, is_walking_t);
 
-      an.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
-      an.is_attacking = clamp(an.is_attacking, 0, 1);
+      // is_attacking_weight
+      an.is_attacking_weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+      an.is_attacking_weight = clamp(an.is_attacking_weight, 0, 1);
 
       if (ghost.key == G.player_key) {
-        // log("moved_distance: %; an.is_walking %; is_attacking %; target_is_walking: %; X %",
-        //   moved_distance, an.is_walking, an.is_attacking, target_is_walking, .0001*TICK_RATE);
+        // log("moved_distance: %; an.is_walking_weight %; is_attacking_weight %; target_is_walking: %; X %",
+        //   moved_distance, an.is_walking_weight, an.is_attacking_weight, target_is_walking, .0001*TICK_RATE);
       }
 
-
-
-
-      an.tracks[0].weight = 1.0;
-      an.tracks[0].id = .IDLE;
-      an.tracks[0].t += G.dt;
-      an.tracks[0].t = AN_WrapTime(model.skeleton, an.tracks[0].id, an.tracks[0].t);
-
-      an.tracks[1].weight = Smoothstep(an.is_walking, 0, 1);
-      an.tracks[1].id = .WALK;
-      an.tracks[1].t = AN_Time01ToAnimT(model.skeleton, an.tracks[1].id, WrapFloat(an.walk_cycle, 0, 1));
-
-      an.tracks[2].weight = Smoothstep(an.is_walking, 1, 2);
-      an.tracks[2].id = .RUN;
-      an.tracks[2].t = AN_Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
-
-      an.tracks[3].weight = an.is_attacking;
-      an.tracks[3].id = .PUNCH;
-      an.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
-      an.tracks[3].t = WrapFloat(an.tracks[3].t, 0.0, 1.0);
-      an.tracks[3].t = AN_Time01ToAnimT(model.skeleton, an.tracks[3].id, an.tracks[3].t);
-
-      an.tracks[4].weight = sqrt(an.is_attacking);
-      an.tracks[4].id = .PUNCH_HANDS;
-      an.tracks[4].t = an.tracks[3].t;
-
-      an.tracks[5].id = .DEATH;
-      an.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-      an.tracks[5].weight = ifx ghost.death_tick then min(1.0, an.tracks[5].t * 10.0) else 0.0;
+      //
+      // @todo [client side vs server side animation state]
+      // It's a bit weird to calculate all these things above client-side only. This might be especially tricky for fog-of-war.
+      // Perhaps it would be both simpler and better to move some of these calculations to server-side and just lerp them client side.
+      //
     }
   }
+}
+
+AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
+{
+  tracks: [] AnimationTrack;
+
+  model := ModelFromID(ghost.model);
+  if model.is_skinned
+  {
+    WALK_TO_RUN_COEFFICIENT :: 0.2;
+    tracks = ghost.anim.tracks;
+    a := *ghost.anim;
+
+    tracks[0].weight = 1.0;
+    tracks[0].id = .IDLE;
+    tracks[0].t = AN_Time01ToAnimT(model.skeleton, tracks[0].id, a.idle_cycle);
+
+    tracks[1].weight = Smoothstep(a.is_walking_weight, 0, 1);
+    tracks[1].id = .WALK;
+    tracks[1].t = AN_Time01ToAnimT(model.skeleton, tracks[1].id, WrapFloat(a.walk_cycle, 0, 1));
+
+    tracks[2].weight = Smoothstep(a.is_walking_weight, 1, 2);
+    tracks[2].id = .RUN;
+    tracks[2].t = AN_Time01ToAnimT(model.skeleton, tracks[2].id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+
+    tracks[3].weight = a.is_attacking_weight;
+    tracks[3].id = .PUNCH;
+    tracks[3].t = ghost.activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
+    tracks[3].t = WrapFloat(tracks[3].t, 0.0, 1.0);
+    tracks[3].t = AN_Time01ToAnimT(model.skeleton, tracks[3].id, tracks[3].t);
+
+    tracks[4].weight = sqrt(a.is_attacking_weight);
+    tracks[4].id = .PUNCH_HANDS;
+    tracks[4].t = tracks[3].t;
+
+    tracks[5].id = .DEATH;
+    tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
+    tracks[5].weight = ifx ghost.death_tick then min(1.0, tracks[5].t * 10.0) else 0.0;
+  }
+
+  return tracks;
 }
 
 AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Mat4
