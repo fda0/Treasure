@@ -301,43 +301,61 @@ AN_UpdateGhostTimers :: (ghost: *Ghost)
 
 AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 {
-  tracks: [] AnimationTrack;
+  result: [] AnimationTrack;
 
   model := ModelFromID(ghost.model);
   if model.is_skinned
   {
     WALK_TO_RUN_COEFFICIENT :: 0.2;
-    tracks = ghost.anim.tracks;
     a := *ghost.anim;
 
-    tracks[0].weight = 1.0;
-    tracks[0].id = .IDLE;
-    tracks[0].t = AN_Time01ToAnimT(model.skeleton, tracks[0].id, a.idle_cycle);
+    tracks: Fixed(16, AnimationTrack);
 
-    tracks[1].weight = Smoothstep(a.is_walking_weight, 0, 1);
-    tracks[1].id = .WALK;
-    tracks[1].t = AN_Time01ToAnimT(model.skeleton, tracks[1].id, WrapFloat(a.walk_cycle, 0, 1));
+    {
+      track := array_add(*tracks);
+      track.id = .IDLE;
+      track.weight = 1.0;
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, a.idle_cycle);
+    }
 
-    tracks[2].weight = Smoothstep(a.is_walking_weight, 1, 2);
-    tracks[2].id = .RUN;
-    tracks[2].t = AN_Time01ToAnimT(model.skeleton, tracks[2].id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+    {
+      track := array_add(*tracks);
+      track.id = .WALK;
+      track.weight = Smoothstep(a.is_walking_weight, 0, 1);
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
+    }
 
-    tracks[3].weight = a.is_attacking_weight;
-    tracks[3].id = .PUNCH;
-    tracks[3].t = ghost.activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
-    tracks[3].t = WrapFloat(tracks[3].t, 0.0, 1.0);
-    tracks[3].t = AN_Time01ToAnimT(model.skeleton, tracks[3].id, tracks[3].t);
+    {
+      track := array_add(*tracks);
+      track.id = .RUN;
+      track.weight = Smoothstep(a.is_walking_weight, 1, 2);
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+    }
 
-    tracks[4].weight = sqrt(a.is_attacking_weight);
-    tracks[4].id = .PUNCH_HANDS;
-    tracks[4].t = tracks[3].t;
+    {
+      punch := array_add(*tracks);
+      punch.weight = a.is_attacking_weight;
+      punch.id = .PUNCH;
+      punch.t = WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
+      punch.t = AN_Time01ToAnimT(model.skeleton, punch.id, punch.t);
 
-    tracks[5].id = .DEATH;
-    tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-    tracks[5].weight = ifx ghost.death_tick then min(1.0, tracks[5].t * 10.0) else 0.0;
+      hands := array_add(*tracks);
+      hands.weight = sqrt(a.is_attacking_weight);
+      hands.id = .PUNCH_HANDS;
+      hands.t = punch.t;
+    }
+
+    {
+      track := array_add(*tracks);
+      track.id = .DEATH;
+      track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
+      track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
+    }
+
+    result = copy_array(to_view(*tracks),, temp);
   }
 
-  return tracks;
+  return result;
 }
 
 AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Mat4

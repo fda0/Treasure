@@ -635,7 +635,7 @@ BK_GLTF_ExportModelToPie :: (bk_model: BK_GLTF_Model)
     {
       pie_mesh.indices_start_index = xx B.pie.indices.count;
       pie_mesh.indices_count += xx bk_mesh.indices.count;
-      array_add_from_array(*B.pie.indices, bk_mesh.indices);
+      array_add_from_another_array(*B.pie.indices, bk_mesh.indices);
     }
   }
 }

@@ -90,7 +90,7 @@ array_size_bytes :: (array: [] $T) -> s64 {
 }
 
 // Dynamic array helpers
-array_alloc :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocated_slice: [] T
+array_add_alloc :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocated_slice: [] T
 {
   initial_count := array.count;
   new_count := initial_count + alloc_count;
@@ -101,15 +101,22 @@ array_alloc :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocat
 
 array_add_from_another_array :: (array: *[..] $T, src: [] T) -> new_elements: [] T
 {
-  dst := array_alloc(array, src.count, initialize=false);
+  dst := array_add_alloc(array, src.count, initialize=false);
   memcpy(dst.data, src.data, src.count*size_of(T));
   return dst;
 }
 
 array_add_many :: (array: *[..] $T, src: *T, count: s64) -> new_elements: [] T
 {
-  dst := array_alloc(array, count, initialize=false);
+  dst := array_add_alloc(array, count, initialize=false);
   memcpy(dst.data, src, count*size_of(T));
+  return dst;
+}
+
+copy_array :: (src: [] $T) -> [] T
+{
+  dst := NewArray(src.count, T, initialized = false);
+  ArrayMemcpy(dst, src);
   return dst;
 }
 

@@ -27,8 +27,6 @@ Ghost :: struct
     is_walking_weight: float; // 0=idle; 1=walking; 2=running
     is_attacking_weight: float;
     is_hit_weight: float;
-
-    tracks: [10] AnimationTrack;
   };
 
   #place at;

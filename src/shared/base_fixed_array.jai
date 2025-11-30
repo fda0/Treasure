@@ -1,16 +1,15 @@
-Fixed :: struct($CAPACITY: s64, $T: Type, $zero_init := false)
+Fixed :: struct($CAPACITY: s64, $T: Type)
 {
   ELEMENT_SIZE :: size_of(T);
   DATA_SIZE :: CAPACITY * ELEMENT_SIZE;
-  #if zero_init  buf: [CAPACITY] T;
-  else           buf: [CAPACITY] T = ---;
+  buf: [CAPACITY] T = ---;
   count: s64;
 }
 
 to_view :: (f: *Fixed) -> [] f.T
 {
   res: [] f.T;
-  res.data = f.data;
+  res.data = f.buf.data;
   res.count = f.count;
   return res;
 }
@@ -68,12 +67,13 @@ array_add :: (f: *Fixed, item: f.T) -> bool
   return added;
 }
 
-array_add :: (f: *Fixed) -> *f.T, bool
+array_add :: (f: *Fixed, $initialize := true) -> *f.T, bool
 {
   if f.count < f.CAPACITY
   {
-    result := *f.data[f.count];
+    result := *f.buf[f.count];
     f.count += 1;
+    Initialize(result);
     return result, true;
   }
   return null, false;
