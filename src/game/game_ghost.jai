@@ -29,7 +29,6 @@ Ghost :: struct
     is_attacking: float;
     is_hit: float;
 
-
     tracks: [10] ANIMATION_Track;
   };
 

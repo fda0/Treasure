@@ -23,7 +23,8 @@ PlayerInput :: struct
   world_p: V3; // used by PATHING*
   target_object: OBJ_Key; // used by ATTACK
 
-  skills: enum_flags u8 { Q; W; E; R; }
+  skills: Skills;
+  Skills :: enum_flags u8 { Q; W; E; R; };
 }
 
 SIM_AdvanceByTick :: ()
@@ -73,6 +74,11 @@ SIM_AdvanceByTick :: ()
     player := SV_GetObject(it.key);
     if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
     player.hp = min(player.hp + TICK_FLOAT_STEP * 20.0, player.max_hp);
+
+    // temp - decay move_speed towards base
+    player.move_speed_boost_t = max(0.0, player.move_speed_boost_t - TICK_FLOAT_STEP);
+
+    player.move_speed = player.base_move_speed + Smoothstep(player.move_speed_boost_t, 0.0, 1.0)*player.base_move_speed*2;
   }
 
   // transfer input to player objects
@@ -280,7 +286,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 
   if input.skills & .W
   {
-    obj.move_speed += 2.0;
+    obj.move_speed_boost_t += 1.0;
   }
 
   if input.skills & .E

@@ -262,7 +262,7 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
 
   if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
   {
-    as := *ghost.anim;
+    an := *ghost.anim;
     model := ModelFromID(ghost.model);
     if model.is_skinned
     {
@@ -273,52 +273,52 @@ ANIMATION_AdvanceAnimationForGhost :: (ghost: *Ghost)
       moved_distance := length(ghost.moved_dp);
       moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
 
-      as.walk_cycle += moved_cycle_delta;
-      as.walk_cycle = WrapFloat(as.walk_cycle, 0, 100);
+      an.walk_cycle += moved_cycle_delta;
+      an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
 
       target_is_walking := 0.0;
       if (moved_distance > .00001*TICK_RATE) target_is_walking = 1.0;
       if (moved_distance > .0002*TICK_RATE) target_is_walking = 2.0;
       is_walking_t := clamp(G.dt * 10.0, 0, 1);
-      as.is_walking = lerp(as.is_walking, target_is_walking, is_walking_t);
-      as.is_walking = Snap01(as.is_walking, 0.001);
+      an.is_walking = lerp(an.is_walking, target_is_walking, is_walking_t);
+      an.is_walking = Snap01(an.is_walking, 0.001);
 
-      as.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
-      as.is_attacking = clamp(as.is_attacking, 0, 1);
+      an.is_attacking += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+      an.is_attacking = clamp(an.is_attacking, 0, 1);
 
       if (ghost.key == G.player_key) {
-        // log("moved_distance: %; as.is_walking %; is_attacking %", moved_distance, as.is_walking, as.is_attacking);
+        // log("moved_distance: %; an.is_walking %; is_attacking %", moved_distance, an.is_walking, an.is_attacking);
       }
 
 
 
 
-      as.tracks[0].weight = 1.0;
-      as.tracks[0].id = .IDLE;
-      as.tracks[0].t += G.dt;
-      as.tracks[0].t = WrapTime(model.skeleton, as.tracks[0].id, as.tracks[0].t);
+      an.tracks[0].weight = 1.0;
+      an.tracks[0].id = .IDLE;
+      an.tracks[0].t += G.dt;
+      an.tracks[0].t = WrapTime(model.skeleton, an.tracks[0].id, an.tracks[0].t);
 
-      as.tracks[1].weight = clamp(as.is_walking, 0, 1);
-      as.tracks[1].id = .WALK;
-      as.tracks[1].t = Time01ToAnimT(model.skeleton, as.tracks[1].id, WrapFloat(as.walk_cycle, 0, 1));
+      an.tracks[1].weight = clamp(an.is_walking, 0, 1);
+      an.tracks[1].id = .WALK;
+      an.tracks[1].t = Time01ToAnimT(model.skeleton, an.tracks[1].id, WrapFloat(an.walk_cycle, 0, 1));
 
-      as.tracks[2].weight = clamp(as.is_walking - 1.0, 0, 1);
-      as.tracks[2].id = .RUN;
-      as.tracks[2].t = Time01ToAnimT(model.skeleton, as.tracks[2].id, WrapFloat(as.walk_cycle * WALK_TO_RUN, 0, 1));
+      an.tracks[2].weight = clamp(an.is_walking - 1.0, 0, 1);
+      an.tracks[2].id = .RUN;
+      an.tracks[2].t = Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN, 0, 1));
 
-      as.tracks[3].weight = as.is_attacking;
-      as.tracks[3].id = .PUNCH;
-      as.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
-      as.tracks[3].t = WrapFloat(as.tracks[3].t, 0.0, 1.0);
-      as.tracks[3].t = Time01ToAnimT(model.skeleton, as.tracks[3].id, as.tracks[3].t);
+      an.tracks[3].weight = an.is_attacking;
+      an.tracks[3].id = .PUNCH;
+      an.tracks[3].t = activity.attack_t / ghost.attack_cooldown_t; // @todo REWRITE THIS; Can't just depend on client update rate
+      an.tracks[3].t = WrapFloat(an.tracks[3].t, 0.0, 1.0);
+      an.tracks[3].t = Time01ToAnimT(model.skeleton, an.tracks[3].id, an.tracks[3].t);
 
-      as.tracks[4].weight = sqrt(as.is_attacking);
-      as.tracks[4].id = .PUNCH_HANDS;
-      as.tracks[4].t = as.tracks[3].t;
+      an.tracks[4].weight = sqrt(an.is_attacking);
+      an.tracks[4].id = .PUNCH_HANDS;
+      an.tracks[4].t = an.tracks[3].t;
 
-      as.tracks[5].id = .DEATH;
-      as.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-      as.tracks[5].weight = ifx ghost.death_tick then min(1.0, as.tracks[5].t * 10.0) else 0.0;
+      an.tracks[5].id = .DEATH;
+      an.tracks[5].t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
+      an.tracks[5].weight = ifx ghost.death_tick then min(1.0, an.tracks[5].t * 10.0) else 0.0;
     }
   }
 }

@@ -93,12 +93,17 @@ Object :: struct
   desired_dp: V3; // move that Object wanted to make
   moved_dp: V3; // move that Object did after collision simulation
 
-  // game stats
+  // base stats
   max_hp: float;
-  hp: float;
   attack_speed: float = 1.2;
-  move_speed: float = 1.0;
+  base_move_speed: float = 1.0;
 
+  // stats
+  hp: float;
+  move_speed: float = 1.0;
+  move_speed_boost_t: float;
+
+  // attack timers
   attack_landed_t := 0.25;
   attack_cooldown_t := 1.0;
 

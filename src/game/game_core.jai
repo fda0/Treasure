@@ -485,8 +485,6 @@ G_AdvanceLocalObjects :: ()
 
 G_ProcessInputAndSendToClient :: ()
 {
-  G.input.skills = 0;
-
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
   move_pressed := KEY_Pressed(..move_buttons);
   move_held := KEY_Held(..move_buttons, held_for = 0.25);

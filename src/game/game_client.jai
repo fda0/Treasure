@@ -63,12 +63,14 @@ CL_FlushPlayerInput :: ()
   CL.input_tick += 1;
   QueuePush(*CL.input_queue, G.input);
   // @todo clear skills queue once it exsits in Action
+
+  G.input.skills = 0;
 }
 
 CL_IterateSend :: ()
 {
   if NET_HasError() return;
-  if NET_HackyRatelimitting(UniqueTimestamp(), 0.016) return;
+  // if NET_HackyRatelimitting(UniqueTimestamp(), 0.001) return;
   PerfFunc();
 
   {

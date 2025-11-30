@@ -42,23 +42,31 @@ SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
   }
   target_input_delay_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64) + 1, QueueCount(user.received_inputs));
 
+  skills_merge: PlayerInput.Skills;
   inputs_to_drop_count := QueueCount(user.received_inputs) - target_input_delay_count;
   for MakeRange(inputs_to_drop_count)
   {
     // @todo merge one-off data from dropped inputs
-    QueuePop(*user.received_inputs);
+    dropped := QueuePop(*user.received_inputs);
+    skills_merge |= dropped.input.skills;
+  }
+  if skills_merge & .W {
+    log("SV_GetNextPlayerInput - skills_merge has .W");
   }
   Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
 
-  received_input, did_pop := QueuePop(*user.received_inputs);
+  result := user.last_input;
+  recent, did_pop := QueuePop(*user.received_inputs);
 
-  result := received_input.input;
-  if did_pop then user.last_input = received_input.input;
-  else
+  if (did_pop)
   {
-    // @todo more advanced extrapolation?
-    result = user.last_input;
+    result = recent.input;
+    user.last_input = result;
+    user.last_input.skills = 0;
   }
+
+  result.skills |= skills_merge;
+
   return result;
 }
 
@@ -147,8 +155,9 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
     obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
 
     obj.max_hp = 40;
-    obj.hp = 40;
+    obj.base_move_speed = 1.5;
     obj.move_speed = 1.5;
+    obj.hp = 40;
 
     obj.team = team;
   }
@@ -379,12 +388,12 @@ SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, c
 
   new_inputs := Prefix(net_msg.inputs, xx client_tick); // For initial client ticks only the first elements of input buffer will be filled. Truncate the array to skip these unitialized elements.
 
-  end_tick := client_tick;
+  end_tick := client_tick + 1;
   start_tick := end_tick - xx new_inputs.count;
 
+  stale_ticks_count := player.latest_client_tick - start_tick + 1;
   if player.latest_client_tick >= start_tick
   {
-    stale_ticks_count := player.latest_client_tick - start_tick + 1;
     new_inputs = Skip(new_inputs, xx stale_ticks_count);
     start_tick += xx stale_ticks_count;
   }

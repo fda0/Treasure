@@ -3,7 +3,7 @@ ArrayFirstLast :: (first: *$T, last: *T) -> [] T
 {
   res: [] T;
   res.data = first;
-  res.count = cast(s64)last - cast(s64)first;
+  res.count = ((last.(u64) - first.(u64)) / size_of(T)).(s64);
   return res;
 }
 ArrayMinMax :: (array: [] $T, sub_min: s64, sub_max: s64) -> [] T
