@@ -64,19 +64,19 @@ OBJ_Team :: enum u8
 }
 BOTH_TEAMS :: OBJ_Team.[.BLUE, .RED];
 
-OBJ_ActivityState :: struct
+OBJ_Activity :: struct
 {
-  is_walking: bool;
-  wants_to_attack: bool;
-  is_attacking: bool;
+  is_walking: bool; @lerp_ifx
+  wants_to_attack: bool; @lerp_ifx
+  is_attacking: bool; @lerp_ifx
 
-  walking_to: V2;
+  walking_to: V2; @lerp
 
-  attack_t: float;
-  visual_attack_t: float;
+  attack_t: float; @lerp
+  visual_attack_t: float; @lerp
 
-  target: OBJ_Key;
-  last_projectile: OBJ_Key;
+  target: OBJ_Key; @lerp_ifx
+  last_projectile: OBJ_Key; @lerp_ifx
 }
 
 Object :: struct
@@ -87,53 +87,81 @@ Object :: struct
   team: OBJ_Team;
   init: bool;
 
-  creation_tick: ServerTick;
-  death_tick: ServerTick;
-  p: V3; // XY center, Z at bottom
-  desired_dp: V3; // move that Object wanted to make
-  moved_dp: V3; // move that Object did after collision simulation
+  creation_tick: ServerTick; @lerp_ifx
+  death_tick: ServerTick; @lerp_ifx
+  p: V3; @lerp // XY center, Z at bottom
+  desired_dp: V3; @lerp // move that Object wanted to make
+  moved_dp: V3; @lerp // move that Object did after collision simulation
 
   // base stats
-  max_hp: float;
-  attack_speed: float = 1.2;
-  base_move_speed: float = 1.0;
+  max_hp: float; @lerp
+  attack_speed: float = 1.2; @lerp
+  base_move_speed: float = 1.0; @lerp
 
   // stats
-  hp: float;
-  move_speed: float = 1.0;
-  move_speed_boost_t: float;
+  hp: float; @lerp
+  move_speed: float = 1.0; @lerp
+  move_speed_boost_t: float; @lerp
 
   // attack timers
-  attack_landed_t := 0.25;
-  attack_cooldown_t := 1.0;
+  attack_landed_t := 0.25; @lerp
+  attack_cooldown_t := 1.0; @lerp
 
   // game state
-  activity: OBJ_ActivityState;
-  animation_requests: Queue(3, AnimationRequest);
-  sound_requests: Queue(3, AUDIO_Request);
+  activity: OBJ_Activity; @lerp_recurse
+  animation_requests: Queue(3, AnimationRequest); @lerp_ifx
+  sound_requests: Queue(3, AUDIO_Request); @lerp_ifx
 
-  skill_cooldowns: [4] float;
+  skill_cooldowns: [4] float; // @todo - support array lerp
 
   // visuals
-  color: Color32 = 0xffff_ffff; // unused?
-  rotation: Quat;
-  model: ModelID; // used by DrawModel
-  material: MaterialID; // used by DrawCollision
-  height: float; // used by DrawCollision
-  texture_texels_per_m: float; // used by DrawCollision
+  color: Color32 = 0xffff_ffff; @lerp // unused?
+  rotation: Quat; @Slerp
+  model: ModelID; @lerp_ifx // used by DrawModel
+  material: MaterialID; @lerp_ifx // used by DrawCollision
+  height: float; @lerp // used by DrawCollision
+  texture_texels_per_m: float; @lerp // used by DrawCollision
 
-  collider: OBJ_Collider;
+  collider: OBJ_Collider; @lerp_ifx
 };
 
-lerp :: (prev: Object, next: Object, t: float) -> Object
+OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
 {
-  res := prev;
-  res.p = lerp(prev.p, next.p, t);
-  res.desired_dp = lerp(prev.desired_dp, next.desired_dp, t);
-  res.moved_dp = lerp(prev.moved_dp, next.moved_dp, t);
-  res.color = lerp(prev.color, next.color, t);
-  res.rotation = Slerp(prev.rotation, next.rotation, t);
-  return res;
+  result := prev;
+
+  #insert -> string {
+    GenerateStructLerp :: (b: *String_Builder, struct_type: *Type_Info_Struct, prefix: string)
+    {
+      for struct_type.members
+      {
+        basic_lerp := "";
+        if Contains(it.notes, "lerp") basic_lerp = "lerp";
+        if Contains(it.notes, "Slerp") basic_lerp = "Slerp";
+        if basic_lerp {
+          print_to_builder(b, "result%1.%2 = %3(prev%1.%2, next%1.%2, t);\n", prefix, it.name, basic_lerp);
+        }
+
+        if Contains(it.notes, "lerp_ifx") {
+          print(b, "result%1.%2 = ifx t < 0.5 then prev%1.%2 else next%1.%2;\n", prefix, it.name);
+        }
+
+        if Contains(it.notes, "lerp_recurse")
+        {
+          new_prefix := sprint("%.%", prefix, it.name);
+          assert(it.type.type == .STRUCT);
+          GenerateStructLerp(b, xx it.type, new_prefix);
+        }
+      }
+    }
+
+    b: String_Builder;
+    GenerateStructLerp(*b, type_info(Object), "");
+    code := builder_to_string(*b);
+    // log("Code inserted by OBJ_LerpObject:\n%", code);
+    return code;
+  }
+
+  return result;
 }
 
 OBJ_KeyToColor :: (key: OBJ_Key) -> Color32

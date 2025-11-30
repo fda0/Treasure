@@ -696,7 +696,7 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
   tick_t := ghost.tick_t / snap_range;
   lerp_t := snap_t + tick_t;
 
-  ghost.at.obj = lerp(ghost.from.obj, ghost.dest.obj, lerp_t);
+  ghost.at.obj = OBJ_LerpObject(ghost.from.obj, ghost.dest.obj, lerp_t);
 
   if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
   if (!ghost.at.obj.death_tick)    ghost.death_time = 0;

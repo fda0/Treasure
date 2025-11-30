@@ -259,19 +259,19 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
     model := ModelFromID(ghost.model);
     if model.is_skinned
     {
-      WALK_T_SPEED :: 0.016;
-      WALK_TO_RUN :: 0.2;
-      RUN_T_SPEED :: WALK_T_SPEED * WALK_TO_RUN;
+      DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
+      WALK_TO_RUN_COEFFICIENT :: 0.2;
 
       moved_distance := length(ghost.moved_dp);
-      moved_cycle_delta := moved_distance * WALK_T_SPEED * TICK_RATE; // @todo REWRITE THIS; Can't just depend on client update rate
+      meters_per_second := moved_distance * TICK_RATE;
 
+      moved_cycle_delta := meters_per_second * DISTANCE_TO_WALK_ANIMATION_COEFFICIENT;
       an.walk_cycle += moved_cycle_delta;
       an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
 
       target_is_walking := 0.0;
-      if (moved_distance > .00001*TICK_RATE) target_is_walking += 1; // walk
-      if (moved_distance > .00030*TICK_RATE) target_is_walking += 1; // run
+      if (meters_per_second > 0) target_is_walking += 1; // walk
+      if (meters_per_second > 3.0) target_is_walking += 1; // run
 
       is_walking_t := clamp(G.dt * 10.0, 0, 1);
       an.is_walking = lerp(an.is_walking, target_is_walking, is_walking_t);
@@ -298,7 +298,7 @@ AN_UpdateGhostAnimationTracks :: (ghost: *Ghost)
 
       an.tracks[2].weight = Smoothstep(an.is_walking, 1, 2);
       an.tracks[2].id = .RUN;
-      an.tracks[2].t = AN_Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN, 0, 1));
+      an.tracks[2].t = AN_Time01ToAnimT(model.skeleton, an.tracks[2].id, WrapFloat(an.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
 
       an.tracks[3].weight = an.is_attacking;
       an.tracks[3].id = .PUNCH;

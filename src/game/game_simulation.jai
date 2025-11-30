@@ -77,7 +77,6 @@ SIM_AdvanceByTick :: ()
 
     // temp - decay move_speed towards base
     player.move_speed_boost_t = max(0.0, player.move_speed_boost_t - TICK_FLOAT_STEP);
-
     player.move_speed = player.base_move_speed + player.move_speed_boost_t*0.1;
   }
 
@@ -281,7 +280,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 
   if input.skills & .Q
   {
-    // @todo launch a skillshot projectile
+    obj.move_speed_boost_t = 0.0;
   }
 
   if input.skills & .W
@@ -291,8 +290,12 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
 
   if input.skills & .E
   {
-    obj.move_speed_boost_t += 20.0;
-    // @todo blink somewhere and deal dmg
+    obj.move_speed_boost_t += 10.0;
+  }
+
+  if input.skills & .R
+  {
+    obj.move_speed_boost_t += 100.0;
   }
 
   // ATTACK yes/no

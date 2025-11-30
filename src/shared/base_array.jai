@@ -64,6 +64,20 @@ Suffix :: (array: [] $T, count: s64) -> [] T
   return res;
 }
 
+Find :: (haystack: [] $T, needle: T) -> s64, bool
+{
+  for haystack {
+    if (it == needle) return it_index, true;
+  }
+  return 0, false;
+}
+
+Contains :: (haystack: [] $T, needle: T) -> bool
+{
+  index, found := Find(haystack, needle);
+  return found;
+}
+
 is_index_in_bounds :: (array: [] $T, index: s64) -> bool {
   return index >= 0 && index < array.count;
 }
