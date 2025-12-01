@@ -6,7 +6,7 @@ Fixed :: struct($CAPACITY: s64, $T: Type)
   count: s64;
 }
 
-to_view :: (f: *Fixed) -> [] f.T
+to_view :: (f: Fixed) -> [] f.T
 {
   res: [] f.T;
   res.data = f.buf.data;
@@ -14,16 +14,16 @@ to_view :: (f: *Fixed) -> [] f.T
   return res;
 }
 
-operator [] :: (f: *Fixed, i: s64) -> f.T
+operator [] :: (f: Fixed, i: s64) -> f.T
 {
   assert(i < f.count);
-  return f.data[i];
+  return f.buf[i];
 }
 
 operator []= :: inline (f: *Fixed, i: int, value: f.T)
 {
   assert(i < f.count);
-  f.data[i] = value;
+  f.buf[i] = value;
 }
 
 for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand

@@ -311,48 +311,58 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 
     tracks: Fixed(16, AnimationTrack);
 
-    {
-      track := array_add(*tracks);
-      track.id = .IDLE;
-      track.weight = 1.0;
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, a.idle_cycle);
+    NotAllWeightsAreFull :: () -> bool #expand {
+      if (tracks.count == 0) return true;
+      track := tracks[tracks.count - 1];
+      if (track.weight != 1.0) return true;
+      record := model.skeleton.animation_records[track.id];
+      return record.joint_weights.count != 0;
     }
 
-    {
-      track := array_add(*tracks);
-      track.id = .WALK;
-      track.weight = Smoothstep(a.is_walking_weight, 0, 1);
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
-    }
-
-    {
-      track := array_add(*tracks);
-      track.id = .RUN;
-      track.weight = Smoothstep(a.is_walking_weight, 1, 2);
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
-    }
-
-    {
-      punch := array_add(*tracks);
-      punch.weight = a.is_attacking_weight;
-      punch.id = .PUNCH;
-      punch.t = WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
-      punch.t = AN_Time01ToAnimT(model.skeleton, punch.id, punch.t);
-
-      hands := array_add(*tracks);
-      hands.weight = sqrt(a.is_attacking_weight);
-      hands.id = .PUNCH_HANDS;
-      hands.t = punch.t;
-    }
-
-    {
+    if NotAllWeightsAreFull() {
       track := array_add(*tracks);
       track.id = .DEATH;
       track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
       track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
     }
 
-    result = copy_array(to_view(*tracks),, temp);
+    if NotAllWeightsAreFull() {
+      t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
+      t = AN_Time01ToAnimT(model.skeleton, .PUNCH, t);
+
+      hands := array_add(*tracks);
+      hands.weight = sqrt(a.is_attacking_weight);
+      hands.id = .PUNCH_HANDS;
+      hands.t = t;
+
+      punch := array_add(*tracks);
+      punch.weight = a.is_attacking_weight;
+      punch.id = .PUNCH;
+      punch.t = t;
+    }
+
+    if NotAllWeightsAreFull() {
+      track := array_add(*tracks);
+      track.id = .RUN;
+      track.weight = Smoothstep(a.is_walking_weight, 1, 2);
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+    }
+
+    if NotAllWeightsAreFull() {
+      track := array_add(*tracks);
+      track.id = .WALK;
+      track.weight = Smoothstep(a.is_walking_weight, 0, 1);
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
+    }
+
+    if NotAllWeightsAreFull() {
+      track := array_add(*tracks);
+      track.id = .IDLE;
+      track.weight = 1.0;
+      track.t = AN_Time01ToAnimT(model.skeleton, track.id, a.idle_cycle);
+    }
+
+    result = copy_array(to_view(tracks),, temp);
   }
 
   return result;
@@ -369,27 +379,16 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
   result_matrices := NewArray(skeleton.joints_count, Mat4);
 
   // mix default rest pose + animation channels using temporary memory
-  for track, track_index: tracks
+  first_loop := true;
+  for < track: tracks
   {
+    defer first_loop = false;
     if track.weight <= 0 continue;
 
     auto_release_temp();
-    scales: [] V3;
-    rotations: [] Quat;
-    translations: [] V3;
-
-    if track_index == 0
-    {
-      scales = accumulated_scales;
-      rotations = accumulated_rotations;
-      translations = accumulated_translations;
-    }
-    else
-    {
-      scales       = array_copy(skeleton.bind_scales);
-      rotations    = array_copy(skeleton.bind_rotations);
-      translations = array_copy(skeleton.bind_translations);
-    }
+    scales := ifx first_loop then accumulated_scales else array_copy(skeleton.bind_scales);
+    rotations := ifx first_loop then accumulated_rotations else array_copy(skeleton.bind_rotations);
+    translations := ifx first_loop then accumulated_translations else array_copy(skeleton.bind_translations);
 
     record := AN_RecordFromType(skeleton, track.id);
 
@@ -458,13 +457,14 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
       }
     }
 
-    if track_index > 0
+    if !first_loop
     {
       for joint_index: MakeRange(skeleton.joints_count)
       {
         joint_weight := 1.0;
-        if record.joint_weights.count > 0
+        if record.joint_weights.count > 0 {
           joint_weight = record.joint_weights[joint_index];
+        }
 
         weight := track.weight * joint_weight;
         if weight <= 0 then continue;
@@ -486,8 +486,7 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
 
   AN_WaterfallToChildren(.MULTIPLY, skeleton, 0, result_matrices, skeleton.root_transform);
 
-  for *result_matrices
-  {
+  for *result_matrices {
     it.* = it.* * skeleton.inverse_matrices[it_index];
   }
   return result_matrices;
