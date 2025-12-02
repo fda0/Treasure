@@ -403,7 +403,6 @@ ASSET_InitModels :: ()
   {
     bed_slot: ModelSlot = 1;
     for AST.models {
-      log("it.name: %", it.name);
       if it.name == "Bed" {
         bed_slot = xx it_index;
       }

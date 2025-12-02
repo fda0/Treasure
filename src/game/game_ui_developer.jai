@@ -54,7 +54,7 @@ DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
 
-  active_categories: CategoryFlags = .stats;
+  active_categories: CategoryFlags = .switches;
   CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; fonts; }
   CATEGORY_NAMES :: #run enum_names(CategoryFlags);
   CATEGORY_VALUES :: #run enum_values_as_enum(CategoryFlags);

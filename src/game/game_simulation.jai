@@ -31,6 +31,7 @@ SIM_AdvanceByTick :: ()
 {
   PerfFunc();
 
+  // Spawn sleepers
   if SecondsBetweenTicks(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
   {
     SV.sleepers_spawned_in_group_count = 0;
@@ -78,6 +79,11 @@ SIM_AdvanceByTick :: ()
     // temp - decay move_speed towards base
     player.move_speed_boost_t = max(0.0, player.move_speed_boost_t - TICK_FLOAT_STEP);
     player.move_speed = player.base_move_speed + player.move_speed_boost_t*0.1;
+
+    // reduce cooldowns
+    for * player.skill_cooldowns {
+      it.* -= TICK_FLOAT_STEP;
+    }
   }
 
   // transfer input to player objects
@@ -278,24 +284,37 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
     return;
   }
 
-  if input.skills & .Q
+  skill_letters := enum_values_as_enum(type_of(input.skills));
+  for * obj.skill_cooldowns
   {
-    obj.move_speed_boost_t = 0.0;
-  }
+    skill_letter := skill_letters[it_index];
+    if !(input.skills & skill_letter) continue; // not pressed
+    if (it.* > 0.0) continue; // on cooldown
 
-  if input.skills & .W
-  {
-    obj.move_speed_boost_t += 1.0;
-  }
+    // calculate costs
+    time_cost: float = 1.0 * xx (1 + it_index);
+    energy_cost: float = 5.0 * xx (1 + it_index);
 
-  if input.skills & .E
-  {
-    obj.move_speed_boost_t += 10.0;
-  }
+    if (obj.hp < energy_cost) continue; // not enough energy (hp for now)
 
-  if input.skills & .R
-  {
-    obj.move_speed_boost_t += 100.0;
+    // apply costs
+    it.* = time_cost;
+    obj.hp -= energy_cost;
+
+    // apply effects
+    if skill_letter == {
+      case .Q;
+      obj.move_speed_boost_t = 0.0;
+
+      case .W;
+      obj.move_speed_boost_t += 1.0;
+
+      case .E;
+      obj.move_speed_boost_t += 10.0;
+
+      case .R;
+      obj.move_speed_boost_t += 100.0;
+    }
   }
 
   // ATTACK yes/no
