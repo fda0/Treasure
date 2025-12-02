@@ -7,7 +7,7 @@ RD_WorldVertex :: struct
   joint_weights: V4;
 };
 
-RD_WorldShaderFlags :: enum_flags u32 // @todo generate hlsl header for shaders out of this
+RD_WorldShaderFlags :: enum_flags u32
 {
   DoMeshSkinning;
   UseInstanceBuffer;

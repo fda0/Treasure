@@ -84,6 +84,7 @@ Align :: enum u8
 
 Unit :: enum u32
 {
+  UNSET;
   // Simple units
   PX;
   REM;
@@ -124,7 +125,7 @@ LengthToPx :: (length: Length, relative_to: *Box, axis: Axis2, clamp_at_zero: bo
     case .PX; return result;
 
     case .EM;
-    if relative_to.text.font_size.value > 0.0 {
+    if relative_to.text.font_size.unit != .UNSET {
       return result * LengthToPx(relative_to.text.font_size, relative_to.parent, axis, clamp_at_zero);
     } else {
       return result * layout_state.rem_to_px;
@@ -231,17 +232,17 @@ Merge :: (c: *$T, p: T)
   if c.* == .DEFAULT then c.* = p;
 }
 Merge :: (c: *Length, p: Length) {
-  if c.value < 0.0 then c.* = p;
+  if c.unit == .UNSET then c.* = p;
 }
 Merge :: (c: *Length2, p: Length2) {
-  if c.x.value < 0.0 then c.x = p.x;
-  if c.y.value < 0.0 then c.y = p.y;
+  if c.x.unit == .UNSET then c.x = p.x;
+  if c.y.unit == .UNSET then c.y = p.y;
 }
 Merge :: (c: *s32, p: s32) {
   if c.* < 0 then c.* = p;
 }
 Merge :: (c: *float, p: float) {
-  if c.* < 0.0 then c.* = p;
+  if c.* < 0 then c.* = p;
 }
 Merge :: (c: *u64, p: u64) {
   if c.* == 0 then c.* = p;
@@ -530,7 +531,7 @@ CreateText :: (text: string, specs: ..BoxSpec, loc := #caller_location) -> *Box
   // merged.seed = HashStringFunc(text, merged.seed);
 
   // Text specific
-  if merged.text.font_size.value < 0.0 then merged.text.font_size = Rem(1);
+  if merged.text.font_size.unit == .UNSET then merged.text.font_size = Rem(1);
   merged.layout.size.min.x = .{.TEXT, 1.0};
   merged.layout.size.min.y = .{.TEXT, 1.0};
 
@@ -1144,11 +1145,11 @@ LayoutEnd :: ()
   // Solve sizes
   for axis: Axis2.X .. Axis2.Y
   {
-    for :TreeBreadthFirst        root_box SolveNodeSizePass1(it, axis);
-    for :TreePostOrder root_box SolveNodeSizePass2(it, axis);
+    for :TreeBreadthFirst root_box { SolveNodeSizePass1(it, axis); }
+    for :TreePostOrder root_box { SolveNodeSizePass2(it, axis); }
 
     ClampInnerDim(root_box, axis);
-    for :TreeBreadthFirst        root_box FixChildrenSizes(it, axis);
+    for :TreeBreadthFirst root_box { FixChildrenSizes(it, axis); }
   }
 
   // Solve non floating relative positions
@@ -1288,7 +1289,7 @@ LayoutEnd :: ()
 
       it_offset := calculate_attach_offset(it, it.floating.anchors.itself);
       attach_box_offset := calculate_attach_offset(attach_box, it.floating.anchors.parent);
-      user_offset := LengthToPx2(it.floating.offset, it, true);
+      user_offset := LengthToPx2(it.floating.offset, it, false);
 
       it.abs_p = attach_box.abs_p - it_offset + attach_box_offset + user_offset;
     }

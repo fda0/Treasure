@@ -503,8 +503,8 @@ GPU_Iterate :: ()
     sun_dir = G.sun_dir,
 
     fog_color = Color32_RGBf(GPU_CLEAR_COLOR_R, GPU_CLEAR_COLOR_G, GPU_CLEAR_COLOR_B),
-    sky_ambient  = Color32_RGBf(0.50, 0.45, 0.40),
-    sun_diffuse  = Color32_RGBf(1.00, 0.95, 0.90),
+    sky_ambient = Color32_RGBf(0.50, 0.45, 0.40),
+    sun_diffuse = Color32_RGBf(1.00, 0.95, 0.90),
     sun_specular = Color32_RGBf(1.00, 0.90, 0.85),
   };
 

@@ -186,7 +186,7 @@ G_Iterate :: ()
     CL_IterateSend();
   }
 
-  if IsLaneTaskIdx(1) && !G.headless
+  if IsLaneTaskIdx(0) && !G.headless
   {
     G_CalculateCameraAndMouseInput();
     G_AdvanceLocalObjects();
@@ -338,7 +338,6 @@ G_CalculateCameraAndMouseInput :: ()
   if DEV.noclip
   {
     if KEY_Held(.MOUSE_LEFT)
-      // @todo MULTITHREAD
     {
       rot_speed := 0.0004;
       G.camera_angles.z += rot_speed * G.mouse_delta.x;
@@ -375,10 +374,6 @@ G_CalculateCameraAndMouseInput :: ()
       dir.y -= max(G.mouse.x - (G.window_dim.x - window_margin), 0) * ratio;
       dir.x -= max(G.mouse.y - (G.window_dim.y - window_margin), 0) * ratio;
 
-      easing :: (x: float) -> float {
-        // return 1.0 - pow(1 - x, 4); // easeOutQuart
-        return x*x*x;
-      }
       dir.x = Smoothstep(abs(dir.x), max=0.9) * Sign(dir.x);
       dir.y = Smoothstep(abs(dir.y), max=0.9) * Sign(dir.y);
 

@@ -8,11 +8,14 @@ HUD_BG    :: #run C32_0xRGB(0x14_18_24);
 BUTTON_BG :: #run C32_0xRGB(0x1C_27_48);
 HEALTH_FG :: #run C32_0xRGB(0x1C_a7_48);
 ENERGY_FG :: #run C32_0xRGB(0x9C_97_48);
+TEXT_FG :: #run C32_0xRGB(0xcf_cf_cf);
 GAP_SIZE  :: #run Rem(0.5);
 #scope_export;
 
 UI_BuildHUD :: ()
 {
+  Layer(.{text = .{font = xx FONT_Family.PlayfairDisplay, font_size = Rem(1), color = TEXT_FG}});
+
   hud := CreateBox(.{layout.size.min = Fit2(),
                      layout.padding = PaddingAll(GAP_SIZE),
                      layout.child_gap = GAP_SIZE,
@@ -41,8 +44,16 @@ UI_BuildHUD :: ()
                                layout.child_gap = GAP_SIZE});
   Parent(skill_buttons);
 
-  for 1 .. 4
+  skill_labels := string.["Q", "W", "E", "R"];
+  for skill_labels
   {
-    button := CreateBox(.{layout.size.min = Rem2(3.0), bg_color = BUTTON_BG});
+    button := CreateBox(.{layout.size.min = Rem2(3.5),
+                          bg_color = BUTTON_BG});
+    Parent(button);
+
+    CreateText(it, .{floating.attach_to = .PARENT, floating.offset = Rem2(0.5)});
+    CreateText("0.1s", .{floating.attach_to = .PARENT, floating.offset = Rem2(-0.5),
+                         floating.anchors.itself = .{horizontal = .RIGHT, vertical = .BOTTOM},
+                         floating.anchors.parent = .{horizontal = .RIGHT, vertical = .BOTTOM}});
   }
 }
