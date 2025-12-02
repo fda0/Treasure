@@ -399,6 +399,21 @@ ASSET_InitModels :: ()
     }
   }
 
+  // set default model_id_to_idx to Bed model
+  {
+    bed_slot: ModelSlot = 1;
+    for AST.models {
+      log("it.name: %", it.name);
+      if it.name == "Bed" {
+        bed_slot = xx it_index;
+      }
+    }
+
+    for * AST.model_id_to_slot {
+      it.* = bed_slot;
+    }
+  }
+
   // fill model_id_to_idx
   for model, model_slot: AST.models
   {

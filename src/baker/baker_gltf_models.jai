@@ -673,14 +673,14 @@ BK_GLTF_UnpackAccessor :: (accessor: *cgltf_accessor, buffer: *[..] $T) -> slice
             "Expected component_type to be r_32f when buffer type is float. Instead got %.",
             accessor.component_type);
 
-      numbers_slice := array_alloc(buffer, xx total_count);
+      numbers_slice := array_add_alloc(buffer, xx total_count);
       unpacked_count := cgltf_accessor_unpack_floats(accessor, numbers_slice.data, total_count);
       Check(unpacked_count == total_count);
       return numbers_slice;
     }
   }
 
-  numbers_slice := array_alloc(buffer, xx total_count);
+  numbers_slice := array_add_alloc(buffer, xx total_count);
 
   if size_of(T) >= comp_size
   {

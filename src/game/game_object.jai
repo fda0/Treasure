@@ -41,6 +41,7 @@ OBJ_Flags :: enum_flags u32
   ANIMATE_TRACKS;
   MANUAL_ROTATION;
   MANUAL_POSITION;
+  IS_MARKER;
 
   DRAW_MODEL;
   DRAW_COLLIDERS;
@@ -109,8 +110,8 @@ Object :: struct
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
-  animation_requests: Queue(3, AnimationRequest);
-  sound_requests: Queue(3, AUDIO_Request);
+  animation_requests: Queue(4, AnimationRequest);
+  sound_requests: Queue(4, AUDIO_Request);
 
   skill_cooldowns: [4] float; // @todo - support array lerp
 

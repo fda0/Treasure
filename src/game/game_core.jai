@@ -267,6 +267,8 @@ G_Iterate :: ()
       {
         marker.flags |= .DRAW_MODEL;
         marker.model = .Flag;
+        marker.model = .Stool;
+        marker.model = .Cross;
         marker.p = G.input.world_p;
         marker.anim.position.xy = marker.p.xy;
         G.pathing_marker_set = true;

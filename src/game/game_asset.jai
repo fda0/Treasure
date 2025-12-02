@@ -135,12 +135,15 @@ GetShader :: (type: ShaderType) -> string
 ModelID :: enum u16
 {
   None;
+  Bed; // used as "missing model" for now
   Dude;
   Flag;
   Tree;
   Zombie;
   Plank;
   Potion;
+  Stool;
+  Cross;
 }
 
 MaterialID :: enum u16
