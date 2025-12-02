@@ -45,6 +45,7 @@ GameState :: struct
   world_mouse: V3;
   keys: [KEY_Code.COUNT] Key;
   hover_object: OBJ_Key;
+  pathing_updated_this_frame: bool;
 
   rng: Entropy = .{~12234, 92389123}; // @todo Replace with specific purpose Entropy seeds.
 
@@ -65,7 +66,6 @@ GameState :: struct
   // Object keys
   sun: OBJ_Key;
   pathing_marker: OBJ_Key;
-  pathing_marker_set: bool;
 
   player_key: OBJ_Key;
   player_key_latest_tick: ServerTick;
@@ -138,14 +138,10 @@ G_Iterate :: ()
   // Mouse input things
   if IsLaneTaskIdx(0)
   {
-    if KEY_Pressed(.F11) then G.window_fullscreen = !G.window_fullscreen;
-
-    if DEV.show || DEV.noclip || !G.window_has_focus
-    {
+    if KEY_Pressed(.F11) G.window_fullscreen = !G.window_fullscreen;
+    if DEV.show || DEV.noclip || !G.window_has_focus {
       G.grab_mouse = false;
-    }
-    else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse)
-    {
+    } else if KEY_Held(.MOUSE_LEFT, .MOUSE_RIGHT) && OverlapsRange(MakeRange(G.window_dim), G.mouse) {
       G.grab_mouse = true;
     }
   }
@@ -260,23 +256,26 @@ G_Iterate :: ()
   // Update marker object
   if IsLaneTaskIdx(4) && !G.headless
   {
+    for * G.local_ghosts
+    {
+      if it.flags & .IS_MARKER
+      {
+        it.p.z = -0.07;
+        if it.anim.position.z < -0.05 {
+          G_DeleteGhost(it);
+        }
+      }
+    }
+
     marker := G_GetGhost(.LOCAL, G.pathing_marker);
     if !OBJ_IsNil(marker)
     {
-      if G.input.type == .PATHING
-      {
-        marker.flags |= .DRAW_MODEL;
-        marker.model = .Flag;
-        marker.model = .Stool;
-        marker.model = .Cross;
-        marker.p = G.input.world_p;
-        marker.anim.position.xy = marker.p.xy;
-        G.pathing_marker_set = true;
-      }
-      else
-      {
-        marker.p.z = -2.0;
-        G.pathing_marker_set = false;
+      if G.input.type == .PATHING {
+        marker.p.z = 0;
+        if G.pathing_updated_this_frame {
+          marker.p.xy = G.input.world_p.xy;
+          marker.anim.position.xy = marker.p.xy;
+        }
       }
     }
   }
@@ -487,6 +486,8 @@ G_AdvanceLocalObjects :: ()
 
 G_ProcessInputAndSendToClient :: ()
 {
+  G.pathing_updated_this_frame = false;
+
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
   move_pressed := KEY_Pressed(..move_buttons);
   move_held := KEY_Held(..move_buttons, held_for = 0.25);
@@ -514,13 +515,23 @@ G_ProcessInputAndSendToClient :: ()
 
     if (move_pressed && !hovers_enemy) || (move_held && G.input.type == .PATHING)
     {
+      G.pathing_updated_this_frame = true;
       G.input.type = .PATHING;
       G.input.world_p = G.world_mouse;
       G.input.target_object = .{};
+
       if move_pressed
       {
-        marker := G_GetGhost(.LOCAL, G.pathing_marker);
-        if !OBJ_IsNil(marker) marker.anim.position.z = 0.5;
+        marker := G_CreateLocalGhost(.ANIMATE_POSITION | .ANIMATE_ROTATION | .IS_MARKER | .DRAW_MODEL);
+        G.pathing_marker = marker.key;
+        if !OBJ_IsNil(marker)
+        {
+          marker.model = .Cross;
+          marker.p = G.input.world_p;
+          marker.rotation = RotationAroundAxis(AxisV3(.Z), 0.5);
+          marker.anim.position.xy = marker.p.xy;
+          marker.anim.position.z = 0.2;
+        }
       }
     }
   }
@@ -773,16 +784,11 @@ G_InitLocalObjects :: ()
 {
   // Sun
   {
-    sun := G_CreateLocalObject(.DRAW_COLLIDERS);
+    sun := G_CreateLocalGhost(.DRAW_COLLIDERS);
     sun.material = .Leather011;
     sun.height = 0.5;
     sun.collider = OBJ_ColliderFromRect(.{.5, .5});
     G.sun = sun.key;
-  }
-
-  // Pathing marker
-  {
-    G.pathing_marker = G_CreateLocalObject(.ANIMATE_POSITION).key;
   }
 
   // Ground
@@ -796,7 +802,7 @@ G_InitLocalObjects :: ()
     {
       for x: MakeRange(-r, r)
       {
-        tile := G_CreateLocalObject(.DRAW_COLLIDERS);
+        tile := G_CreateLocalGhost(.DRAW_COLLIDERS);
         if !OBJ_IsNil(tile)
         {
           tile.p = .{x = d * x, y = d * y};
@@ -828,7 +834,7 @@ G_InitLocalObjects :: ()
         x -= (0.5*d*len);
         y -= (0.5*d*len);
 
-        block := G_CreateLocalObject(.DRAW_COLLIDERS | .COLLIDE);
+        block := G_CreateLocalGhost(.DRAW_COLLIDERS | .COLLIDE);
         if !OBJ_IsNil(block)
         {
           block.p = V3.{x, y, 0};
@@ -863,7 +869,7 @@ G_InitLocalObjects :: ()
         pos.x *= ifx x < x_half_count then -1 else 1;
         pos.y *= ifx y < y_half_count then -1 else 1;
 
-        tree := G_CreateLocalObject(.DRAW_MODEL);
+        tree := G_CreateLocalGhost(.DRAW_MODEL);
         if !OBJ_IsNil(tree)
         {
           tree.p = pos;
@@ -874,7 +880,12 @@ G_InitLocalObjects :: ()
   }
 }
 
-G_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
+G_DeleteGhost :: (ghost: *Ghost)
+{
+  ghost.* = .{};
+}
+
+G_CreateLocalGhost :: (flags: OBJ_Flags) -> *Ghost
 {
   ghost: *Ghost;
   index: u32;
@@ -889,7 +900,7 @@ G_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
     }
   }
 
-  if (!ghost) return OBJ_NilObject();
+  if (!ghost) return OBJ_NilGhost();
 
   Initialize(ghost);
 
@@ -900,7 +911,7 @@ G_CreateLocalObject :: (flags: OBJ_Flags) -> *Object
   ghost.init = true;
   ghost.creation_tick = G.local_objects_tick;
   ghost.flags = flags;
-  return *ghost.at_obj;
+  return ghost;
 }
 
 G_GetGhost :: (storage_mask: OBJ_Storage, key: OBJ_Key) -> *Ghost
