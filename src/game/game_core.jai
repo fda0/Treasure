@@ -45,7 +45,6 @@ GameState :: struct
   world_mouse: V3;
   keys: [KEY_Code.COUNT] Key;
   hover_object: OBJ_Key;
-  pathing_updated_this_frame: bool;
 
   rng: Entropy = .{~12234, 92389123}; // @todo Replace with specific purpose Entropy seeds.
 
@@ -65,7 +64,6 @@ GameState :: struct
 
   // Object keys
   sun: OBJ_Key;
-  pathing_marker: OBJ_Key;
 
   player_key: OBJ_Key;
   player_key_latest_tick: ServerTick;
@@ -260,21 +258,8 @@ G_Iterate :: ()
     {
       if it.flags & .IS_MARKER
       {
-        it.p.z = -0.07;
-        if it.anim.position.z < -0.05 {
+        if it.anim.position.z < -0.049 {
           G_DeleteGhost(it);
-        }
-      }
-    }
-
-    marker := G_GetGhost(.LOCAL, G.pathing_marker);
-    if !OBJ_IsNil(marker)
-    {
-      if G.input.type == .PATHING {
-        marker.p.z = 0;
-        if G.pathing_updated_this_frame {
-          marker.p.xy = G.input.world_p.xy;
-          marker.anim.position.xy = marker.p.xy;
         }
       }
     }
@@ -486,8 +471,6 @@ G_AdvanceLocalObjects :: ()
 
 G_ProcessInputAndSendToClient :: ()
 {
-  G.pathing_updated_this_frame = false;
-
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
   move_pressed := KEY_Pressed(..move_buttons);
   move_held := KEY_Held(..move_buttons, held_for = 0.25);
@@ -515,7 +498,6 @@ G_ProcessInputAndSendToClient :: ()
 
     if (move_pressed && !hovers_enemy) || (move_held && G.input.type == .PATHING)
     {
-      G.pathing_updated_this_frame = true;
       G.input.type = .PATHING;
       G.input.world_p = G.world_mouse;
       G.input.target_object = .{};
@@ -523,14 +505,14 @@ G_ProcessInputAndSendToClient :: ()
       if move_pressed
       {
         marker := G_CreateLocalGhost(.ANIMATE_POSITION | .ANIMATE_ROTATION | .IS_MARKER | .DRAW_MODEL);
-        G.pathing_marker = marker.key;
         if !OBJ_IsNil(marker)
         {
           marker.model = .Cross;
           marker.p = G.input.world_p;
+          marker.p.z = -0.05;
           marker.rotation = RotationAroundAxis(AxisV3(.Z), 0.5);
           marker.anim.position.xy = marker.p.xy;
-          marker.anim.position.z = 0.2;
+          marker.anim.position.z = 0.3;
         }
       }
     }
