@@ -57,6 +57,8 @@ AUDIO_PlayObjectSounds :: ()
 
 AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
 {
+  if 1 return; // temp
+
   if xx sound_type >= AST.sounds.count
   {
     log_error("Can't play missing sound %", sound_type);

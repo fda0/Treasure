@@ -138,3 +138,57 @@ static float FWrap(float min, float max, float a)
   float offset = a - min;
   return (offset - (floor(offset / range) * range) + min);
 }
+
+static float3 RGBtoHSV(float3 rgb) // vibecoded
+{
+  float r = rgb.r;
+  float g = rgb.g;
+  float b = rgb.b;
+
+  float maxC = max(r, max(g, b));
+  float minC = min(r, min(g, b));
+  float delta = maxC - minC;
+
+  float h = 0.0;
+  if (delta > 0.00001)
+  {
+    if (maxC == r) {
+      h = fmod((g - b) / delta, 6.0);
+    } else if (maxC == g) {
+      h = ((b - r) / delta) + 2.0;
+    } else {
+      h = ((r - g) / delta) + 4.0;
+    }
+
+    h /= 6.0;
+    if (h < 0.0) h += 1.0;
+  }
+
+  float s = (maxC <= 0.0) ? 0.0 : (delta / maxC);
+  float v = maxC;
+
+  return float3(h, s, v);
+}
+
+static float3 HSVtoRGB(float3 hsv) // vibecoded
+{
+  float h = hsv.x;
+  float s = hsv.y;
+  float v = hsv.z;
+
+  float c = v * s;
+  float h6 = h * 6.0;
+  float x = c * (1.0 - abs(fmod(h6, 2.0) - 1.0));
+
+  float3 rgb1;
+
+  if      (0.0 <= h6 && h6 < 1.0) rgb1 = float3(c, x, 0);
+  else if (1.0 <= h6 && h6 < 2.0) rgb1 = float3(x, c, 0);
+  else if (2.0 <= h6 && h6 < 3.0) rgb1 = float3(0, c, x);
+  else if (3.0 <= h6 && h6 < 4.0) rgb1 = float3(0, x, c);
+  else if (4.0 <= h6 && h6 < 5.0) rgb1 = float3(x, 0, c);
+  else                            rgb1 = float3(c, 0, x);
+
+  float m = v - c;
+  return rgb1 + m;
+}

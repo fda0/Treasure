@@ -16,5 +16,7 @@ RD_WorldShaderFlags :: enum_flags u32 // @todo generate hlsl header for shaders 
   SampleTexRoughness;
   ApplyShadows;
   DrawBorderAtUVEdge;
+  EnableHueShift;
+  DiscardColorPickZero;
   PixelEarlyExit;
 };

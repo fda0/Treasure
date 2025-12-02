@@ -37,17 +37,19 @@ struct WORLD_DX_Fragment
 {
   V4   shadow_p       : TEXCOORD0; // position in shadow space
   V3   world_p        : TEXCOORD1;
-  U32  instance_color : TEXCOORD2;
-  U32  picking_color  : TEXCOORD3;
-  V2   uv             : TEXCOORD4;
-  Mat3 normal_rot     : TEXCOORD5;
+  U32  color_mask     : TEXCOORD2;
+  float hue_shift     : TEXCOORD3;
+  U32  picking_color  : TEXCOORD4;
+  V2   uv             : TEXCOORD5;
+  Mat3 normal_rot     : TEXCOORD6;
   V4   vertex_p       : SV_Position;
 };
 
 struct WORLD_DX_InstanceModel
 {
   Mat4 transform;
-  U32 color;
+  U32 color_mask;
+  float hue_shift;
   U32 picking_color;
   U32 pose_offset; // in indices; unused for rigid
 };
@@ -59,12 +61,24 @@ WORLD_DX_Fragment WORLD_DxShaderVS(WORLD_DX_Vertex vert)
   // Position
   WORLD_DX_InstanceModel instance;
   instance.transform = Mat4_Identity();
-  instance.color = ~0;
+  instance.color_mask = ~0;
   instance.picking_color = 0;
   instance.pose_offset = 0;
 
   if (UV.flags & WORLD_FLAG_UseInstanceBuffer)
+  {
     instance = InstanceBuf[vert.instance_index];
+  }
+
+  if (UV.flags & WORLD_FLAG_DiscardColorPickZero)
+  {
+    if (instance.picking_color == 0)
+    {
+      WORLD_DX_Fragment frag;
+      frag.vertex_p = 100.f;
+      return frag;
+    }
+  }
 
   Mat4 position_transform = instance.transform;
 
@@ -106,7 +120,8 @@ WORLD_DX_Fragment WORLD_DxShaderVS(WORLD_DX_Vertex vert)
   WORLD_DX_Fragment frag;
   frag.shadow_p = mul(UV.shadow_transform, world_p);
   frag.world_p = world_p.xyz;
-  frag.instance_color = instance.color;
+  frag.color_mask = instance.color_mask;
+  frag.hue_shift = instance.hue_shift;
   frag.picking_color = instance.picking_color;
   frag.uv = vert.uv;
   frag.normal_rot = normal_rotation;
@@ -123,7 +138,7 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
 {
   V3 fog_color = UnpackColor32(UP.fog_color).xyz;
   V3 material_diffuse = UnpackColor32(UP.material_diffuse).xyz;
-  V3 instance_color = UnpackColor32(frag.instance_color).xyz;
+  V3 color_mask = UnpackColor32(frag.color_mask).xyz;
 
   // Load diffuse texture
   if (UP.flags & WORLD_FLAG_SampleTexDiffuse)
@@ -137,11 +152,20 @@ V4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     material_diffuse = tex_diffuse;
   }
 
-  material_diffuse *= instance_color;
-
   if (UP.flags & WORLD_FLAG_PixelEarlyExit)
   {
     return UnpackColor32(frag.picking_color);
+  }
+
+  // Apply color_mask
+  material_diffuse *= color_mask;
+
+  // Apply hue_shift
+  if ((UP.flags & WORLD_FLAG_EnableHueShift) && frag.hue_shift)
+  {
+    float3 diffuse_hsv = RGBtoHSV(material_diffuse);
+    diffuse_hsv.x = FWrap(0.f, 1.f, diffuse_hsv.x + frag.hue_shift);
+    material_diffuse = HSVtoRGB(diffuse_hsv);
   }
 
   V3 sky_ambient = UnpackColor32(UP.sky_ambient).xyz;

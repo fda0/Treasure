@@ -58,6 +58,13 @@ GPU_State :: struct
   clear_color_props: SDL_PropertiesID;
 }
 
+GPU_RenderWorldMode :: enum
+{
+  RENDER;
+  DEPTH;
+  MOUSE_PICKING;
+}
+
 GPU_Init :: ()
 {
   // preapre props
@@ -345,116 +352,119 @@ GPU_InitPipelines :: ()
   }
 }
 
-GPU_Iterate :: ()
+
+
+GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: GPU_RenderWorldMode)
 {
-  PerfFunc();
+  simplified_pipeline := ifx mode == .RENDER then false else true;
+  pipeline_index := ifx simplified_pipeline then 1 else 0;
+  SDL_BindGPUGraphicsPipeline(pass, GPU.world_pipelines[pipeline_index]);
 
-  GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: enum { RENDER; DEPTH; MOUSE_PICKING; })
+  // Bind shadow texture sampler to fragment shader
   {
-    simplified_pipeline := ifx mode == .RENDER then false else true;
-    pipeline_index := ifx simplified_pipeline then 1 else 0;
-    SDL_BindGPUGraphicsPipeline(pass, GPU.world_pipelines[pipeline_index]);
+    binding_sampl := SDL_GPUTextureSamplerBinding.{
+      texture = ifx simplified_pipeline then GPU.dummy_shadow_tex else GPU.shadow_tex,
+      sampler = GPU.shadow_sampler,
+    };
+    SDL_BindGPUFragmentSamplers(pass, 0, *binding_sampl, 1);
+  }
 
-    // Bind shadow texture sampler to fragment shader
+  // Bind dummy buffers
+  {
+    storage_bufs := *SDL_GPUBuffer.[
+      GPU.dummy_instance_buffer,
+      RD.transforms_staging.buffer_handle,
+    ];
+    SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
+  }
+  //
+  // Dynamic meshes
+  //
+  for staging, material_slot: RD.meshes_stagings
+  {
+    if staging.element_count == 0 continue;
+
+    // Bind vertex buffer
+    SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = staging.buffer_handle}), 1);
+
+    material := MaterialFromSlot(xx material_slot);
+
+    // Uniforms
+    RD_WorldMaterialToUniform(*GPU.world_uniform, material, mode);
+    if material_slot == MaterialSlotFromID(.Clay002) ||
+    material_slot == MaterialSlotFromID(.Grass004)
     {
-      binding_sampl := SDL_GPUTextureSamplerBinding.{
-        texture = ifx simplified_pipeline then GPU.dummy_shadow_tex else GPU.shadow_tex,
-        sampler = GPU.shadow_sampler,
-      };
-      SDL_BindGPUFragmentSamplers(pass, 0, *binding_sampl, 1);
+      GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
     }
+    GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
 
-    // Bind dummy buffers
+    // Bind texture
+    binding_sampl := SDL_GPUTextureSamplerBinding.{
+      texture = material.tex,
+      sampler = GPU.mesh_tex_sampler,
+    };
+    SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
+
+    SDL_DrawGPUPrimitives(pass, xx staging.element_count, 1, 0, 0);
+  }
+
+  //
+  // Prepare GPU state to render models
+  //
+
+  // Bind model vertices & indices
+  SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = AST.model_vertices}), 1);
+  SDL_BindGPUIndexBuffer(pass, *(SDL_GPUBufferBinding.{buffer = AST.model_indices}), .SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+  //
+  // Models
+  //
+  for staging, model_slot: RD.models_stagings
+  {
+    if staging.element_count == 0 continue;
+
+    model := ModelFromSlot(xx model_slot);
+
+    // bind instance storage buffer
+    storage_bufs := *SDL_GPUBuffer.[
+      staging.buffer_handle,
+      RD.transforms_staging.buffer_handle,
+    ];
+    SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
+
+    for mesh: model.meshes
     {
-      storage_bufs := *SDL_GPUBuffer.[
-        GPU.dummy_instance_buffer,
-        RD.transforms_staging.buffer_handle,
-      ];
-      SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
-    }
-    //
-    // Dynamic meshes
-    //
-    for staging, material_slot: RD.meshes_stagings
-    {
-      if staging.element_count == 0 continue;
-
-      // Bind vertex buffer
-      SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = staging.buffer_handle}), 1);
-
-      material := MaterialFromSlot(xx material_slot);
+      material := MaterialFromSlot(mesh.material_slot);
 
       // Uniforms
-      RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
-      if material_slot == MaterialSlotFromID(.Clay002) ||
-         material_slot == MaterialSlotFromID(.Grass004)
-      {
-        GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
+      RD_WorldMaterialToUniform(*GPU.world_uniform, material, mode);
+      GPU.world_uniform.flags |= .UseInstanceBuffer;
+      GPU.world_uniform.flags |= .EnableHueShift;
+      if (model.is_skinned) GPU.world_uniform.flags |= .DoMeshSkinning;
+      if model_slot == ModelSlotFromID(.Tree) {
+        //GPU.world_uniform.flags |= .LessShadows;
       }
       GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
 
       // Bind texture
-      binding_sampl := SDL_GPUTextureSamplerBinding.{
-        texture = material.tex,
-        sampler = GPU.mesh_tex_sampler,
-      };
-      SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
-
-      SDL_DrawGPUPrimitives(pass, xx staging.element_count, 1, 0, 0);
-    }
-
-    //
-    // Prepare GPU state to render models
-    //
-
-    // Bind model vertices & indices
-    SDL_BindGPUVertexBuffers(pass, 0, *(SDL_GPUBufferBinding.{buffer = AST.model_vertices}), 1);
-    SDL_BindGPUIndexBuffer(pass, *(SDL_GPUBufferBinding.{buffer = AST.model_indices}), .SDL_GPU_INDEXELEMENTSIZE_16BIT);
-
-    //
-    // Models
-    //
-    for staging, model_slot: RD.models_stagings
-    {
-      if staging.element_count == 0 continue;
-
-      model := ModelFromSlot(xx model_slot);
-
-      // bind instance storage buffer
-      storage_bufs := *SDL_GPUBuffer.[
-        staging.buffer_handle,
-        RD.transforms_staging.buffer_handle,
-      ];
-      SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
-
-      for mesh: model.meshes
+      if material.has_texture
       {
-        material := MaterialFromSlot(mesh.material_slot);
-
-        // Uniforms
-        RD_WorldMaterialToUniform(*GPU.world_uniform, material, simplified_pipeline);
-        GPU.world_uniform.flags |= .UseInstanceBuffer;
-        if (model.is_skinned) GPU.world_uniform.flags |= .DoMeshSkinning;
-        if model_slot == ModelSlotFromID(.Tree) {
-          //GPU.world_uniform.flags |= .LessShadows;
-        }
-        GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
-
-        // Bind texture
-        if material.has_texture
-        {
-          binding_sampl := SDL_GPUTextureSamplerBinding.{
-            texture = material.tex,
-            sampler = GPU.mesh_tex_sampler,
-          };
-          SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
-        }
-
-        SDL_DrawGPUIndexedPrimitives(pass, mesh.indices_count, xx staging.element_count,
-          mesh.indices_start_index, xx mesh.vertices_start_index, 0);
+        binding_sampl := SDL_GPUTextureSamplerBinding.{
+          texture = material.tex,
+          sampler = GPU.mesh_tex_sampler,
+        };
+        SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
       }
+
+      SDL_DrawGPUIndexedPrimitives(pass, mesh.indices_count, xx staging.element_count,
+        mesh.indices_start_index, xx mesh.vertices_start_index, 0);
     }
   }
+}
+
+GPU_Iterate :: ()
+{
+  PerfFunc();
 
   cmd: *SDL_GPUCommandBuffer;
   swapchain_tex: *SDL_GPUTexture;

@@ -45,7 +45,7 @@ OBJ_Flags :: enum_flags u32
 
   DRAW_MODEL;
   DRAW_COLLIDERS;
-  // MOUSE_PICKING;
+  DISABLE_MOUSE;
 
   HAS_HP;
   TARGETABLE;
@@ -117,6 +117,7 @@ Object :: struct
 
   // visuals
   color: Color32 = 0xffff_ffff; @lerp // unused?
+  hue_shift: float; @lerp
   rotation: Quat; @Slerp
   model: ModelID; // used by DrawModel
   material: MaterialID; // used by DrawCollision

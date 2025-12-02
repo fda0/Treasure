@@ -48,7 +48,8 @@ RD_WorldUniform :: struct
 RD_WorldModel :: struct
 {
   transform: Mat4;
-  color: Color32;
+  color_mask: Color32;
+  hue_shift: float;
   picking_color: Color32;
   pose_offset: u32; // in indices; unused for rigid
 };
@@ -259,7 +260,7 @@ RD_ResetWorldBatch :: (batch: *RD_WorldBatch)
   array_reset_keeping_memory(*batch.transforms);
 }
 
-RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, simplified_pipeline: bool)
+RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mode: GPU_RenderWorldMode)
 {
   uniform.material_loaded_t = material.stream.loaded_t;
   uniform.material_diffuse = xx material.params.diffuse;
@@ -268,9 +269,14 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, sim
 
   uniform.flags = .ApplyShadows;
 
-  if simplified_pipeline
+  if mode != .RENDER
   {
     uniform.flags |= .PixelEarlyExit;
+  }
+
+  if mode == .MOUSE_PICKING
+  {
+    uniform.flags |= .DiscardColorPickZero;
   }
 
   if material.has_texture
@@ -299,8 +305,9 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
 
     instance := RD_WorldModel.{
       transform = transform,
-      color = C32_from_C4(hover_color),
-      picking_color = OBJ_KeyToColor(ghost.key)
+      hue_shift = ghost.hue_shift,
+      color_mask = C32_from_C4(hover_color),
+      picking_color = ifx ghost.flags & .DISABLE_MOUSE then (0).(Color32) else OBJ_KeyToColor(ghost.key),
     };
 
     model := ModelFromID(ghost.model);

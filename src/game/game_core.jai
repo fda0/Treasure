@@ -504,10 +504,11 @@ G_ProcessInputAndSendToClient :: ()
 
       if move_pressed
       {
-        marker := G_CreateLocalGhost(.ANIMATE_POSITION | .ANIMATE_ROTATION | .IS_MARKER | .DRAW_MODEL);
+        marker := G_CreateLocalGhost(.ANIMATE_POSITION | .ANIMATE_ROTATION | .IS_MARKER | .DRAW_MODEL | .DISABLE_MOUSE);
         if !OBJ_IsNil(marker)
         {
           marker.model = .Cross;
+          marker.hue_shift = 0.4;
           marker.p = G.input.world_p;
           marker.p.z = -0.05;
           marker.rotation = RotationAroundAxis(AxisV3(.Z), 0.5);
