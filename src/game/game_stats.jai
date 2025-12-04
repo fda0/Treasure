@@ -16,7 +16,7 @@ STATS_CounterType :: enum
   TEST_FRAME_NUMBER;
   NEXT_PLAYBACK_SV_TICK;
 }
-STATS_CounterCount :: #run EnumOnePastMax(STATS_CounterType);
+STATS_CounterCount :: #run EnumCount(STATS_CounterType);
 STATS_CounterNames :: #run enum_names(STATS_CounterType);
 STATS_CounterValues :: #run enum_values_as_enum(STATS_CounterType);
 

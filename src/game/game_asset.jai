@@ -155,8 +155,8 @@ MaterialID :: enum u16
   Clay002;
 }
 
-ModelID_Count :: #run EnumOnePastMax(ModelID);
-MaterialID_Count :: #run EnumOnePastMax(MaterialID);
+ModelID_Count :: #run EnumCount(ModelID);
+MaterialID_Count :: #run EnumCount(MaterialID);
 
 ModelSlotFromID :: (id: ModelID) -> ModelSlot { return AST.model_id_to_slot[id]; }
 MaterialSlotFromID :: (id: MaterialID) -> MaterialSlot { return AST.material_id_to_slot[id]; }

@@ -112,6 +112,10 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
   obj.creation_tick = SV.tick;
   obj.flags = flags;
   obj.team = team;
+
+  for * obj.base_stats it.* = 1.0;
+  obj.base_stats[OBJ_Stat.HEALTH_REGEN] = 0;
+  obj.base_stats[OBJ_Stat.ENERGY_REGEN] = 0;
   return obj;
 }
 
@@ -140,7 +144,7 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(
     .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
+    .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
 
   if !OBJ_IsNil(obj)
   {
@@ -150,13 +154,15 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
     obj.model = model;
     obj.color = Color32_Grayf(1);
     obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
-
-    obj.max_hp = 40;
-    obj.base_move_speed = 1.5;
-    obj.move_speed = 1.5;
-    obj.hp = 40;
-
     obj.team = team;
+
+    obj.base_stats[OBJ_Stat.HEALTH] = 40;
+    obj.base_stats[OBJ_Stat.HEALTH_REGEN] = 10;
+    obj.base_stats[OBJ_Stat.ENERGY] = 50;
+    obj.base_stats[OBJ_Stat.ENERGY_REGEN] = 2;
+    obj.base_stats[OBJ_Stat.MOVE_SPEED] = 1.5;
+    obj.health = obj.base_stats[OBJ_Stat.HEALTH];
+    obj.energy = obj.base_stats[OBJ_Stat.ENERGY];
   }
   return obj;
 }

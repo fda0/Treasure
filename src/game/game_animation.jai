@@ -6,7 +6,7 @@ Skeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
-  animation_records: [#run EnumOnePastMax(AnimationID)] AnimationRecord;
+  animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
 
   joints_count: u32; // all arrays below have count equal to joints_count
   joint_names: [] string;
@@ -309,7 +309,7 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     WALK_TO_RUN_COEFFICIENT :: 0.2;
     a := *ghost.anim;
 
-    tracks: Fixed(16, AnimationTrack);
+    tracks: Fixed(AnimationTrack, 16);
 
     NotAllWeightsAreFull :: () -> bool #expand {
       if (tracks.count == 0) return true;

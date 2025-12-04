@@ -7,10 +7,15 @@ Color32_RGBAi :: (r: u32, g: u32, b: u32, a: u32) -> Color32
   res := (a << 24) | (b << 16) | (g << 8) | r;
   return res.(Color32);
 }
-Color32_SetAlphai :: (color: Color32, a: u32) -> Color32
+C32_SetAlphai :: (color: Color32, a: u32) -> Color32
 {
   no_alpha := color.(u32) & ~(0xff << 24);
   return xx (no_alpha | (a << 24));
+}
+C32_SetAlphaf :: (color: Color32, a: float) -> Color32
+{
+  ai := (a * 255.0).(u32);
+  return C32_SetAlphai(color, ai);
 }
 Color32_RGBAf :: (r: float, g: float, b: float, a: float) -> Color32
 {
@@ -35,7 +40,6 @@ Color32_RGBf  :: (color: [3] float) -> Color32 { return Color32_RGBf(color[0], c
 Color32_RGBAf :: (color: [4] float) -> Color32 { return Color32_RGBAf(color[0], color[1], color[2], color[3]); }
 
 C32_RGBAi :: Color32_RGBAi;
-C32_SetAlpha :: Color32_SetAlphai;
 C32_RGBAf :: Color32_RGBAf;
 C32_RGBf :: Color32_RGBf;
 C32_RGBi :: Color32_RGBi;
@@ -102,3 +106,4 @@ White :: (shade := 1.0, alpha := 1.0) -> C32
 {
   return C32_RGBAf(shade, shade, shade, alpha);
 }
+

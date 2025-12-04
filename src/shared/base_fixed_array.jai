@@ -1,4 +1,4 @@
-Fixed :: struct($CAPACITY: s64, $T: Type)
+Fixed :: struct($T: Type, $CAPACITY: s64)
 {
   ELEMENT_SIZE :: size_of(T);
   DATA_SIZE :: CAPACITY * ELEMENT_SIZE;
@@ -26,32 +26,51 @@ operator []= :: inline (f: *Fixed, i: int, value: f.T)
   f.buf[i] = value;
 }
 
-for_expansion :: (f: $A/Fixed, body: Code, flags: For_Flags) #expand
+for_expansion :: (f: *$A/Fixed, body: Code, flags: For_Flags) #expand
 {
-  #assert(flags == 0); // @todo extend support
-  `it_index := 0;
+  #assert(flags & ~.POINTER == 0);
+
+  `it_index := -1;
   while true
   {
-    if it_index >= f.count break;
-    defer it_index += 1;
+    it_index += 1;
+    if it_index >= f.count {
+      break;
+    }
 
-    `it := f.buf[it_index];
-    #insert body;
+    #if flags & .POINTER {
+      `it := *f.buf[it_index];
+    } else {
+      `it := f.buf[it_index];
+    }
+
+    #insert (remove = {
+      if f.count > 1 {
+        f.buf[it_index] = f.buf[f.count - 1];
+      }
+      it_index -= 1;
+      f.count -= 1;
+    }) body;
   }
 }
 
-array_size_bytes :: (f: Fixed) -> s64
-{
+array_size_bytes :: (f: Fixed) -> s64 {
   return f.count * f.ELEMENT_SIZE;
 }
 
-array_space_left :: (f: Fixed) -> s64
-{
+array_space_left :: (f: Fixed) -> s64 {
   return f.CAPACITY - f.count;
 }
 
-array_reset :: (f: *Fixed)
-{
+array_has_space :: (f: Fixed) -> bool {
+  return array_space_left(f) > 0;
+}
+
+array_is_full :: (f: Fixed) -> bool {
+  return array_space_left(f) == 0;
+}
+
+array_reset :: (f: *Fixed) {
   f.count = 0;
 }
 

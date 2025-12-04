@@ -48,6 +48,7 @@ OBJ_Flags :: enum_flags u32
   DISABLE_MOUSE;
 
   HAS_HP;
+  UPDATE_STATS;
   TARGETABLE;
   PLAY_SOUNDS;
   IS_TURRET;
@@ -80,6 +81,29 @@ OBJ_Activity :: struct
   last_projectile: OBJ_Key;
 }
 
+OBJ_StatCount :: #run EnumCount(OBJ_Stat);
+OBJ_Stat :: enum u8
+{
+  HEALTH;
+  HEALTH_REGEN;
+  ENERGY;
+  ENERGY_REGEN;
+  MOVE_SPEED;
+  ATTACK_SPEED;
+}
+
+OBJ_Effect :: struct
+{
+  op: Operation;
+  target: OBJ_Stat;
+  value: float;
+  time_left: float;
+
+  Operation :: enum u8 {
+    ADD;
+  }
+}
+
 Object :: struct
 {
   // Object data that's synced with the server
@@ -94,15 +118,11 @@ Object :: struct
   desired_dp: V3; @lerp // move that Object wanted to make
   moved_dp: V3; @lerp // move that Object did after collision simulation
 
-  // base stats
-  max_hp: float; @lerp
-  attack_speed: float = 1.2; @lerp
-  base_move_speed: float = 1.0; @lerp
-
-  // stats
-  hp: float; @lerp
-  move_speed: float = 1.0; @lerp
-  move_speed_boost_t: float; @lerp
+  effects: Fixed(OBJ_Effect, 16);
+  base_stats: [OBJ_StatCount] float;
+  stats: [OBJ_StatCount] float;
+  health: float; @lerp
+  energy: float; @lerp
 
   // attack timers
   attack_landed_t := 0.25; @lerp
@@ -125,7 +145,13 @@ Object :: struct
   texture_texels_per_m: float; @lerp // used by DrawCollision
 
   collider: OBJ_Collider;
-};
+}
+
+OBJ_GetStat :: (obj: Object, stat: OBJ_Stat, base_stat := false) -> float #expand
+{
+  if (base_stat) return obj.base_stats[stat];
+  return obj.stats[stat];
+}
 
 OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
 {
@@ -215,8 +241,8 @@ OBJ_TestParams :: struct
   reject_flags: OBJ_Flags;
 
   common: enum_flags u8 {
-    IS_ALIVE; // (has HAS_HP flag) AND (hp > 0.0)
-    IS_ALIVE_OR_NO_HP; // (doesn't have HAS_HP flag) OR (hp > 0.0)
+    IS_ALIVE; // (has HAS_HP flag) AND (health > 0.0)
+    IS_ALIVE_OR_NO_HP; // (doesn't have HAS_HP flag) OR (health > 0.0)
   }
   common2: enum_flags u8 { // for 2 object tests
     ARE_ENEMIES;
@@ -231,11 +257,11 @@ OBJ_Test :: (obj: Object, using params: OBJ_TestParams) -> bool
 
   if common & .IS_ALIVE
   {
-    if !((obj.flags & .HAS_HP) && (obj.hp > 0.0)) return false;
+    if !((obj.flags & .HAS_HP) && (obj.health > 0.0)) return false;
   }
   if common & .IS_ALIVE_OR_NO_HP
   {
-    if !(!(obj.flags & .HAS_HP) || (obj.hp > 0.0)) return false;
+    if !(!(obj.flags & .HAS_HP) || (obj.health > 0.0)) return false;
   }
 
   if !filter(obj) return false;

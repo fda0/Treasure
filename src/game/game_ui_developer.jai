@@ -354,9 +354,9 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
   resize_button: *Box;
   {
     BAR_THICKNESS :: #run Rem(0.75);
-    color_bar_bg := Color32_SetAlphai(UI_FG, 24);
-    color_scroll := Color32_SetAlphai(UI_FG, 128);
-    color_scroll_active := Color32_SetAlphai(UI_FG, 220);
+    color_bar_bg := C32_SetAlphai(UI_FG, 24);
+    color_scroll := C32_SetAlphai(UI_FG, 128);
+    color_scroll_active := C32_SetAlphai(UI_FG, 220);
 
     Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
     default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};
@@ -613,9 +613,9 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
   Layer(.{seed = Hash64Any(scroll_x.(u64), scroll_y.(u64))});
 
   BAR_THICKNESS :: #run Rem(0.75);
-  color_bar_bg := Color32_SetAlphai(UI_FG, 24);
-  color_scroll := Color32_SetAlphai(UI_FG, 128);
-  color_scroll_active := Color32_SetAlphai(UI_FG, 220);
+  color_bar_bg := C32_SetAlphai(UI_FG, 24);
+  color_scroll := C32_SetAlphai(UI_FG, 128);
+  color_scroll_active := C32_SetAlphai(UI_FG, 220);
 
   Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
   default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};

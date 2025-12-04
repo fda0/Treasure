@@ -47,12 +47,12 @@ SIM_AdvanceByTick :: ()
     for team: BOTH_TEAMS
     {
       sleeper := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION |
-         .ANIMATE_TRACKS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
+         .ANIMATE_TRACKS | .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
       if !OBJ_IsNil(sleeper)
       {
         sleeper.model = .Zombie;
-        sleeper.hp = 60.0;
-        sleeper.max_hp = 60.0;
+        sleeper.base_stats[OBJ_Stat.HEALTH] = 60.0;
+        sleeper.health  = sleeper.base_stats[OBJ_Stat.HEALTH];
         dim := 0.3;
         sleeper.collider = OBJ_ColliderFromRect(.{dim,dim});
 
@@ -69,21 +69,44 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  // temporary - player health regen
-  for SV.users
+  // Update stats / apply effects
+  for *obj: SV.objects
   {
-    player := SV_GetObject(it.key);
-    if !OBJ_Test(player, .{common = .IS_ALIVE }) continue;
-    player.hp = min(player.hp + TICK_FLOAT_STEP * 20.0, player.max_hp);
+    if !(obj.flags & .UPDATE_STATS) continue;
 
-    // temp - decay move_speed towards base
-    player.move_speed_boost_t = max(0.0, player.move_speed_boost_t - TICK_FLOAT_STEP);
-    player.move_speed = player.base_move_speed + player.move_speed_boost_t*0.1;
+    // init stats with base_stats
+    for * obj.stats {
+      it.* = obj.base_stats[it_index];
+    }
 
-    // reduce cooldowns
-    for * player.skill_cooldowns {
+    // apply effects
+    for * obj.effects
+    {
+      it.time_left -= TICK_FLOAT_STEP;
+      if it.time_left <= 0.0 {
+        remove it;
+        continue;
+      }
+
+      if it.op == .ADD {
+        obj.stats[it.target] += it.value;
+      }
+    }
+
+    // Reduce skill cooldowns
+    for * obj.skill_cooldowns {
       it.* -= TICK_FLOAT_STEP;
     }
+
+    // HP regen
+    if OBJ_Test(obj, .{common = .IS_ALIVE }) {
+      obj.health += OBJ_GetStat(obj, .HEALTH_REGEN) * TICK_FLOAT_STEP;
+      obj.energy += OBJ_GetStat(obj, .ENERGY_REGEN) * TICK_FLOAT_STEP;
+    }
+
+    // Clamp health/energy to max
+    obj.health = min(obj.health, OBJ_GetStat(obj, .HEALTH));
+    obj.energy = min(obj.energy, OBJ_GetStat(obj, .ENERGY));
   }
 
   // transfer input to player objects
@@ -137,7 +160,7 @@ SIM_AdvanceByTick :: ()
     activity.target = attack_target.key;
     activity.is_attacking = !OBJ_IsNil(attack_target);
 
-    attack_t_delta := TICK_FLOAT_STEP * turret.attack_speed;
+    attack_t_delta := TICK_FLOAT_STEP * turret.stats[OBJ_Stat.ATTACK_SPEED];
     if OBJ_IsNil(SV_GetObject(activity.last_projectile))
     {
       additional_delta := TICK_FLOAT_STEP * 100.0;
@@ -157,7 +180,7 @@ SIM_AdvanceByTick :: ()
       while activity.attack_t >= turret.attack_landed_t
       {
         activity.attack_t -= turret.attack_cooldown_t;
-        // attack_target.hp -= attack_damage;
+        // attack_target.health -= attack_damage;
 
         projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
@@ -219,7 +242,7 @@ SIM_AdvanceByTick :: ()
       if apply_hit
       {
         attack_damage := 25.0;
-        target.hp -= attack_damage;
+        target.health -= attack_damage;
         SIM_PlaySound(target, .HIT);
         SV_DeleteObject(projectile);
       }
@@ -247,7 +270,7 @@ SIM_AdvanceByTick :: ()
       if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
       {
         obj.p = .{};
-        obj.hp = obj.max_hp;
+        obj.health = obj.stats[OBJ_Stat.HEALTH];
         obj.death_tick = 0;
       }
 
@@ -295,25 +318,38 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
     time_cost: float = 1.0 * xx (1 + it_index);
     energy_cost: float = 5.0 * xx (1 + it_index);
 
-    if (obj.hp < energy_cost) continue; // not enough energy (hp for now)
+    if (obj.energy < energy_cost) continue; // not enough energy
 
     // apply costs
     it.* = time_cost;
-    obj.hp -= energy_cost;
+    obj.energy -= energy_cost;
 
     // apply effects
     if skill_letter == {
       case .Q;
-      obj.move_speed_boost_t = 0.0;
+      for obj.effects {
+        if (it.target == .MOVE_SPEED) {
+          remove it;
+        }
+      }
 
       case .W;
-      obj.move_speed_boost_t += 1.0;
+      array_add(*obj.effects, .{
+        op = .ADD, target = .MOVE_SPEED,
+        value = 1.0, time_left = 10.0,
+      });
 
       case .E;
-      obj.move_speed_boost_t += 10.0;
+      array_add(*obj.effects, .{
+        op = .ADD, target = .MOVE_SPEED,
+        value = 10.0, time_left = 5.0,
+      });
 
       case .R;
-      obj.move_speed_boost_t += 100.0;
+      array_add(*obj.effects, .{
+        op = .ADD, target = .MOVE_SPEED,
+        value = 100.0, time_left = 2.0,
+      });
     }
   }
 
@@ -402,7 +438,7 @@ SIM_ProcessActivity :: (obj: *Object)
     distance := length(obj_to_destination);
     if distance >= MINIMUM_MOVE_START_DISTANCE then pathing_direction = obj_to_destination;
 
-    obj_speed := obj.move_speed * TICK_FLOAT_STEP;
+    obj_speed := obj.stats[OBJ_Stat.MOVE_SPEED] * TICK_FLOAT_STEP;
     obj_speed = min(obj_speed, distance);
     obj.desired_dp = V3.{xy = normalize(pathing_direction) * obj_speed, z = 0};
   }
@@ -412,7 +448,7 @@ SIM_ProcessActivity :: (obj: *Object)
   }
 
   // Advance attack timers
-  attack_t_delta := TICK_FLOAT_STEP * obj.attack_speed;
+  attack_t_delta := TICK_FLOAT_STEP * obj.stats[OBJ_Stat.ATTACK_SPEED];
   activity.attack_t += attack_t_delta;
 
   // advance visual_attack_t
@@ -443,7 +479,7 @@ SIM_ProcessActivity :: (obj: *Object)
     while activity.attack_t >= obj.attack_landed_t
     {
       activity.attack_t -= obj.attack_cooldown_t;
-      target.hp -= attack_damage;
+      target.health -= attack_damage;
 
       SIM_PlayAnimation(target, .HIT);
       SIM_PlaySound(target, .HIT);
@@ -590,7 +626,7 @@ SIM_InitObjects :: ()
         if tier != 0 continue;
 
         turret := SV_CreateObject(
-          .COLLIDE | .DRAW_MODEL | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS |
+          .COLLIDE | .DRAW_MODEL | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
           .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
           team);
 
@@ -605,9 +641,9 @@ SIM_InitObjects :: ()
 
           turret.model = .Plank;
 
-          turret.max_hp = 400;
-          turret.hp = 400;
-          turret.attack_speed = 2.5;
+          turret.base_stats[OBJ_Stat.HEALTH] = 400;
+          turret.base_stats[OBJ_Stat.ATTACK_SPEED] = 2.5;
+          turret.health = turret.base_stats[OBJ_Stat.HEALTH];
           turret.attack_landed_t = 0.1;
           turret.attack_cooldown_t = 5.0;
         }

@@ -10,21 +10,19 @@ SameSizePointerCast :: ($DstType: Type, ptr: *$SrcType) -> *DstType #expand
   return ptr.(*DstType);
 }
 
-EnumOnePastMax :: ($t: Type) -> s64
-{
+EnumCount :: ($t: Type) -> s64 {
   return enum_highest_value(t) + 1;
 }
 
 //
-ZeroAddress :: (dst: *void, count: s64)
-{
+ZeroAddress :: (dst: *void, count: s64) {
   memset(dst, 0, count);
 }
 
-ZeroArray :: (arr: [] $T)
-{
-  if arr.count
+ZeroArray :: (arr: [] $T) {
+  if arr.count {
     memset(arr.data, 0, size_of(T)*arr.count);
+  }
 }
 
 ZeroType :: (ptr: *$T)

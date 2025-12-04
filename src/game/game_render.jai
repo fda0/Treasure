@@ -4,9 +4,9 @@ using,only(AST,DEV,G,GPU,RD) COMPS;
 
 RenderState :: struct
 {
-  ui_indices: Fixed(1024 * 64, u32);
-  ui_shapes: Fixed(1024 * 16, RD_UIShape);
-  ui_shapes3d: Fixed(1024 * 2, RD_UIShapeIn3D);
+  ui_indices: Fixed(u32, 1024 * 64);
+  ui_shapes: Fixed(RD_UIShape, 1024 * 16);
+  ui_shapes3d: Fixed(RD_UIShapeIn3D, 1024 * 2);
 
   world_batches: [] RD_WorldBatch; // count = LaneCount(); indexed by LaneIdx()
 
@@ -326,7 +326,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
   if draw_hp
   {
     bar_height := 10.0;
-    start_x := -ghost.max_hp / 2;
+    start_x := -ghost.stats[OBJ_Stat.HEALTH] / 2;
     start_y := -bar_height*2;
     alpha := 1.0;
 
@@ -338,11 +338,11 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     }
 
     max_hp_bar := RD_UIShape.{
-      rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.max_hp, bar_height}),
+      rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.stats[OBJ_Stat.HEALTH], bar_height}),
       color = Color32_RGBAf(0, 0, 0, alpha)
     };
     active_hp_bar := RD_UIShape.{
-      rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.hp), bar_height}),
+      rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.health), bar_height}),
       color = Color32_RGBAf(0.1, 1, 0, alpha)
     };
 

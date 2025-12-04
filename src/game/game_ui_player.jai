@@ -18,27 +18,40 @@ UI_BuildHUD :: ()
 {
   Layer(.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(1), color = TEXT_FG}});
 
+  // ff0 :: (x) => formatFloat(x, trailing_width = 1, zero_removal = .NO);
+  ff0 :: #bake_arguments formatFloat(trailing_width = 0);
+  ff2 :: #bake_arguments formatFloat(trailing_width = 2, zero_removal = .NO);
+
   hud := CreateBox(.{layout.size.min = Fit2(),
                      layout.padding = PaddingAll(GAP_SIZE),
                      layout.child_gap = GAP_SIZE,
                      layout.child_order = .TOP_TO_BOTTOM,
                      bg_color = HUD_BG,
                      floating.attach_to = .ROOT,
-                     floating.anchors = .{itself = .{horizontal = .CENTER, vertical = .BOTTOM},
-                                          parent = .{horizontal = .CENTER, vertical = .BOTTOM}}});
+                     floating.anchors = GetAnchor2(.CENTER, .BOTTOM)});
   Parent(hud);
 
   player := G_GetGhost(.SHARED, G.player_key);
-  hp_ratio := SafeDiv(player.hp, player.max_hp);
+  health_ratio := SafeDiv(player.health, OBJ_GetStat(player, .HEALTH));
+  energy_ratio := SafeDiv(player.energy, OBJ_GetStat(player, .ENERGY));
 
+  label_style := BoxSpec.{floating = .{attach_to = .PARENT,
+                                       anchors = GetAnchor2(.LEFT, .CENTER),
+                                       offset = Rem2(.{0.1, 0.01})}};
 
   {
     Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1.0)}, bg_color = BUTTON_BG}));
-    CreateBox(.{layout.size = .{pref.x = Pct(hp_ratio), pref.y = Grow()}, bg_color = HEALTH_FG});
+    CreateBox(.{layout.size = .{pref.x = Pct(health_ratio), pref.y = Grow()}, bg_color = HEALTH_FG});
+
+    label := tprint("% / %", ff0(player.health), ff0(OBJ_GetStat(player, .HEALTH)));
+    CreateText(label, label_style);
   }
   {
     Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1.0)}, bg_color = BUTTON_BG}));
-    CreateBox(.{layout.size = .{pref.x = Pct(hp_ratio), pref.y = Grow()}, bg_color = ENERGY_FG});
+    CreateBox(.{layout.size = .{pref.x = Pct(energy_ratio), pref.y = Grow()}, bg_color = ENERGY_FG});
+
+    label := tprint("% / %", ff0(player.energy), ff0(OBJ_GetStat(player, .ENERGY)));
+    CreateText(label, label_style);
   }
 
 
@@ -59,12 +72,14 @@ UI_BuildHUD :: ()
     Parent(button);
 
     CreateText(it, .{text.font = xx FONT_Family.PlayfairDisplay,
+                     text.font_size = Rem(1),
                      floating.attach_to = .PARENT, floating.offset = Rem2(0.5)});
 
-    cooldown_label := tprint("%", formatFloat(cooldown, trailing_width = 2, zero_removal = .NO));
-
-    CreateText(cooldown_label, .{floating.attach_to = .PARENT, floating.offset = Rem2(-0.5),
-                                 floating.anchors.itself = .{horizontal = .RIGHT, vertical = .BOTTOM},
-                                 floating.anchors.parent = .{horizontal = .RIGHT, vertical = .BOTTOM}});
+    cooldown_color := C32_SetAlphaf(TEXT_FG, Smoothstep(cooldown_raw, -0.1, 0.2));
+    cooldown_label := tprint("%", ff2(cooldown));
+    CreateText(cooldown_label, .{text.font = xx FONT_Family.Inconsolata, text.font_size = Rem(1),
+                                 text.color = cooldown_color,
+                                 floating.attach_to = .PARENT, floating.offset = Rem2(-0.5),
+                                 floating.anchors = GetAnchor2(.RIGHT, .BOTTOM)});
   }
 }

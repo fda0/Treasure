@@ -62,15 +62,34 @@ PaddingH   :: (left: Length, right: Length) -> Padding { return .{left, right, .
 CornerRadius :: struct
 {
   top_left, top_right, bottom_left, bottom_right: Length;
-};
+}
 RadiusAll :: (r: Length) -> CornerRadius { return .{r, r, r, r}; }
 
 Anchor :: struct
 {
-  horizontal: enum u8 { LEFT; CENTER; RIGHT; }
-  vertical: enum u8 { TOP; CENTER; BOTTOM; }
-  add_padding: enum_flags u8 { PAD_HORIZONTAL; PAD_VERTICAL; }
-};
+  Horizontal :: enum u8 { LEFT; CENTER; RIGHT; }
+  Vertical :: enum u8 { TOP; CENTER; BOTTOM; }
+  AddPadding :: enum_flags u8 { PAD_HORIZONTAL; PAD_VERTICAL; }
+
+  horizontal: Horizontal;
+  vertical: Vertical;
+  add_padding: AddPadding;
+}
+
+Anchor2 :: struct
+{
+  itself: Anchor;
+  parent: Anchor;
+}
+
+GetAnchor2 :: (hori: Anchor.Horizontal, vert: Anchor.Vertical) -> Anchor2
+{
+  result := Anchor2.{
+    itself = .{horizontal = hori, vertical = vert},
+    parent = .{horizontal = hori, vertical = vert},
+  };
+  return result;
+}
 
 Align :: enum u8
 {
@@ -368,7 +387,7 @@ BoxSpec :: struct
     reference: BoxKey;
 
     offset: Length2;
-    anchors: struct { itself: Anchor; parent: Anchor; }
+    anchors: Anchor2;
     z_index: s16;
   }
 
