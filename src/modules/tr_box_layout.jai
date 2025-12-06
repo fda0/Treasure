@@ -833,6 +833,7 @@ LayoutLogFlags :: enum_flags {
   SIZES;
   MINMAX;
   POSITIONS;
+  CLIP;
   KEY;
   LOCATION;
 
@@ -1388,6 +1389,7 @@ LayoutEnd :: ()
       if log_flags & .SIZES      then print("inner% + padding% = outer%;\t", it.inner, it.padding, Outer2(it));
       if log_flags & .MINMAX     then print("inner_min%, inner_max%;\t", it.inner_min, it.inner_max);
       if log_flags & .POSITIONS  then print("rel_p %; abs_p %;\t", it.rel_p, it.abs_p);
+      if log_flags & .CLIP       then print("clip_min %; clip_max %;\t", it.clipped_min, it.clipped_max);
       if log_flags & .KEY
       {
         print("key%", it.key);
@@ -1418,28 +1420,10 @@ LayoutEnd :: ()
       base_cmd.z_index = it.floating.z_index;
       base_cmd.box = it;
 
-      // apply clipping for scrolling
       if !it.floating.attach_to
       {
-        parent := it.parent;
-        while true
-        {
-          if IsNil(parent) break;
-          if parent.scroll.enable & .SCROLL_X
-          {
-            base_cmd.clip_min.x = parent.clipped_min.x;
-            base_cmd.clip_max.x = parent.clipped_max.x;
-          }
-          if parent.scroll.enable & .SCROLL_Y
-          {
-            base_cmd.clip_min.y = parent.clipped_min.y;
-            base_cmd.clip_max.y = parent.clipped_max.y;
-          }
-          base_cmd.z_index += parent.floating.z_index;
-
-          if parent.floating.attach_to break;
-          parent = parent.parent;
-        }
+        base_cmd.clip_min.x = it.parent.clipped_min.x;
+        base_cmd.clip_max.x = it.parent.clipped_max.x;
       }
 
       if it.bg_color
@@ -1464,13 +1448,11 @@ LayoutEnd :: ()
         array_add(*render_commands, cmd);
       }
 
-      if it.text.color
+      if it.text.str
       {
         cmd := base_cmd;
         cmd.type = .TEXT;
         cmd.p += V2.{it.padding.left, it.padding.top + it.inner.y};
-        cmd.clip_min = it.parent.clipped_min;
-        cmd.clip_max = it.parent.clipped_max;
         cmd.color = it.text.color;
         cmd.text = it.text.str;
         cmd.font = it.text.font;

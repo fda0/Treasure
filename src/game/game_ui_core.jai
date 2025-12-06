@@ -68,8 +68,8 @@ UI_ProcessBoxRenderCommands :: ()
     c32 := C32_from_C4(c4);
 
     shape := RD_UIShape.{
-      rect = MakeRangeMinDim(cmd.p, cmd.dim),
-      clip_rect = MakeRange(cmd.clip_min, cmd.clip_max),
+      rect = MakeRectMinDim(cmd.p, cmd.dim),
+      clip_rect = MakeRect(cmd.clip_min, cmd.clip_max),
       color = c32,
       corner_radius = cmd.corner_radius.top_left,
       edge_softness = cmd.edge_softness,
