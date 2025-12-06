@@ -12,6 +12,7 @@ HEALTH_FG :: #run C32_0xRGB(/*0x1C_a7_48*/ 0x27_96_26);
 ENERGY_FG :: #run C32_0xRGB(0x9C_97_28);
 TEXT_FG :: #run C32_0xRGB(0xcf_cf_cf);
 GAP_SIZE  :: #run Rem(0.5);
+PADDING :: #run PaddingAll(GAP_SIZE);
 #scope_export;
 
 UI_BuildHUD :: ()
@@ -25,7 +26,7 @@ UI_BuildHUD :: ()
   ff2 :: #bake_arguments formatFloat(trailing_width = 2, zero_removal = .NO);
 
   hud := CreateBox(.{layout.size.min = Fit2(),
-                     layout.padding = PaddingAll(GAP_SIZE),
+                     layout.padding = PADDING,
                      layout.child_gap = GAP_SIZE,
                      layout.child_order = .TOP_TO_BOTTOM,
                      floating.attach_to = .ROOT,
@@ -45,13 +46,13 @@ UI_BuildHUD :: ()
     {
       Parent(CreateBox(.{layout.size.min = Fit2(), bg_color = HUD_BG}));
       label := tprint("MS %", ff1(it.time_left));
-      CreateText(label, .{layout.padding = PaddingAll(GAP_SIZE)});
+      CreateText(label, .{layout.padding = PADDING});
     }
   }
 
 
   background := CreateBox(.{layout.size.min = Fit2(),
-                            layout.padding = PaddingAll(GAP_SIZE),
+                            layout.padding = PADDING,
                             layout.child_gap = GAP_SIZE,
                             layout.child_order = .TOP_TO_BOTTOM,
                             bg_color = HUD_BG});
@@ -124,4 +125,23 @@ UI_BuildHUD :: ()
       CreateText(right, style_right);
     }
   }
+
+  // stats side
+  {
+    stats_box := CreateBox(.{bg_color = HUD_BG,
+                             layout = .{size.min = Fit2(),
+                                        child_order = .TOP_TO_BOTTOM,
+                                        child_gap = GAP_SIZE},
+                             floating = .{attach_to = .PARENT,
+                                          anchors.itself = GetAnchor(.RIGHT, .BOTTOM),
+                                          anchors.parent = GetAnchor(.LEFT, .BOTTOM),
+                                          offset.x = GAP_SIZE * -1}});
+    Parent(stats_box);
+
+
+    Layer(.{layout.padding = PADDING});
+    CreateText(tprint("MS: %", ff1(OBJ_GetStat(player, .MOVE_SPEED))));
+    CreateText(tprint("AS: %", ff1(OBJ_GetStat(player, .ATTACK_SPEED))));
+  }
+
 }

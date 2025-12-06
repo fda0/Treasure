@@ -82,6 +82,11 @@ Anchor2 :: struct
   parent: Anchor;
 }
 
+GetAnchor :: (hori: Anchor.Horizontal, vert: Anchor.Vertical) -> Anchor
+{
+  return .{horizontal = hori, vertical = vert};
+}
+
 GetAnchor2 :: (hori: Anchor.Horizontal, vert: Anchor.Vertical) -> Anchor2
 {
   result := Anchor2.{
