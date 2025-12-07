@@ -163,6 +163,11 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
     obj.base_stats[OBJ_Stat.MOVE_SPEED] = 1.5;
     obj.health = obj.base_stats[OBJ_Stat.HEALTH];
     obj.energy = obj.base_stats[OBJ_Stat.ENERGY];
+
+    obj.skills[0] = .{energy_cost = 10, cooldown_cost = 5};
+    obj.skills[1] = .{energy_cost = 20, cooldown_cost = 10};
+    obj.skills[2] = .{energy_cost = 30, cooldown_cost = 15};
+    obj.skills[3] = .{energy_cost = 60, cooldown_cost = 20};
   }
   return obj;
 }

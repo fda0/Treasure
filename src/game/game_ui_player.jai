@@ -11,6 +11,7 @@ BUTTON_BG_FLASH :: #run C32_0xRGB(0x4C_57_98);
 HEALTH_FG :: #run C32_0xRGB(/*0x1C_a7_48*/ 0x27_96_26);
 ENERGY_FG :: #run C32_0xRGB(0x9C_97_28);
 TEXT_FG :: #run C32_0xRGB(0xcf_cf_cf);
+TEXT_COOLDOWN :: #run C32_0xRGB(0x9f_9f_9f);
 GAP_SIZE  :: #run Rem(0.5);
 PADDING :: #run PaddingAll(GAP_SIZE);
 #scope_export;
@@ -22,8 +23,8 @@ UI_BuildHUD :: ()
   Layer(.{text = .{font = xx FONT_Family.Inconsolata, font_size = Rem(1), color = TEXT_FG}});
 
   ff0 :: #bake_arguments formatFloat(trailing_width = 0);
-  ff1 :: #bake_arguments formatFloat(trailing_width = 1, zero_removal = .NO);
-  ff2 :: #bake_arguments formatFloat(trailing_width = 2, zero_removal = .NO);
+  ff1 :: #bake_arguments formatFloat(trailing_width = 1);
+  ff1n :: #bake_arguments formatFloat(trailing_width = 1, zero_removal = .NO);
 
   hud := CreateBox(.{layout.size.min = Fit2(),
                      layout.padding = PADDING,
@@ -45,7 +46,7 @@ UI_BuildHUD :: ()
     for player.effects
     {
       Parent(CreateBox(.{layout.size.min = Fit2(), bg_color = HUD_BG}));
-      label := tprint("MS %", ff1(it.time_left));
+      label := tprint("MS %", ff1n(it.time_left));
       CreateText(label, .{layout.padding = PADDING});
     }
   }
@@ -66,27 +67,40 @@ UI_BuildHUD :: ()
                                             child_gap = GAP_SIZE, child_align.x = .CENTER}});
     Parent(skill_buttons);
 
-    skill_labels := string.["Q", "W", "E", "R"];
-    for skill_labels
+    for player.skills
     {
-      cooldown_raw := player.skill_cooldowns[it_index];
-      cooldown := max(0.0, cooldown_raw);
+      skill_label := string.["Q", "W", "E", "R"][it_index];
+
+      cooldown := max(0.0, it.cooldown_timer);
 
       bg_color := lerp(BUTTON_BG, BUTTON_BG_INACTIVE, min(cooldown*8, 1.0));
-      bg_color = lerp(bg_color, BUTTON_BG_FLASH, Smoothstep(abs(cooldown_raw), 0.15, 0.0));
+      bg_color = lerp(bg_color, BUTTON_BG_FLASH, Smoothstep(abs(it.cooldown_timer), 0.15, 0.0));
 
       button := CreateBox(.{layout.size.min = Rem2(button_dim), bg_color = bg_color});
       Parent(button);
 
-      CreateText(it, .{text.font = xx FONT_Family.PlayfairDisplay,
-                       text.font_size = Rem(1),
-                       floating.attach_to = .PARENT, floating.offset = Rem2(0.5)});
+      Layer(.{text.font_size = Rem(0.9)});
 
-      cooldown_color := C32_SetAlphaf(TEXT_FG, Smoothstep(cooldown_raw, -0.1, 0.2));
-      cooldown_label := tprint("%", ff1(cooldown));
-      CreateText(cooldown_label, .{text.color = cooldown_color,
-                                   floating.attach_to = .PARENT, floating.offset = Rem2(-0.5),
-                                   floating.anchors = GetAnchor2(.RIGHT, .BOTTOM)});
+      CreateText(skill_label,
+                 .{floating.attach_to = .PARENT, floating.offset = Rem2(.{0.25, -0.25}),
+                   floating.anchors = GetAnchor2(.LEFT, .BOTTOM)});
+
+      cooldown_color := C32_SetAlphaf(TEXT_FG, Smoothstep(it.cooldown_timer, -0.1, 0.2));
+      CreateText(tprint("%", ff0(cooldown)),
+                 .{text.color = cooldown_color,
+                   text.font_size = Rem(1.4),
+                   floating.attach_to = .PARENT,
+                   floating.anchors = GetAnchor2(.CENTER, .CENTER)});
+
+      CreateText(tprint("%", it.cooldown_cost),
+                 .{text.color = TEXT_COOLDOWN,
+                   floating.attach_to = .PARENT, floating.offset = Rem2(-0.25),
+                   floating.anchors = GetAnchor2(.RIGHT, .BOTTOM)});
+
+      CreateText(tprint("%", it.energy_cost),
+                 .{text.color = ENERGY_FG,
+                   floating.attach_to = .PARENT, floating.offset = Rem2(.{-0.25, 0.25}),
+                   floating.anchors = GetAnchor2(.RIGHT, .TOP)});
     }
   }
 
@@ -111,7 +125,7 @@ UI_BuildHUD :: ()
       left := tprint("% / %", ff0(player.health), ff0(OBJ_GetStat(player, .HEALTH)));
       CreateText(left, style_left);
 
-      right := tprint("+%", ff1(OBJ_GetStat(player, .HEALTH_REGEN)));
+      right := tprint("+%", ff1n(OBJ_GetStat(player, .HEALTH_REGEN)));
       CreateText(right, style_right);
     }
     {
@@ -121,7 +135,7 @@ UI_BuildHUD :: ()
       left := tprint("% / %", ff0(player.energy), ff0(OBJ_GetStat(player, .ENERGY)));
       CreateText(left, style_left);
 
-      right := tprint("+%", ff1(OBJ_GetStat(player, .ENERGY_REGEN)));
+      right := tprint("+%", ff1n(OBJ_GetStat(player, .ENERGY_REGEN)));
       CreateText(right, style_right);
     }
   }
@@ -140,8 +154,8 @@ UI_BuildHUD :: ()
 
 
     Layer(.{layout.padding = PADDING});
-    CreateText(tprint("MS: %", ff1(OBJ_GetStat(player, .MOVE_SPEED))));
-    CreateText(tprint("AS: %", ff1(OBJ_GetStat(player, .ATTACK_SPEED))));
+    CreateText(tprint("MS: %", ff1n(OBJ_GetStat(player, .MOVE_SPEED))));
+    CreateText(tprint("AS: %", ff1n(OBJ_GetStat(player, .ATTACK_SPEED))));
   }
 
 }

@@ -104,6 +104,20 @@ OBJ_Effect :: struct
   }
 }
 
+OBJ_Skill :: struct
+{
+  // set-once
+  flags: enum_flags u8 {
+    DIRECTIONAL;
+    TARGETTED;
+  };
+  energy_cost: float;
+  cooldown_cost: float;
+
+  // updated on tick
+  cooldown_timer: float;
+}
+
 Object :: struct
 {
   // Object data that's synced with the server
@@ -124,6 +138,8 @@ Object :: struct
   health: float; @lerp
   energy: float; @lerp
 
+  skills: [4] OBJ_Skill;
+
   // attack timers
   attack_landed_t := 0.25; @lerp
   attack_cooldown_t := 1.0; @lerp
@@ -132,8 +148,6 @@ Object :: struct
   activity: OBJ_Activity; @lerp_recurse
   animation_requests: Queue(4, AnimationRequest);
   sound_requests: Queue(4, AUDIO_Request);
-
-  skill_cooldowns: [4] float; // @todo - support array lerp
 
   // visuals
   color: Color32 = 0xffff_ffff; @lerp // unused?

@@ -94,8 +94,8 @@ SIM_AdvanceByTick :: ()
     }
 
     // Reduce skill cooldowns
-    for * obj.skill_cooldowns {
-      it.* -= TICK_FLOAT_STEP;
+    for * obj.skills {
+      it.cooldown_timer -= TICK_FLOAT_STEP;
     }
 
     // HP regen
@@ -308,21 +308,17 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
   }
 
   skill_letters := enum_values_as_enum(type_of(input.skills));
-  for * obj.skill_cooldowns
+  for * obj.skills
   {
     skill_letter := skill_letters[it_index];
     if !(input.skills & skill_letter) continue; // not pressed
-    if (it.* > 0.0) continue; // on cooldown
+    if (it.cooldown_timer > 0.0) continue; // on cooldown
 
-    // calculate costs
-    time_cost: float = 1.0 * xx (1 + it_index);
-    energy_cost: float = 5.0 * xx (1 + it_index);
-
-    if (obj.energy < energy_cost) continue; // not enough energy
+    if (obj.energy < it.energy_cost) continue; // not enough energy
 
     // apply costs
-    it.* = time_cost;
-    obj.energy -= energy_cost;
+    it.cooldown_timer = it.cooldown_cost;
+    obj.energy -= it.energy_cost;
 
     // apply effects
     if skill_letter == {
@@ -336,7 +332,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
       case .W;
       array_add(*obj.effects, .{
         op = .ADD, target = .MOVE_SPEED,
-        value = 1.0, time_left = 10.0,
+        value = 5.0, time_left = 3.0,
       });
 
       case .E;
@@ -348,7 +344,7 @@ SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
       case .R;
       array_add(*obj.effects, .{
         op = .ADD, target = .MOVE_SPEED,
-        value = 100.0, time_left = 2.0,
+        value = 60.0, time_left = 2.0,
       });
     }
   }

@@ -1427,8 +1427,8 @@ LayoutEnd :: ()
 
       if !it.floating.attach_to
       {
-        base_cmd.clip_min.x = it.parent.clipped_min.x;
-        base_cmd.clip_max.x = it.parent.clipped_max.x;
+        base_cmd.clip_min = it.parent.clipped_min;
+        base_cmd.clip_max = it.parent.clipped_max;
       }
 
       if it.bg_color
