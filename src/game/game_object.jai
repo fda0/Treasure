@@ -161,6 +161,31 @@ Object :: struct
   collider: OBJ_Collider;
 }
 
+Action :: struct
+{
+  type: enum u8
+  {
+    IDLE;
+    PATHING;
+    ATTACK;
+    SKILL_Q;
+    SKILL_W;
+    SKILL_E;
+    SKILL_R;
+  }
+  data: enum u8
+  {
+    POSITION;
+    TARGET;
+  }
+
+  position: V3;
+  target: OBJ_Key;
+
+  tick: ActionTick;
+}
+ActionQueue :: #type Queue(8, Action);
+
 OBJ_GetStat :: (obj: Object, stat: OBJ_Stat, base_stat := false) -> float #expand
 {
   if (base_stat) return obj.base_stats[stat];

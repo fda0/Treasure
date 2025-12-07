@@ -2,7 +2,7 @@ Queue :: struct($CAPACITY: s64, $T: Type, OVERWRITE_ON_OVERFLOW := true)
 {
   min: u64;
   max: u64;
-  buffer: [CAPACITY] T;
+  buffer: [CAPACITY] T = ---;
   #assert(CAPACITY > 0);
 }
 
