@@ -33,9 +33,9 @@ Ghost :: struct
   using #as at_obj: Object;
 };
 
-IsTickDue :: (action_tick: ServerTick, ghost: Ghost) -> bool
+IsTickDue :: (tick: ServerTick, ghost: Ghost) -> bool
 {
-  was_handled := action_tick < ghost.handled_tick;
-  is_in_the_future := action_tick > ghost.at.tick;
+  was_handled := tick < ghost.handled_tick;
+  is_in_the_future := tick > ghost.at.tick;
   return !was_handled && !is_in_the_future;
 }

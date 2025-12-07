@@ -17,7 +17,6 @@ PlayerInput :: struct
     IDLE;
     PATHING;
     ATTACK;
-    SKILL_Q;
   }
 
   world_p: V3; // used by PATHING*
