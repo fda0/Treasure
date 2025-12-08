@@ -161,9 +161,13 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
     action, did_pop := QueuePop(*user.action_queue);
     if (!did_pop) break;
 
-    // ATTACK yes/no
+    reset_pathing := false;
+    reset_attack := false;
+
+    // ATTACK
     if action.type == .ATTACK
     {
+      reset_pathing = true;
       obj.activity.wants_to_attack = true;
 
       if obj.activity.target != action.target
@@ -173,26 +177,28 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
       }
       obj.activity.target = action.target;
     }
-    if action.type != .ATTACK
-    {
-      obj.activity.wants_to_attack = false;
-      obj.activity.is_attacking = false;
-      obj.activity.target = .{};
-    }
 
-    // PATHING yes/no
-    pathing_direction: V2;
+    // PATHING
     if action.type == .PATHING
     {
+      reset_attack = true;
       obj.activity.is_walking = true;
       obj.activity.walking_to = action.position.xy;
     }
-    if action.type != .PATHING
+
+    // RESETING unused stuff (to be refactored in the future when skills are more complicated)
+    if reset_pathing
     {
       obj.activity.is_walking = false;
       obj.activity.walking_to = .{};
     }
 
+    if reset_attack
+    {
+      obj.activity.wants_to_attack = false;
+      obj.activity.is_attacking = false;
+      obj.activity.target = .{};
+    }
 
     for * obj.skills
     {

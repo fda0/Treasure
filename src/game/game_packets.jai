@@ -102,8 +102,7 @@ PK_PacketAsString :: (packet: Packet) -> string {
 //
 PK_Peek :: ($T: Type, packet: string) -> T {
   value: T;
-  if packet.count >= size_of(T)
-  {
+  if packet.count >= size_of(T) {
     memcpy(*value, packet.data, size_of(T));
   }
   return value;
