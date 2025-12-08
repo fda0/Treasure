@@ -76,9 +76,9 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
   obj.flags = flags;
   obj.team = team;
 
-  for * obj.base_stats it.* = 1.0;
-  obj.base_stats[OBJ_Stat.HEALTH_REGEN] = 0;
-  obj.base_stats[OBJ_Stat.ENERGY_REGEN] = 0;
+  for * obj.base_stats.all { it.* = 1.0; }
+  obj.base_stats.health_regen = 0;
+  obj.base_stats.energy_regen = 0;
   return obj;
 }
 
@@ -119,13 +119,13 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
     obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
     obj.team = team;
 
-    obj.base_stats[OBJ_Stat.HEALTH] = 40;
-    obj.base_stats[OBJ_Stat.HEALTH_REGEN] = 10;
-    obj.base_stats[OBJ_Stat.ENERGY] = 50;
-    obj.base_stats[OBJ_Stat.ENERGY_REGEN] = 2;
-    obj.base_stats[OBJ_Stat.MOVE_SPEED] = 1.5;
-    obj.health = obj.base_stats[OBJ_Stat.HEALTH];
-    obj.energy = obj.base_stats[OBJ_Stat.ENERGY];
+    obj.base_stats.max_health = 40;
+    obj.base_stats.health_regen = 10;
+    obj.base_stats.max_energy = 50;
+    obj.base_stats.energy_regen = 2;
+    obj.base_stats.move_speed = 1.5;
+    obj.health = obj.base_stats.max_health;
+    obj.energy = obj.base_stats.max_energy;
 
     obj.skills[0] = .{energy_cost = 10, cooldown_cost = 5};
     obj.skills[1] = .{energy_cost = 20, cooldown_cost = 10};

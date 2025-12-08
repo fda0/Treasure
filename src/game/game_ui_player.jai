@@ -107,8 +107,8 @@ UI_BuildHUD :: ()
 
   // health / energy bar
   {
-    health_ratio := SafeDiv(player.health, OBJ_GetStat(player, .HEALTH));
-    energy_ratio := SafeDiv(player.energy, OBJ_GetStat(player, .ENERGY));
+    health_ratio := SafeDiv(player.health, player.stats.max_health);
+    energy_ratio := SafeDiv(player.energy, player.stats.max_energy);
 
     style_left := BoxSpec.{floating = .{attach_to = .PARENT,
       anchors = GetAnchor2(.LEFT, .CENTER),
@@ -122,20 +122,20 @@ UI_BuildHUD :: ()
       Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1.0)}, bg_color = BUTTON_BG}));
       CreateBox(.{layout.size = .{pref.x = Pct(health_ratio), pref.y = Grow()}, bg_color = HEALTH_FG});
 
-      left := tprint("% / %", ff0(player.health), ff0(OBJ_GetStat(player, .HEALTH)));
+      left := tprint("% / %", ff0(player.health), ff0(player.stats.max_health));
       CreateText(left, style_left);
 
-      right := tprint("+%", ff1n(OBJ_GetStat(player, .HEALTH_REGEN)));
+      right := tprint("+%", ff1n(player.stats.health_regen));
       CreateText(right, style_right);
     }
     {
       Parent(CreateBox(.{layout.size = .{pref.x = Grow(), min.y = Rem(1.0)}, bg_color = BUTTON_BG}));
       CreateBox(.{layout.size = .{pref.x = Pct(energy_ratio), pref.y = Grow()}, bg_color = ENERGY_FG});
 
-      left := tprint("% / %", ff0(player.energy), ff0(OBJ_GetStat(player, .ENERGY)));
+      left := tprint("% / %", ff0(player.energy), ff0(player.stats.max_energy));
       CreateText(left, style_left);
 
-      right := tprint("+%", ff1n(OBJ_GetStat(player, .ENERGY_REGEN)));
+      right := tprint("+%", ff1n(player.stats.energy_regen));
       CreateText(right, style_right);
     }
   }
@@ -154,8 +154,8 @@ UI_BuildHUD :: ()
 
 
     Layer(.{layout.padding = PADDING});
-    CreateText(tprint("MS: %", ff1n(OBJ_GetStat(player, .MOVE_SPEED))));
-    CreateText(tprint("AS: %", ff1n(OBJ_GetStat(player, .ATTACK_SPEED))));
+    CreateText(tprint("MS: %", ff1n(player.stats.move_speed)));
+    CreateText(tprint("AS: %", ff1n(player.stats.attack_speed)));
   }
 
 }

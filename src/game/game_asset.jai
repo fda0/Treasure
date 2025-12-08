@@ -144,6 +144,7 @@ ModelID :: enum u16
   Potion;
   Stool;
   Cross;
+  Carrot;
 }
 
 MaterialID :: enum u16

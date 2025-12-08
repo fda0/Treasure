@@ -326,7 +326,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
   if draw_hp
   {
     bar_height := 10.0;
-    start_x := -ghost.stats[OBJ_Stat.HEALTH] / 2;
+    start_x := -ghost.stats.max_health / 2;
     start_y := -bar_height*2;
     alpha := 1.0;
 
@@ -338,7 +338,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     }
 
     max_hp_bar := RD_UIShape.{
-      rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.stats[OBJ_Stat.HEALTH], bar_height}),
+      rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.stats.max_health, bar_height}),
       color = Color32_RGBAf(0, 0, 0, alpha)
     };
     active_hp_bar := RD_UIShape.{

@@ -20,19 +20,20 @@ main :: ()
     // BK_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
     // BK_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
 
-    BK_GLTF_Load("../res/models/UniversalAnimationLibrary[Standard]/Dude.glb", spec);
-    BK_GLTF_Load("../res/models/ZombieApocalypseKit/Zombie.gltf", .{height = 1.0, rot = rot_xz});
+    BK_GLTF_Load("../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", spec);
+    BK_GLTF_Load("../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", .{height = 1.0, rot = rot_xz});
 
-    BK_GLTF_Load("../res/models/MedievalVillageMegaKit[Standard]/Corner_ExteriorWide_Wood.gltf", .{height = 3.0, rot = rot_xz, name = "Plank"});
+    BK_GLTF_Load("../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", .{height = 3.0, rot = rot_xz, name = "Plank"});
 
-    BK_GLTF_Load("../res/models/FantasyPropsMegaKit[Standard]/Potion_1.gltf", .{height = 0.2, rot = rot_xz, name = "Potion"});
-    BK_GLTF_Load("../res/models/FantasyPropsMegaKit[Standard]/Stool.gltf", .{height = 0.4, rot = rot_xz});
-    BK_GLTF_Load("../res/models/FantasyPropsMegaKit[Standard]/Bed_Twin2.gltf", .{height = 0.5, rot = rot_xz, name = "Bed"});
+    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Potion_1.gltf", .{height = 0.2, rot = rot_xz, name = "Potion"});
+    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Stool.gltf", .{height = 0.4, rot = rot_xz});
+    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Carrot.gltf", .{height = 1.0, rot = rot_xz});
+    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", .{height = 0.5, rot = rot_xz, name = "Bed"});
     BK_GLTF_Load("../res/models/Quaternius/PirateKit/UI_Red_X.gltf", .{height = 0.05, rot = rot_xz, name = "Cross"});
 
 
-    BK_GLTF_Load("../res/models/Flag.glb", .{height = 1.0, rot = rot_x});
-    BK_GLTF_Load("../res/models/tree_low-poly/scene.gltf", .{disable_z0 = true, height = 5.0, name = "Tree"});
+    BK_GLTF_Load("../res/models/Other/Flag/Flag.glb", .{height = 1.0, rot = rot_x});
+    BK_GLTF_Load("../res/models/Other/tree_low-poly/scene.gltf", .{disable_z0 = true, height = 5.0, name = "Tree"});
     Timer("GLTF models loaded");
   }
 

@@ -56,6 +56,7 @@ OBJ_Flags :: enum_flags u32
   HAS_ACTIVITY;
   DELETE_ON_DEATH;
   RESPAWN;
+  EXPLODE_ON_CONTACT;
 };
 
 OBJ_Team :: enum u8
@@ -81,21 +82,46 @@ OBJ_Activity :: struct
   last_projectile: OBJ_Key;
 }
 
-OBJ_StatCount :: #run EnumCount(OBJ_Stat);
-OBJ_Stat :: enum u8
+OBJ_StatCount :: #run EnumCount(OBJ_StatType);
+OBJ_StatType :: enum u8
 {
-  HEALTH;
+  MAX_HEALTH;
   HEALTH_REGEN;
-  ENERGY;
+  MAX_ENERGY;
   ENERGY_REGEN;
   MOVE_SPEED;
   ATTACK_SPEED;
 }
 
+OBJ_Stats :: struct
+{
+  all: [OBJ_StatCount] float;
+
+  #place all;
+  #insert -> string {
+    builder: String_Builder;
+
+    names := enum_names(OBJ_StatType);
+    for names
+    {
+      copy := String.copy_string(it);
+      for 0..copy.count-1 {
+        copy[it] = String.to_lower(copy[it]);
+      }
+
+      print_to_builder(*builder, "%: float;\n", copy);
+    }
+
+    result := builder_to_string(*builder);
+    // log("OBJ_Stats generated:\n%", result);
+    return result;
+  }
+}
+
 OBJ_Effect :: struct
 {
   op: Operation;
-  target: OBJ_Stat;
+  stat: OBJ_StatType;
   value: float;
   time_left: float;
 
@@ -133,8 +159,8 @@ Object :: struct
   moved_dp: V3; @lerp // move that Object did after collision simulation
 
   effects: Fixed(OBJ_Effect, 16);
-  base_stats: [OBJ_StatCount] float;
-  stats: [OBJ_StatCount] float;
+  base_stats: OBJ_Stats;;
+  stats: OBJ_Stats;
   health: float; @lerp
   energy: float; @lerp
 
@@ -143,6 +169,9 @@ Object :: struct
   // attack timers
   attack_landed_t := 0.25; @lerp
   attack_cooldown_t := 1.0; @lerp
+
+  // projectile life left timer
+  projectile_t: float; // projectile is destroyed when time reaches 0
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
@@ -182,12 +211,6 @@ Action :: struct
   }
 }
 ActionQueue :: #type Queue(8, Action);
-
-OBJ_GetStat :: (obj: Object, stat: OBJ_Stat, base_stat := false) -> float #expand
-{
-  if (base_stat) return obj.base_stats[stat];
-  return obj.stats[stat];
-}
 
 OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
 {
