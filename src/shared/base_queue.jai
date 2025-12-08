@@ -102,7 +102,7 @@ QueuePeek :: (q: Queue, depth := 0) -> q.T, bool
   return q.buffer[peek_idx], true;
 }
 
-QueuePeekReverse :: (q: Queue, depth := 0) -> q.T, bool
+QueuePeekLast :: (q: Queue, depth := 0) -> q.T, bool
 {
   default: q.T;
   if q.min == q.max return default, false;

@@ -68,320 +68,174 @@ SIM_AdvanceByTick :: ()
     }
   }
 
-  // Update stats / apply effects
+  // Update things
   for *obj: SV.objects
   {
-    if !(obj.flags & .UPDATE_STATS) continue;
+    if OBJ_IsNil(obj) continue;
 
-    // init stats with base_stats
-    for * obj.stats {
-      it.* = obj.base_stats[it_index];
+    // Clear per frame fields
+    obj.desired_dp = .{};
+
+    if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP}) {
+      obj.activity = .{};
     }
 
-    // apply effects
-    for * obj.effects
-    {
-      it.time_left -= TICK_FLOAT_STEP;
-      if it.time_left <= 0.0 {
-        remove it;
-        continue;
-      }
-
-      if it.op == .ADD {
-        obj.stats[it.target] += it.value;
-      }
-    }
-
-    // Reduce skill cooldowns
-    for * obj.skills {
-      it.cooldown_timer -= TICK_FLOAT_STEP;
-    }
-
-    // HP regen
-    if OBJ_Test(obj, .{common = .IS_ALIVE }) {
-      obj.health += OBJ_GetStat(obj, .HEALTH_REGEN) * TICK_FLOAT_STEP;
-      obj.energy += OBJ_GetStat(obj, .ENERGY_REGEN) * TICK_FLOAT_STEP;
-    }
-
-    // Clamp health/energy to max
-    obj.health = min(obj.health, OBJ_GetStat(obj, .HEALTH));
-    obj.energy = min(obj.energy, OBJ_GetStat(obj, .ENERGY));
+    // Run UpdateStats
+    SIM_UpdateStats(obj);
   }
 
-  // transfer input to player objects
-  for *SV.users
+  // User actions -> modify object's activity
+  for * user: SV.users
   {
-    player := SV_GetObject(it.key);
-    if OBJ_IsNil(player) continue;
-
-    input := SV_GetNextPlayerInput(it);
-    SIM_ApplyInputsToObject(player, input);
+    player_object := SV_GetObject(user.key);
+    if OBJ_IsNil(player_object) continue;
+    SIM_ConsumeActions(user, player_object);
   }
 
   // Advance state machine
   for *obj: SV.objects
   {
-    SIM_ProcessActivity(obj);
-  }
-
-  for *turret: SV.objects
-  {
-    if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) continue;
-    activity := *turret.activity;
-
-    valid_enemy_test := OBJ_TestParams.{
-      require_flags = .TARGETABLE,
-      reject_flags = .IS_TURRET,
-      common = .IS_ALIVE,
-      common2 = .ARE_ENEMIES,
-    };
-
-    attack_target := SV_GetObject(activity.target);
-    nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
-
-    SHOOT_RANGE :: 4.0;
-
-    if !OBJ_Test(attack_target, valid_enemy_test)
-    {
-      attack_target = OBJ_NilObject();
-    }
-    if !OBJ_IsNil(attack_target)
-    {
-      dist_sq := OBJ_Distance2DSquared(turret, attack_target);
-      if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_NilObject();
-    }
-    if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
-    {
-      dist_sq := OBJ_Distance2DSquared(turret, nearest_target);
-      if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
-    }
-
-    activity.target = attack_target.key;
-    activity.is_attacking = !OBJ_IsNil(attack_target);
-
-    attack_t_delta := TICK_FLOAT_STEP * turret.stats[OBJ_Stat.ATTACK_SPEED];
-    if OBJ_IsNil(SV_GetObject(activity.last_projectile))
-    {
-      additional_delta := TICK_FLOAT_STEP * 100.0;
-      // delta is applied only if turret is on cooldown
-      additional_delta = min(additional_delta, -activity.attack_t);
-      additional_delta = max(additional_delta, 0.0);
-      attack_t_delta += additional_delta;
-    }
-
-    activity.attack_t += attack_t_delta;
-    activity.visual_attack_t += attack_t_delta;
-
-    if activity.is_attacking
-    {
-      attack_damage := 16.0;
-
-      while activity.attack_t >= turret.attack_landed_t
-      {
-        activity.attack_t -= turret.attack_cooldown_t;
-        // attack_target.health -= attack_damage;
-
-        projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
-        if !OBJ_IsNil(projectile)
-        {
-          projectile.model = .Potion;
-          projectile.p.xy = turret.p.xy;
-          projectile.p.z = 4.1;
-          projectile.activity.target = attack_target.key;
-
-          turret.activity.last_projectile = projectile.key;
-        }
-
-        SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*SV.rng, AUDIO_SoundType.SWISH01, .SWISH05));
-      }
-    }
-    else
-    {
-      activity.attack_t = min(activity.attack_t, 0.0);
-      activity.target = .{};
-    }
-  }
-
-  for *projectile: SV.objects
-  {
-    if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) continue;
-    activity := *projectile.activity;
-
-    target := SV_GetObject(activity.target);
-    if OBJ_IsNil(target)
-    {
-      SV_DeleteObject(projectile);
-    }
-    else
-    {
-      apply_hit := false;
-
-      // move projectile
-      target_p := target.p;
-      target_p.z = 1.0;
-
-      gap := target_p - projectile.p;
-      gap_length := length(gap);
-
-      fly_speed := 1.0 + 5.0*min(1.0, SecondsBetweenTicks(SV.tick, projectile.creation_tick));
-      fly_speed *= TICK_FLOAT_STEP;
-
-      if gap_length > 0.0
-      {
-        direction := gap * (1.0 / gap_length);
-        projectile_shift := direction * min(fly_speed, gap_length);
-        projectile.p += projectile_shift;
-      }
-      else apply_hit = true;
-
-      // test for hit in 2D
-      dist_2d_sq := OBJ_Distance2DSquared(target, projectile);
-      apply_hit |= dist_2d_sq <= square(PROJECTILE_HIT_DISTANCE);
-
-      if apply_hit
-      {
-        attack_damage := 25.0;
-        target.health -= attack_damage;
-        SIM_PlaySound(target, .HIT);
-        SV_DeleteObject(projectile);
-      }
-    }
-  }
-
-  for *obj: SV.objects
-  {
     if OBJ_IsNil(obj) continue;
-    if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
-    {
-      obj.death_tick = 0;
-    }
-    else // IS_DEAD
-    {
-      if !obj.death_tick then obj.death_tick = SV.tick;
-
-      death_t := SecondsBetweenTicks(SV.tick, obj.death_tick);
-
-      if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
-      {
-        obj.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
-      }
-
-      if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
-      {
-        obj.p = .{};
-        obj.health = obj.stats[OBJ_Stat.HEALTH];
-        obj.death_tick = 0;
-      }
-
-      if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
-      {
-        SV_DeleteObject(obj);
-      }
-
-    }
-  }
-
-  SIM_MoveAndCollideObjects();
-
-  for *obj: SV.objects
-  {
-    if OBJ_HasAllFlags(obj, .ANIMATE_ROTATION)
-    {
-      if HasLength(obj.moved_dp)
-        obj.rotation = DirectionXYToRotationZ(obj.moved_dp);
-    }
+    SIM_UpdateActivity(obj);
+    SIM_UpdateTurret(obj);
+    SIM_UpdateTargetedProjectile(obj);
+    SIM_UpdateDeath(obj);
+    SIM_UpdatePosition(obj);
+    SIM_UpdateRotation(obj);
   }
 }
 
-SIM_ApplyInputsToObject :: (obj: *Object, input: PlayerInput)
+SIM_UpdateStats :: inline (obj: *Object)
 {
-  if OBJ_IsNil(obj) return;
+  if !(obj.flags & .UPDATE_STATS) return;
 
-  obj.desired_dp = .{};
-  activity := *obj.activity;
-
-  if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
-  {
-    activity.* = .{};
-    return;
+  // init stats with base_stats
+  for * obj.stats {
+    it.* = obj.base_stats[it_index];
   }
 
-  skill_letters := enum_values_as_enum(type_of(input.skills));
-  for * obj.skills
+  // apply effects
+  for * obj.effects
   {
-    skill_letter := skill_letters[it_index];
-    if !(input.skills & skill_letter) continue; // not pressed
-    if (it.cooldown_timer > 0.0) continue; // on cooldown
+    it.time_left -= TICK_FLOAT_STEP;
+    if it.time_left <= 0.0 {
+      remove it;
+      continue;
+    }
 
-    if (obj.energy < it.energy_cost) continue; // not enough energy
-
-    // apply costs
-    it.cooldown_timer = it.cooldown_cost;
-    obj.energy -= it.energy_cost;
-
-    // apply effects
-    if skill_letter == {
-      case .Q;
-      for obj.effects {
-        if (it.target == .MOVE_SPEED) {
-          remove it;
-        }
-      }
-
-      case .W;
-      array_add(*obj.effects, .{
-        op = .ADD, target = .MOVE_SPEED,
-        value = 5.0, time_left = 3.0,
-      });
-
-      case .E;
-      array_add(*obj.effects, .{
-        op = .ADD, target = .MOVE_SPEED,
-        value = 10.0, time_left = 5.0,
-      });
-
-      case .R;
-      array_add(*obj.effects, .{
-        op = .ADD, target = .MOVE_SPEED,
-        value = 60.0, time_left = 2.0,
-      });
+    if it.op == .ADD {
+      obj.stats[it.target] += it.value;
     }
   }
 
-  // ATTACK yes/no
-  if input.type == .ATTACK
-  {
-    activity.wants_to_attack = true;
-
-    if activity.target != input.target_object
-    {
-      activity.is_attacking = false;
-      activity.attack_t = min(activity.attack_t, 0.0);
-    }
-    activity.target = input.target_object;
-  }
-  if input.type != .ATTACK
-  {
-    activity.wants_to_attack = false;
-    activity.is_attacking = false;
-    activity.target = .{};
+  // Reduce skill cooldowns
+  for * obj.skills {
+    it.cooldown_timer -= TICK_FLOAT_STEP;
   }
 
-  // PATHING yes/no
-  pathing_direction: V2;
-  if input.type == .PATHING
-  {
-    activity.is_walking = true;
-    activity.walking_to = input.world_p.xy;
+  // HP regen
+  if OBJ_Test(obj, .{common = .IS_ALIVE}) {
+    obj.health += OBJ_GetStat(obj, .HEALTH_REGEN) * TICK_FLOAT_STEP;
+    obj.energy += OBJ_GetStat(obj, .ENERGY_REGEN) * TICK_FLOAT_STEP;
   }
-  if input.type != .PATHING
-  {
-    activity.is_walking = false;
-    activity.walking_to = .{};
+
+  // Clamp health/energy to max
+  obj.health = min(obj.health, OBJ_GetStat(obj, .HEALTH));
+  obj.energy = min(obj.energy, OBJ_GetStat(obj, .ENERGY));
+}
+
+SIM_UpdateRotation :: (obj: *Object)
+{
+  if !OBJ_HasAllFlags(obj, .ANIMATE_ROTATION) return;
+  if HasLength(obj.moved_dp) {
+    obj.rotation = DirectionXYToRotationZ(obj.moved_dp);
   }
 }
 
-SIM_ProcessActivity :: (obj: *Object)
+SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
+{
+  if !OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP}) return;
+
+  while true
+  {
+    action, did_pop := QueuePop(*user.action_queue);
+    if (!did_pop) break;
+
+    // ATTACK yes/no
+    if action.type == .ATTACK
+    {
+      obj.activity.wants_to_attack = true;
+
+      if obj.activity.target != action.target
+      {
+        obj.activity.is_attacking = false;
+        obj.activity.attack_t = min(obj.activity.attack_t, 0.0);
+      }
+      obj.activity.target = action.target;
+    }
+    if action.type != .ATTACK
+    {
+      obj.activity.wants_to_attack = false;
+      obj.activity.is_attacking = false;
+      obj.activity.target = .{};
+    }
+
+    // PATHING yes/no
+    pathing_direction: V2;
+    if action.type == .PATHING
+    {
+      obj.activity.is_walking = true;
+      obj.activity.walking_to = action.position.xy;
+    }
+    if action.type != .PATHING
+    {
+      obj.activity.is_walking = false;
+      obj.activity.walking_to = .{};
+    }
+
+
+    for * obj.skills
+    {
+      action_skill_index := action.type - .SKILL_0;
+      if (xx it_index != action_skill_index) continue;
+
+      if (it.cooldown_timer > 0.0) continue; // on cooldown
+      if (obj.energy < it.energy_cost) continue; // not enough energy
+
+      // apply costs
+      it.cooldown_timer = it.cooldown_cost;
+      obj.energy -= it.energy_cost;
+
+      // apply effects
+      if it_index == {
+        case 0;
+        for obj.effects {
+          if (it.target == .MOVE_SPEED) remove it;
+        }
+
+        case 1;
+        array_add(*obj.effects, .{
+          op = .ADD, target = .MOVE_SPEED,
+          value = 5.0, time_left = 3.0,
+        });
+
+        case 2;
+        array_add(*obj.effects, .{
+          op = .ADD, target = .MOVE_SPEED,
+          value = 10.0, time_left = 5.0,
+        });
+
+        case 3;
+        array_add(*obj.effects, .{
+          op = .ADD, target = .MOVE_SPEED,
+          value = 60.0, time_left = 2.0,
+        });
+      }
+    }
+  }
+}
+
+SIM_UpdateActivity :: (obj: *Object)
 {
   if OBJ_IsNil(obj) return;
   if !OBJ_HasAnyFlag(obj, .HAS_ACTIVITY) return;
@@ -496,109 +350,257 @@ SIM_ProcessActivity :: (obj: *Object)
   }
 }
 
-SIM_MoveAndCollideObjects :: ()
+SIM_UpdateTurret :: inline (turret: *Object)
+{
+  if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) return;
+
+  activity := *turret.activity;
+
+  valid_enemy_test := OBJ_TestParams.{
+    require_flags = .TARGETABLE,
+    reject_flags = .IS_TURRET,
+    common = .IS_ALIVE,
+    common2 = .ARE_ENEMIES,
+  };
+
+  attack_target := SV_GetObject(activity.target);
+  nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
+
+  SHOOT_RANGE :: 4.0;
+
+  if !OBJ_Test(attack_target, valid_enemy_test)
+  {
+    attack_target = OBJ_NilObject();
+  }
+  if !OBJ_IsNil(attack_target)
+  {
+    dist_sq := OBJ_Distance2DSquared(turret, attack_target);
+    if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_NilObject();
+  }
+  if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
+  {
+    dist_sq := OBJ_Distance2DSquared(turret, nearest_target);
+    if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
+  }
+
+  activity.target = attack_target.key;
+  activity.is_attacking = !OBJ_IsNil(attack_target);
+
+  attack_t_delta := TICK_FLOAT_STEP * turret.stats[OBJ_Stat.ATTACK_SPEED];
+  if OBJ_IsNil(SV_GetObject(activity.last_projectile))
+  {
+    additional_delta := TICK_FLOAT_STEP * 100.0;
+    // delta is applied only if turret is on cooldown
+    additional_delta = min(additional_delta, -activity.attack_t);
+    additional_delta = max(additional_delta, 0.0);
+    attack_t_delta += additional_delta;
+  }
+
+  activity.attack_t += attack_t_delta;
+  activity.visual_attack_t += attack_t_delta;
+
+  if activity.is_attacking
+  {
+    attack_damage := 16.0;
+
+    while activity.attack_t >= turret.attack_landed_t
+    {
+      activity.attack_t -= turret.attack_cooldown_t;
+      // attack_target.health -= attack_damage;
+
+      projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
+      if !OBJ_IsNil(projectile)
+      {
+        projectile.model = .Potion;
+        projectile.p.xy = turret.p.xy;
+        projectile.p.z = 4.1;
+        projectile.activity.target = attack_target.key;
+
+        turret.activity.last_projectile = projectile.key;
+      }
+
+      SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*SV.rng, AUDIO_SoundType.SWISH01, .SWISH05));
+    }
+  }
+  else
+  {
+    activity.attack_t = min(activity.attack_t, 0.0);
+    activity.target = .{};
+  };
+}
+
+SIM_UpdateTargetedProjectile :: inline (projectile: *Object)
+{
+  if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) return;
+  activity := *projectile.activity;
+
+  target := SV_GetObject(activity.target);
+  if OBJ_IsNil(target)
+  {
+    SV_DeleteObject(projectile);
+  }
+  else
+  {
+    apply_hit := false;
+
+    // move projectile
+    target_p := target.p;
+    target_p.z = 1.0;
+
+    gap := target_p - projectile.p;
+    gap_length := length(gap);
+
+    fly_speed := 1.0 + 5.0*min(1.0, SecondsBetweenTicks(SV.tick, projectile.creation_tick));
+    fly_speed *= TICK_FLOAT_STEP;
+
+    if gap_length > 0.0
+    {
+      direction := gap * (1.0 / gap_length);
+      projectile_shift := direction * min(fly_speed, gap_length);
+      projectile.p += projectile_shift;
+    }
+    else apply_hit = true;
+
+    // test for hit in 2D
+    dist_2d_sq := OBJ_Distance2DSquared(target, projectile);
+    apply_hit |= dist_2d_sq <= square(PROJECTILE_HIT_DISTANCE);
+
+    if apply_hit
+    {
+      attack_damage := 25.0;
+      target.health -= attack_damage;
+      SIM_PlaySound(target, .HIT);
+      SV_DeleteObject(projectile);
+    }
+  }
+}
+
+SIM_UpdateDeath :: inline (obj: *Object)
+{
+  if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
+  {
+    obj.death_tick = 0;
+  }
+  else // IS_DEAD
+  {
+    if !obj.death_tick then obj.death_tick = SV.tick;
+
+    death_t := SecondsBetweenTicks(SV.tick, obj.death_tick);
+
+    if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
+    {
+      obj.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
+    }
+
+    if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
+    {
+      obj.p = .{};
+      obj.health = obj.stats[OBJ_Stat.HEALTH];
+      obj.death_tick = 0;
+    }
+
+    if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
+    {
+      SV_DeleteObject(obj);
+    }
+  }
+}
+
+SIM_UpdatePosition :: inline (obj: *Object)
 {
   PerfFunc();
-  for * obj: SV.objects
+  if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) return;
+
+  // movement simulation
+  obj_dp := obj.desired_dp.xy;
+  obj_pos := obj.p.xy + obj_dp; // move obj
+
+  // check collision
+  for collision_iteration: 0..2 // support up to 3 overlapping wall collisions
   {
-    if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) continue;
+    closest_obstacle_separation_dist := FLOAT32_MAX;
+    closest_obstacle_wall_normal: V2;
 
-    // movement simulation
-    obj_dp := obj.desired_dp.xy;
-    obj_pos := obj.p.xy + obj_dp; // move obj
+    obj_collider := obj.collider;
+    OBJ_OffsetCollider(*obj_collider, obj_pos);
 
-    // check collision
-    for collision_iteration: 0..2 // support up to 3 overlapping wall collisions
+    for * obstacle: SV.objects
     {
-      closest_obstacle_separation_dist := FLOAT32_MAX;
-      closest_obstacle_wall_normal: V2;
+      if obj == obstacle continue;
+      if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;
 
-      obj_collider := obj.collider;
-      OBJ_OffsetCollider(*obj_collider, obj_pos);
+      obstacle_pos := obstacle.p.xy;
 
-      for * obstacle: SV.objects
+      // @todo temporary hacky perf. optimization. This should be based on obj vs collider bounding boxes.
+      if distance_squared(obj_pos, obstacle_pos) >= square(1.0) continue;
+
+      obstacle_collider := obstacle.collider;
+      OBJ_OffsetCollider(*obstacle_collider, obstacle_pos);
+
+      biggest_dist := -FLOAT32_MAX;
+      wall_normal: V2;
+
+      // @info(mg) SAT algorithm needs 2 iterations
+      // from the perspective of the obj
+      // and from the perspective of the obstacle.
+      for sat_iteration: 0..1
       {
-        if obj == obstacle continue;
-        if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;
+        normal_source := ifx sat_iteration == 0 then obstacle_collider else obj_collider;
 
-        obstacle_pos := obstacle.p.xy;
+        projection_obj := OBJ_CalculateColliderProjection(normal_source, obj_collider);
+        projection_obstacle := OBJ_CalculateColliderProjection(normal_source, obstacle_collider);
 
-        // @todo temporary hacky perf. optimization. This should be based on obj vs collider bounding boxes.
-        if distance_squared(obj_pos, obstacle_pos) >= square(1.0) continue;
-
-        obstacle_collider := obstacle.collider;
-        OBJ_OffsetCollider(*obstacle_collider, obstacle_pos);
-
-        biggest_dist := -FLOAT32_MAX;
-        wall_normal: V2;
-
-        // @info(mg) SAT algorithm needs 2 iterations
-        // from the perspective of the obj
-        // and from the perspective of the obstacle.
-        for sat_iteration: 0..1
+        for MakeRange(projection_obj.ranges.count)
         {
-          normal_source := ifx sat_iteration == 0 then obstacle_collider else obj_collider;
-
-          projection_obj := OBJ_CalculateColliderProjection(normal_source, obj_collider);
-          projection_obstacle := OBJ_CalculateColliderProjection(normal_source, obstacle_collider);
-
-          for MakeRange(projection_obj.ranges.count)
-          {
-            normal := normal_source.normals[it];
-            obstacle_dir := obstacle_pos - obj_pos;
-            if dot(normal, obstacle_dir) < 0
+          normal := normal_source.normals[it];
+          obstacle_dir := obstacle_pos - obj_pos;
+          if dot(normal, obstacle_dir) < 0 {
             continue;
+          }
 
-            d := DistanceBetweenRanges(projection_obj.ranges[it], projection_obstacle.ranges[it]);
-            if d > 0.0
-            {
-              // @info(mg) We can exit early from checking this
-              //   obstacle since we found an axis that has
-              //   a separation between obj and obstacle.
-              continue obstacle; // skip this obstacle
-            }
+          d := DistanceBetweenRanges(projection_obj.ranges[it], projection_obstacle.ranges[it]);
+          if d > 0.0 {
+            // @info(mg) We can exit early from checking this
+            //   obstacle since we found an axis that has
+            //   a separation between obj and obstacle.
+            continue obstacle; // skip this obstacle
+          }
 
-            if d > biggest_dist
-            {
-              biggest_dist = d;
-              wall_normal = -normal;
-            }
-          } // projection loop
-        } // sat_iteration loop
+          if d > biggest_dist {
+            biggest_dist = d;
+            wall_normal = -normal;
+          }
+        } // projection loop
+      } // sat_iteration loop
 
-        if closest_obstacle_separation_dist > biggest_dist
-        {
-          closest_obstacle_separation_dist = biggest_dist;
-          closest_obstacle_wall_normal = wall_normal;
-        }
-      } // obstacle loop
-
-      if closest_obstacle_separation_dist < 0.0
-      {
-        move_out_dir := closest_obstacle_wall_normal;
-        move_out_magnitude := -closest_obstacle_separation_dist;
-        move_out := move_out_dir * move_out_magnitude;
-        obj_pos = obj_pos + move_out;
-
-        // Remove all velocity on collision axis
-        // We might want to do something different here in the future!
-        if move_out.x obj_dp.x = 0;
-        if move_out.y obj_dp.y = 0;
+      if closest_obstacle_separation_dist > biggest_dist {
+        closest_obstacle_separation_dist = biggest_dist;
+        closest_obstacle_wall_normal = wall_normal;
       }
-      else
-      {
-        // Collision not found, stop iterating
-        break;
-      }
-    } // collision_iteration loop
+    } // obstacle loop
 
-    prev_obj_pos := obj.p;
-    obj.p.x = obj_pos.x;
-    obj.p.y = obj_pos.y;
-    obj.moved_dp = obj.p - prev_obj_pos;
-    if length(obj.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
-      obj.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
-  } // obj loop
+    if closest_obstacle_separation_dist < 0.0 {
+      move_out_dir := closest_obstacle_wall_normal;
+      move_out_magnitude := -closest_obstacle_separation_dist;
+      move_out := move_out_dir * move_out_magnitude;
+      obj_pos = obj_pos + move_out;
+
+      // Remove all velocity on collision axis
+      // We might want to do something different here in the future!
+      if move_out.x obj_dp.x = 0;
+      if move_out.y obj_dp.y = 0;
+    } else {
+      // Collision not found, stop iterating
+      break;
+    }
+  } // collision_iteration loop
+
+  prev_obj_pos := obj.p;
+  obj.p.x = obj_pos.x;
+  obj.p.y = obj_pos.y;
+  obj.moved_dp = obj.p - prev_obj_pos;
+  if length(obj.moved_dp) < 0.1 * MINIMUM_MOVE_START_DISTANCE * TICK_FLOAT_STEP // some arbitary small number
+  obj.moved_dp = .{}; // Other systems like animation should ignore these tiny movemements.
 }
 
 SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)

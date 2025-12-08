@@ -6,10 +6,6 @@ ClientState :: struct
 {
   server_connection: NET_Connection;
 
-  // client inputs sent to the server
-  input_tick: InputTick;
-  input_queue: Queue(NET_MAX_PLAYER_INPUT_COUNT, PlayerInput);
-
   // Queues of snapshots - playback states received from the server.
   // Queue contains snapshot in sorted (by tick) order.
   // received_time is guaranteed to be sorted as well (should to be faked if needed).
@@ -56,39 +52,12 @@ CL_Init :: ()
   }
 }
 
-CL_FlushPlayerInput :: ()
+CL_SendPlayerActions :: ()
 {
-  if NET_HackyRatelimitting(UniqueTimestamp(), 0.008) return;
-
-  CL.input_tick += 1;
-  QueuePush(*CL.input_queue, G.input);
-  // @todo clear skills queue once it exsits in Action
-
-  G.input.skills = 0;
-}
-
-CL_IterateSend :: ()
-{
-  if NET_HasError() return;
-  // if NET_HackyRatelimitting(UniqueTimestamp(), 0.001) return;
   PerfFunc();
-
-  {
-    ping: PACKET_Ping;
-    packet := PACKET_Create(CL.input_tick, ping);
-    NET_SendPacket(packet, CL.server_connection, false);
-  }
-
-  {
-    payload: PACKET_PlayerInput;
-    for * payload.inputs
-    {
-      it.* = QueuePeek(CL.input_queue, it_index);
-    }
-
-    packet := PACKET_Create(CL.input_tick, payload);
-    NET_SendPacket(packet, CL.server_connection, false);
-  }
+  wrapped := PACKET_ActionQueue.{actions = G.action_queue};
+  packet := PACKET_Create(G.action_tick, wrapped);
+  NET_SendPacket(packet, CL.server_connection, false);
 }
 
 CL_IterateReceive :: ()
@@ -153,7 +122,7 @@ CL_ReceiveSnapshot :: (from_tick: ServerTick, insert_obj: Object, insert_shared_
 
   snaps := *CL.snapshots[insert_shared_idx];
 
-  latest_saved_tick := QueuePeekReverse(snaps).tick;
+  latest_saved_tick := QueuePeekLast(snaps).tick;
   if latest_saved_tick >= from_tick
   {
     // @todo support this case?
@@ -177,11 +146,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
   {
     msg_type := PACKET_Peek(PACKET_Type, msg);
 
-    if msg_type == .Ping
-    {
-      ping := PACKET_Consume(PACKET_Ping, *msg);
-    }
-    else if (msg_type == .ObjUpdate || msg_type == .ObjEmpty)
+    if (msg_type == .ObjUpdate || msg_type == .ObjEmpty)
     {
       update: PACKET_ObjUpdate;
       if (msg_type == .ObjUpdate)

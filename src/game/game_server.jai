@@ -31,43 +31,6 @@ SV_LaunchServerThread :: ()
   thread_start(*SV.thread);
 }
 
-SV_GetNextPlayerInput :: (user: *SV_User) -> PlayerInput
-{
-  PerfFunc();
-
-  top_delay: float;
-  for user.received_inputs
-  {
-    top_delay = max(it.delay_since_last_received_input, top_delay);
-  }
-  target_input_delay_count := min(floor(top_delay / TICK_FLOAT_STEP).(s64) + 1, QueueCount(user.received_inputs));
-
-  skills_merge: PlayerInput.Skills;
-  inputs_to_drop_count := QueueCount(user.received_inputs) - target_input_delay_count;
-  for MakeRange(inputs_to_drop_count)
-  {
-    // @todo merge one-off data from dropped inputs
-    dropped := QueuePop(*user.received_inputs);
-    skills_merge |= dropped.input.skills;
-  }
-  Post(.SV_GET_PLAYER_INPUT_QUEUE_SIZE, QueueCount(user.received_inputs));
-
-  result := user.last_input;
-  recent, did_pop := QueuePop(*user.received_inputs);
-
-  if (did_pop)
-  {
-    result = recent.input;
-    user.last_input = result;
-    user.last_input.skills = 0;
-  }
-
-  result.skills |= skills_merge;
-
-  return result;
-}
-
-
 SV_GetObject :: (key: OBJ_Key) -> *Object
 {
   result := OBJ_NilObject();
@@ -172,24 +135,17 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
   return obj;
 }
 
-#scope_file;
 SV_User :: struct
 {
   connection: NET_Connection;
   key: OBJ_Key;
 
-  received_inputs: Queue(NET_MAX_PLAYER_INPUT_COUNT, ReceivedInput);
-  last_input: PlayerInput;
-  latest_received_timestamp: Timestamp;
-  latest_client_tick: InputTick;
-
-  ReceivedInput :: struct
-  {
-    input: PlayerInput;
-    delay_since_last_received_input: float;
-  }
+   // @todo currently we are not doing any playback delay for these actions
+  action_queue: ActionQueue;
+  received_action_tick: ActionTick;
 };
 
+#scope_file;
 SV_ThreadEntry :: (thread: *Thread) -> s64
 {
   PerfThreadName("TR server");
@@ -352,7 +308,7 @@ SV_IterateReceive :: ()
 
       packet_str := PACKET_FullAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      SV_ReceivePayload(player_id, payload, from_tick.(InputTick));
+      SV_ReceivePayload(player_id, payload, xx from_tick);
     }
   }
 
@@ -380,43 +336,25 @@ SV_IterateReceive :: ()
 
       packet := string.{dgram.buflen, dgram.buf};
       payload, from_tick := NET_PreprocessRawPacket(packet);
-      SV_ReceivePayload(player_id, payload, from_tick.(InputTick));
+      SV_ReceivePayload(player_id, payload, xx from_tick);
     }
 
     SDLNet_DestroyDatagram(dgram);
   }
 }
 
-SV_ReceiveUserPlayerInputs :: (player: *SV_User, net_msg: *PACKET_PlayerInput, client_tick: InputTick)
+SV_ReceiveActions :: (user: *SV_User, actions_packet: PACKET_ActionQueue, action_tick: ActionTick)
 {
-  if player.latest_client_tick >= client_tick then return;
+  if (user.received_action_tick >= action_tick) return;
   PerfFunc();
 
-  // log("Client tick %; inputs: %", client_tick, net_msg.inputs);
-
-  new_inputs := Prefix(net_msg.inputs, xx client_tick); // For initial client ticks only the first elements of input buffer will be filled. Truncate the array to skip these unitialized elements.
-
-  end_tick := client_tick + 1;
-  start_tick := end_tick - xx new_inputs.count;
-
-  stale_ticks_count := player.latest_client_tick - start_tick + 1;
-  if player.latest_client_tick >= start_tick
-  {
-    new_inputs = Skip(new_inputs, xx stale_ticks_count);
-    start_tick += xx stale_ticks_count;
+  for actions_packet.actions {
+    if it.tick >= user.received_action_tick {
+      QueuePush(*user.action_queue, it);
+    }
   }
 
-  if !new_inputs.count then return; // no new inputs
-
-  for new_inputs
-  {
-    now := TimeNow();
-    received := SV_User.ReceivedInput.{it, Elapsed(now, player.latest_received_timestamp)};
-    player.latest_received_timestamp = now;
-    QueuePush(*player.received_inputs, received);
-  }
-
-  player.latest_client_tick = client_tick;
+  user.received_action_tick = action_tick;
 }
 
 SV_FindUser :: (address: *SDLNet_Address, port: u16) -> *SV_User
@@ -439,7 +377,7 @@ SV_RemoveUser :: (user: *SV_User)
   user.* = .{};
 }
 
-SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick)
+SV_ReceivePayload :: (player_id: u16, full_payload: string, src_tick: ActionTick)
 {
   PerfFunc();
   msg := full_payload;
@@ -447,15 +385,11 @@ SV_ReceivePayload :: (player_id: u16, full_payload: string, from_tick: InputTick
   {
     msg_type := PACKET_Peek(PACKET_Type, msg);
 
-    if msg_type == .Ping
+    if msg_type == .ActionQueue
     {
-      ping := PACKET_Consume(PACKET_Ping, *msg);
-    }
-    else if msg_type == .PlayerInput
-    {
-      in_net := PACKET_Consume(PACKET_PlayerInput, *msg);
       user := *SV.users[player_id];
-      SV_ReceiveUserPlayerInputs(user, *in_net, from_tick);
+      actions_packet := PACKET_Consume(PACKET_ActionQueue, *msg);
+      SV_ReceiveActions(user, actions_packet, src_tick);
     }
     else
     {

@@ -27,9 +27,8 @@ SecondsBetweenTicks :: (current: ServerTick, since: ServerTick, max_on_fail := f
 
 Tick :: u32;
 ServerTick :: #type,distinct Tick;
-InputTick :: #type,distinct Tick; // @todo @delete
 ActionTick :: #type,distinct Tick;
-AnyTick :: Type.[Tick, ServerTick, InputTick, ActionTick];
+AnyTick :: Type.[Tick, ServerTick, ActionTick];
 
 ServerTick_ZERO :: cast(ServerTick) 0;
 ServerTick_ONE :: cast(ServerTick) 1;

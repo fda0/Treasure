@@ -108,8 +108,8 @@ OBJ_Skill :: struct
 {
   // set-once
   flags: enum_flags u8 {
-    DIRECTIONAL;
-    TARGETTED;
+    TARGETS_OBJECT;
+    TARGETS_POSITION;
   };
   energy_cost: float;
   cooldown_cost: float;
@@ -163,26 +163,23 @@ Object :: struct
 
 Action :: struct
 {
-  type: enum u8
+  type: Type;
+  tick: ActionTick;
+
+  // We either use target or position. Both shouldn't be used at the same time.
+  target: OBJ_Key; // if target == 0 -> use position
+  position: V3;
+
+  Type :: enum u8
   {
     IDLE;
     PATHING;
     ATTACK;
-    SKILL_Q;
-    SKILL_W;
-    SKILL_E;
-    SKILL_R;
+    SKILL_0;
+    SKILL_1;
+    SKILL_2;
+    SKILL_3;
   }
-  data: enum u8
-  {
-    POSITION;
-    TARGET;
-  }
-
-  position: V3;
-  target: OBJ_Key;
-
-  tick: ActionTick;
 }
 ActionQueue :: #type Queue(8, Action);
 

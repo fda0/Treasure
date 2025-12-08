@@ -12,57 +12,52 @@ PACKET_Header :: struct
   magic_value: u16; // use this as seed for hash calculation instead
   payload_hash: u16;
   from_tick: Tick;
-};
+}
 
 PACKET_Type :: enum u32
 {
   None;
-  Ping :: 10000;
-  ObjUpdate;
+  // Server -> Client
+  ObjUpdate :: 10000;
   ObjEmpty;
   NetworkTest;
-  PlayerInput;
   AssignPlayerKey;
   WindowLayout;
-};
-
-PACKET_Ping :: struct
-{
-  PT := PACKET_Type.Ping;
-  number: u64;
-};
+  // Client -> Sever
+  ActionQueue;
+}
 
 PACKET_ObjUpdate :: struct
 {
   PT := PACKET_Type.ObjUpdate;
   net_index: u32;
   sync: Object;
-};
+}
 
 PACKET_ObjEmpty :: struct
 {
   PT := PACKET_Type.ObjEmpty;
   net_index: u32;
-};
-
-PACKET_PlayerInput :: struct
-{
-  PT := PACKET_Type.PlayerInput;
-  inputs: [NET_MAX_PLAYER_INPUT_COUNT] PlayerInput;
-};
+}
 
 PACKET_AssignPlayerKey :: struct
 {
   PT := PACKET_Type.AssignPlayerKey;
   player_key: OBJ_Key;
-};
+}
 
 PACKET_WindowLayout :: struct
 {
   PT := PACKET_Type.WindowLayout;
   user_count: u32;
   px, py, w, h: s32;
-};
+}
+
+PACKET_ActionQueue :: struct
+{
+  PT := PACKET_Type.ActionQueue;
+  actions: ActionQueue;
+}
 
 //
 // Create
@@ -102,8 +97,7 @@ PACKET_IsFinalized :: (full: PACKET_Full) -> bool
 PACKET_Create :: (from_tick: $T/AnyTick, things: ..Any) -> PACKET_Full
 {
   full: PACKET_Full;
-  for things
-  {
+  for things {
     PACKET_CopyData(*full, it.value_pointer, it.type.runtime_size);
   }
   PACKET_FinalizeHeader(from_tick, *full);

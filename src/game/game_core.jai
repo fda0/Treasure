@@ -43,6 +43,7 @@ GameState :: struct
   mouse_scroll: V2;
   world_mouse_valid: bool;
   world_mouse: V3;
+  is_pathing_by_holding: bool;
   keys: [KEY_Code.COUNT] Key;
   hover_object: OBJ_Key;
 
@@ -59,8 +60,9 @@ GameState :: struct
   camera_fov_y: float = 0.111;
   camera_transform: Mat4;
 
-  // Accumulates inputs. Flushed to client.input_queue once in a while.
-  input: PlayerInput;
+  // Accumulates actions (player inputs). Sent to server.
+  action_queue: ActionQueue;
+  action_tick: ActionTick;
 
   // Object keys
   sun: OBJ_Key;
@@ -183,7 +185,7 @@ G_Iterate :: ()
   if IsLaneTaskIdx(0)
   {
     CL_IterateReceive();
-    CL_IterateSend();
+    CL_SendPlayerActions();
   }
 
   if IsLaneTaskIdx(0) && !G.headless
@@ -468,34 +470,63 @@ G_ProcessInputAndSendToClient :: ()
 {
   move_buttons := KEY_Code.[.MOUSE_RIGHT, .Z, .X];
   move_pressed := KEY_Pressed(..move_buttons);
-  move_held := KEY_Held(..move_buttons, held_for = 0.25);
+  move_held_at_all := KEY_Held(..move_buttons, held_for = 0.0);
+  move_held_for_a_while := KEY_Held(..move_buttons, held_for = 0.25);
 
-  if KEY_Pressed(.Q) G.input.skills |= .Q;
-  if KEY_Pressed(.W) G.input.skills |= .W;
-  if KEY_Pressed(.E) G.input.skills |= .E;
-  if KEY_Pressed(.R) G.input.skills |= .R;
+  if !move_held_at_all {
+    G.is_pathing_by_holding = false;
+  }
+
+  player := G_GetGhost(.SHARED, G.player_key);
+
+  hover_target := OBJ_NilGhost();
+  hovers_enemy: bool;
+  if G.world_mouse_valid {
+    hover_target = G_GetGhost(.ALL, G.hover_object);
+    hovers_enemy = OBJ_Test2(hover_target, player, .{require_flags = .TARGETABLE, common = .IS_ALIVE, common2 = .ARE_ENEMIES});
+  }
+
+  skill_key_bind := KEY_Code.[.Q, .W, .E, .R];
+  for skill: player.skills
+  {
+    if KEY_Pressed(skill_key_bind[it_index])
+    {
+      action: Action;
+      action.tick = G.action_tick;
+      action.type = xx (xx Action.Type.SKILL_0 + it_index);
+
+      if skill.flags & .TARGETS_OBJECT {
+        action.target = hover_target.key;
+      } else if skill.flags & .TARGETS_POSITION {
+        action.position = G.world_mouse;
+      }
+
+      QueuePush(*G.action_queue, action);
+    }
+  }
 
   if G.world_mouse_valid
   {
-    self := G_GetGhost(.SHARED, G.player_key);
-    hovered_obj := G_GetGhost(.ALL, G.hover_object);
-    hovers_enemy := OBJ_Test2(hovered_obj, self,
-                              .{require_flags = .TARGETABLE,
-                                common = .IS_ALIVE,
-                                common2 = .ARE_ENEMIES});
-
     if move_pressed && hovers_enemy
     {
-      G.input.type = .ATTACK;
-      G.input.target_object = G.hover_object;
-      G.input.world_p = G.world_mouse;
+      G.is_pathing_by_holding = false;
+
+      action: Action;
+      action.tick = G.action_tick;
+      action.type = .ATTACK;
+      action.target = G.hover_object;
+      QueuePush(*G.action_queue, action);
     }
 
-    if (move_pressed && !hovers_enemy) || (move_held && G.input.type == .PATHING)
+    if (move_pressed && !hovers_enemy) || (move_held_for_a_while && G.is_pathing_by_holding)
     {
-      G.input.type = .PATHING;
-      G.input.world_p = G.world_mouse;
-      G.input.target_object = .{};
+      G.is_pathing_by_holding = true;
+
+      action: Action;
+      action.tick = G.action_tick;
+      action.type = .PATHING;
+      action.position = G.world_mouse;
+      QueuePush(*G.action_queue, action);
 
       if move_pressed
       {
@@ -504,7 +535,7 @@ G_ProcessInputAndSendToClient :: ()
         {
           marker.model = .Cross;
           marker.hue_shift = 0.4;
-          marker.p = G.input.world_p;
+          marker.p = G.world_mouse;
           marker.p.z = -0.05;
           marker.rotation = RotationAroundAxis(AxisV3(.Z), 0.5);
           marker.anim.position.xy = marker.p.xy;
@@ -514,7 +545,7 @@ G_ProcessInputAndSendToClient :: ()
     }
   }
 
-  CL_FlushPlayerInput();
+  G.action_tick += 1;
 }
 
 G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)

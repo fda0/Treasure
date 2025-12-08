@@ -42,7 +42,7 @@ TEST_queue :: (high_minmax: bool)
     assert(sum == 116);
 
     sum = 0;
-    for 0..3 sum += QueuePeekReverse(q, it);
+    for 0..3 sum += QueuePeekLast(q, it);
     assert(sum == 116);
   }
 
