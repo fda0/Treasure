@@ -53,7 +53,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_object.jai";
 #load "game_object_collider.jai";
 #load "game_ghost.jai";
-#load "game_network_packet.jai";
+#load "game_packets.jai";
 #load "game_network.jai";
 #load "game_client.jai";
 #load "game_server.jai";
