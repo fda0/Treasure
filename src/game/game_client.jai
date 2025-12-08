@@ -55,8 +55,7 @@ CL_Init :: ()
 CL_SendPlayerActions :: ()
 {
   PerfFunc();
-  wrapped := PACKET_ActionQueue.{actions = G.action_queue};
-  packet := PACKET_Create(G.action_tick, wrapped);
+  packet := PK_Create(G.action_tick, PK_Kind.ActionQueue, G.action_queue);
   NET_SendPacket(packet, CL.server_connection, false);
 }
 
@@ -74,9 +73,9 @@ CL_IterateReceive :: ()
       packet, got_packet := QueuePop(*GLOBAL.packets_for_local_user);
       if !got_packet break;
 
-      packet_str := PACKET_FullAsString(packet);
-      payload, from_tick := NET_PreprocessRawPacket(packet_str);
-      CL_ReceivePayload(payload, from_tick.(ServerTick));
+      packet_string := PK_PacketAsString(packet);
+      payload, from_tick := NET_PreprocessRawPacket(packet_string);
+      CL_ReceivePayload(payload, xx from_tick);
     }
 
     return; // No need to check network anymore
@@ -144,47 +143,32 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
   msg := full_payload;
   while msg.count
   {
-    msg_type := PACKET_Peek(PACKET_Type, msg);
+    packet_kind := PK_ConsumeKind(*msg);
 
-    if (msg_type == .ObjUpdate || msg_type == .ObjEmpty)
+    if packet_kind == .ObjUpdate
     {
-      update: PACKET_ObjUpdate;
-      if (msg_type == .ObjUpdate)
-      {
-        update = PACKET_Consume(PACKET_ObjUpdate, *msg);
-      }
-      else
-      {
-        empty := PACKET_Consume(PACKET_ObjEmpty, *msg);
-        update.net_index = empty.net_index;
-        update.sync.init = true;
-      }
-
-      CL_ReceiveSnapshot(from_tick, update.sync, update.net_index);
+      object := PK_Consume(.ObjUpdate, *msg);
+      CL_ReceiveSnapshot(from_tick, object, OBJ_IndexOfKey(object.key));
     }
-    else if msg_type == .AssignPlayerKey
+    else if packet_kind == .ObjEmpty
+    {
+      object_idx : ObjIdx = PK_Consume(.ObjEmpty, *msg);
+      object: Object = .{init = true};
+      CL_ReceiveSnapshot(from_tick, object, object_idx);
+    }
+    else if packet_kind == .AssignPlayerKey
     {
       // If the server was ever going to dynamically change player key
       // We should use IsTickDue kind of tracking to apply it on the side of GameState.
-      assign := PACKET_Consume(PACKET_AssignPlayerKey, *msg);
-
-      if G.player_key_latest_tick < from_tick
-      {
-        G.player_key = assign.player_key;
+      assign_key := PK_Consume(.AssignPlayerKey, *msg);
+      if G.player_key_latest_tick < from_tick {
+        G.player_key = assign_key;
         G.player_key_latest_tick = from_tick;
-      }
-    }
-    else if msg_type == .WindowLayout
-    {
-      layout := PACKET_Consume(PACKET_WindowLayout, *msg);
-      if G.window_autolayout
-      {
-        // G_AutoLayoutApply(layout.user_count, layout.px, layout.py, layout.w, layout.h);
       }
     }
     else
     {
-      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", msg_type);
+      Nlog(LOG_NetPayload, "Unsupported payload head kind: %d", packet_kind);
       return;
     }
   }

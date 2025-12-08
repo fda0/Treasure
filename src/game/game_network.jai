@@ -8,8 +8,6 @@ NET_DEFAULT_SEVER_PORT :: 50523;
 NET_CL_MAX_SNAPSHOTS :: TICK_RATE;
 NET_MAX_PLAYER_INPUT_COUNT :: 32; // @todo setting this high introduces a lot of input lag - fix!
 NET_MAX_PLAYERS :: 10;
-NET_MAX_PACKET_SIZE :: 1200;
-NET_MAX_PAYLOAD_SIZE :: NET_MAX_PACKET_SIZE - size_of(PACKET_Header);
 NET_SIMULATE_PACKETLOSS :: 0; // doesn't seem to work on localhost
 NET_INACTIVE :: 0.1;
 NET_TIMEOUT_DISCONNECT :: 0.5;
@@ -43,7 +41,7 @@ Nlog :: (net_category: s64 /* @todo use user flags instead in the future */, for
   log(format_string, ..args, loc, flags, user_flags, section);
 } @PrintLike
 
-NET_LocalPackets :: Queue(512, PACKET_Full, false);
+NET_LocalPackets :: Queue(512, Packet, false);
 
 NET_ConnectionType :: enum u8
 {
@@ -108,16 +106,16 @@ NET_ReceiveDatagram :: (dgram: **SDLNet_Datagram) -> bool
   return SDLNet_ReceiveDatagram(NET.socket, dgram);
 }
 
-NET_SendPacket :: (packet: PACKET_Full, dest: NET_Connection, skip_inactive: bool)
+NET_SendPacket :: (packet: Packet, dest: NET_Connection, skip_inactive: bool)
 {
-  assert(PACKET_IsFinalized(packet));
-  assert(packet.payload.count < 1280); // that seems to be a realistic reasonable max size? https://gafferongames.com/post/packet_fragmentation_and_reassembly/
+  assert(PK_IsFinalized(packet));
+
+  msg := PK_PacketAsString(packet);
+  assert(msg.count < 1280); // that seems to be a realistic reasonable max size? https://gafferongames.com/post/packet_fragmentation_and_reassembly/
 
   if skip_inactive && NET_ConnectionIsInactive(dest) {
     return;
   }
-
-  msg := PACKET_FullAsString(packet);
 
   if dest.type == .NETWORK
   {
@@ -154,33 +152,33 @@ NET_MatchConnection :: (user: NET_Connection, address: *SDLNet_Address, port: u1
 NET_PreprocessRawPacket :: (raw_packet: string) -> payload: string, tick: Tick
 {
   packet := raw_packet;
-  if packet.count < size_of(PACKET_Header)
+  if packet.count < size_of(PK_Header)
   {
     Nlog(LOG_NetPacket, "packet rejected - it's too small, size: %llu", packet.count);
     return "", 0;
   }
 
-  header := PACKET_Consume(PACKET_Header, *packet);
+  header := PK_ConsumeRaw(PK_Header, *packet);
   if (!packet.count)
   {
     Nlog(LOG_NetPacket, "packet rejected - empty payload",);
     return "", 0;
   }
 
-  if (header.magic_value != PACKET_MAGIC_VALUE)
+  if (header.magic_value != PK_MAGIC_VALUE)
   {
-    Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, PACKET_MAGIC_VALUE);
+    Nlog(LOG_NetPacket, "packet rejected - invalid magic value: %; expected: %", header.magic_value, PK_MAGIC_VALUE);
     return "", 0;
   }
 
   // validate hash
   hash64 := Hash64Any(packet);
   hash16 := hash64.(u16,trunc);
-  if (hash16 != header.payload_hash)
+  if (hash16 != header.buffer_hash)
   {
-    Nlog(LOG_NetPacket, "packet rejected - invalid hash: %; calculated: %", header.payload_hash, hash16);
+    Nlog(LOG_NetPacket, "packet rejected - invalid hash: %; calculated: %", header.buffer_hash, hash16);
     return "", 0;
   }
 
-  return packet, header.from_tick;
+  return packet, header.tick;
 }

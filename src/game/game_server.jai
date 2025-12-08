@@ -233,9 +233,7 @@ SV_IterateSend :: ()
         user.key = player.key;
       }
 
-      assign: PACKET_AssignPlayerKey;
-      assign.player_key = user.key;
-      packet := PACKET_Create(SV.tick, assign);
+      packet := PK_Create(SV.tick, PK_Kind.AssignPlayerKey, user.key);
       NET_SendPacket(packet, user.connection, true);
     }
   }
@@ -243,26 +241,12 @@ SV_IterateSend :: ()
   // iterate over network objects
   for SV.objects
   {
-    packet: PACKET_Full;
+    packet: Packet;
+    if OBJ_HasData(it) PK_AddPair(*packet, .ObjUpdate, it);
+    else               PK_AddPair(*packet, .ObjEmpty, it_index.(ObjIdx));
+    PK_FinalizeHeader(SV.tick, *packet);
 
-    if OBJ_HasData(it)
-    {
-      update: PACKET_ObjUpdate;
-      update.net_index = xx it_index;
-      update.sync = it;
-      PACKET_CopyType(*packet, update);
-    }
-    else
-    {
-      update: PACKET_ObjEmpty;
-      update.net_index = xx it_index;
-      PACKET_CopyType(*packet, update);
-    }
-
-    PACKET_FinalizeHeader(SV.tick, *packet);
-
-    for SV.users
-    {
+    for SV.users {
       if !it.connection.type continue;
       NET_SendPacket(packet, it.connection, true);
     }
@@ -306,7 +290,7 @@ SV_IterateReceive :: ()
       packet, got_packet := QueuePop(*GLOBAL.packets_for_local_server);
       if !got_packet break;
 
-      packet_str := PACKET_FullAsString(packet);
+      packet_str := PK_PacketAsString(packet);
       payload, from_tick := NET_PreprocessRawPacket(packet_str);
       SV_ReceivePayload(player_id, payload, xx from_tick);
     }
@@ -343,12 +327,12 @@ SV_IterateReceive :: ()
   }
 }
 
-SV_ReceiveActions :: (user: *SV_User, actions_packet: PACKET_ActionQueue, action_tick: ActionTick)
+SV_ReceiveActions :: (user: *SV_User, actions: ActionQueue, action_tick: ActionTick)
 {
   if (user.received_action_tick >= action_tick) return;
   PerfFunc();
 
-  for actions_packet.actions {
+  for actions {
     if it.tick >= user.received_action_tick {
       QueuePush(*user.action_queue, it);
     }
@@ -377,23 +361,22 @@ SV_RemoveUser :: (user: *SV_User)
   user.* = .{};
 }
 
-SV_ReceivePayload :: (player_id: u16, full_payload: string, src_tick: ActionTick)
+SV_ReceivePayload :: (player_id: u16, packet_buffer: string, packet_tick: ActionTick)
 {
   PerfFunc();
-  msg := full_payload;
+  msg := packet_buffer;
   while msg.count
   {
-    msg_type := PACKET_Peek(PACKET_Type, msg);
-
-    if msg_type == .ActionQueue
+    packet_kind := PK_ConsumeKind(*msg);
+    if packet_kind == .ActionQueue
     {
       user := *SV.users[player_id];
-      actions_packet := PACKET_Consume(PACKET_ActionQueue, *msg);
-      SV_ReceiveActions(user, actions_packet, src_tick);
+      actions_packet := PK_Consume(.ActionQueue, *msg);
+      SV_ReceiveActions(user, actions_packet, packet_tick);
     }
     else
     {
-      Nlog(LOG_NetPayload, "Unsupported payload header kind: %", msg_type);
+      Nlog(LOG_NetPayload, "Unsupported payload header kind: %", packet_kind);
       return;
     }
   }
