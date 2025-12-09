@@ -97,7 +97,7 @@ SIM_AdvanceByTick :: ()
     SIM_UpdateTurret(obj);
     SIM_UpdateTargetedProjectile(obj);
     SIM_UpdateDeath(obj);
-    SIM_UpdatePosition(obj);
+    SIM_UpdateMove(obj);
     SIM_UpdateRotation(obj);
   }
 }
@@ -213,7 +213,7 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
         case 0;
         // projectile; fixed dp; set hp at something + negative hp regen... perfect!
         proj := SV_CreateObject(.MOVE | .DRAW_MODEL | .DISABLE_MOUSE | .HAS_HP |
-                                .UPDATE_STATS | .EXPLODE_ON_CONTACT | .DELETE_ON_DEATH);
+                                .UPDATE_STATS | .DIE_ON_CONTACT | .DELETE_ON_DEATH);
         proj.p = obj.p;
         proj.p.z = 1.5;
         proj.model = .Carrot;
@@ -222,6 +222,7 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
         proj.base_stats.max_health = 100.0;
         proj.base_stats.health_regen = -50;
         proj.health = proj.base_stats.max_health;
+        proj.collider = OBJ_ColliderFromRect(.{0.5, 0.5});
 
         case 1;
         array_add(*obj.effects, .{
@@ -335,11 +336,9 @@ SIM_UpdateActivity :: (obj: *Object)
     attack_damage := 10.0;
     while activity.attack_t >= obj.attack_landed_t
     {
-      activity.attack_t -= obj.attack_cooldown_t;
-      target.health -= attack_damage;
+      SIM_DealDamage(target, obj, 10.0);
 
-      SIM_PlayAnimation(target, .HIT);
-      SIM_PlaySound(target, .HIT);
+      activity.attack_t -= obj.attack_cooldown_t;
 
       stop_attacking := false;
       stop_attacking |= attack_is_out_of_range;
@@ -475,10 +474,8 @@ SIM_UpdateTargetedProjectile :: inline (projectile: *Object)
 
     if apply_hit
     {
-      attack_damage := 25.0;
-      target.health -= attack_damage;
-      SIM_PlaySound(target, .HIT);
-      SV_DeleteObject(projectile);
+      SIM_DealDamage(target, projectile, 25.0);
+      SV_DeleteObject(projectile); // @todo deletion happening instantly is dumb actually
     }
   }
 }
@@ -514,13 +511,19 @@ SIM_UpdateDeath :: inline (obj: *Object)
   }
 }
 
-SIM_UpdatePosition :: inline (obj: *Object)
+SIM_UpdateMove :: inline (obj: *Object)
 {
   PerfFunc();
-  if OBJ_IsNil(obj) return;
+  if OBJ_IsNil(obj) {
+    return;
+  }
+
+  skillshot_mode := OBJ_HasAnyFlag(obj, .DIE_ON_CONTACT);
 
   obj.moved_dp = .{};
-  if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) return;
+  if !OBJ_Test(obj, .{require_flags = .MOVE, common = .IS_ALIVE_OR_NO_HP}) {
+    return;
+  }
 
   // movement simulation
   obj_dp := obj.desired_dp.xy;
@@ -529,6 +532,7 @@ SIM_UpdatePosition :: inline (obj: *Object)
   // check collision
   for collision_iteration: 0..2 // support up to 3 overlapping wall collisions
   {
+    closest_obstacle := OBJ_NilObject();
     closest_obstacle_separation_dist := FLOAT32_MAX;
     closest_obstacle_wall_normal: V2;
 
@@ -538,12 +542,24 @@ SIM_UpdatePosition :: inline (obj: *Object)
     for * obstacle: SV.objects
     {
       if obj == obstacle continue;
-      if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) continue;
+
+      // Reject obstacles
+      if skillshot_mode {
+        if !OBJ_Test2(obstacle, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES}) {
+          continue;
+        }
+      } else {
+        if !OBJ_Test(obstacle, .{require_flags = .COLLIDE, common = .IS_ALIVE_OR_NO_HP}) {
+          continue;
+        }
+      }
 
       obstacle_pos := obstacle.p.xy;
 
       // @todo temporary hacky perf. optimization. This should be based on obj vs collider bounding boxes.
-      if distance_squared(obj_pos, obstacle_pos) >= square(1.0) continue;
+      if distance_squared(obj_pos, obstacle_pos) >= square(1.0) {
+        continue;
+      }
 
       obstacle_collider := obstacle.collider;
       OBJ_OffsetCollider(*obstacle_collider, obstacle_pos);
@@ -585,12 +601,19 @@ SIM_UpdatePosition :: inline (obj: *Object)
       } // sat_iteration loop
 
       if closest_obstacle_separation_dist > biggest_dist {
+        closest_obstacle = obstacle;
         closest_obstacle_separation_dist = biggest_dist;
         closest_obstacle_wall_normal = wall_normal;
       }
     } // obstacle loop
 
     if closest_obstacle_separation_dist < 0.0 {
+      if skillshot_mode {
+        SIM_DealDamage(closest_obstacle, obj, 40);
+        obj.health = 0;
+        return;
+      }
+
       move_out_dir := closest_obstacle_wall_normal;
       move_out_magnitude := -closest_obstacle_separation_dist;
       move_out := move_out_dir * move_out_magnitude;
@@ -622,6 +645,13 @@ SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 SIM_PlayAnimation :: (obj: *Object, id: AnimationID)
 {
   QueuePush(*obj.animation_requests, .{SV.tick, id});
+}
+
+SIM_DealDamage :: (target: *Object, source: *Object, amount: float)
+{
+  target.health -= amount;
+  SIM_PlaySound(target, .HIT);
+  SIM_PlayAnimation(target, .HIT);
 }
 
 SIM_InitObjects :: ()
