@@ -153,7 +153,7 @@ CL_ReceivePayload :: (full_payload: string, from_tick: ServerTick)
     else if packet_kind == .ObjEmpty
     {
       object_idx : ObjIdx = PK_Consume(.ObjEmpty, *msg);
-      object: Object = .{init = true};
+      object: Object;
       CL_ReceiveSnapshot(from_tick, object, object_idx);
     }
     else if packet_kind == .AssignPlayerKey

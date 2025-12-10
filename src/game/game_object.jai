@@ -151,7 +151,6 @@ Object :: struct
   key: OBJ_Key;
   flags: OBJ_Flags;
   team: OBJ_Team;
-  init: bool;
 
   creation_tick: ServerTick;
   death_tick: ServerTick;
@@ -287,8 +286,7 @@ OBJ_IsNil :: (obj: Object) -> bool { return *obj == xx *OBJ_GHOST_NIL; }
 OBJ_IsNil :: (ov: Ghost) -> bool { return *ov == *OBJ_GHOST_NIL; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
-OBJ_IsInit :: (obj: Object) -> bool { return obj.init; }
-OBJ_HasData :: (obj: Object) -> bool { return !!obj.flags; }
+OBJ_HasData :: (obj: Object) -> bool { return obj.flags != 0; }
 OBJ_HasAnyFlag :: (obj: Object, flag: OBJ_Flags) -> bool { return !!(obj.flags & flag); }
 OBJ_HasAllFlags :: (obj: Object, flags: OBJ_Flags) -> bool { return (obj.flags & flags) == flags; }
 

@@ -557,7 +557,7 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
   if QueueIsEmpty(snapshot_queue) {
     return;
   }
-  
+
   first_update := !ghost.handled_tick;
 
   #if PLAYER_LOGS {
@@ -906,7 +906,7 @@ G_CreateLocalGhost :: (flags: OBJ_Flags) -> *Ghost
 
   for *G.local_ghosts
   {
-    if !OBJ_IsInit(it)
+    if !OBJ_HasData(it)
     {
       ghost = it;
       index = xx it_index;
@@ -922,7 +922,6 @@ G_CreateLocalGhost :: (flags: OBJ_Flags) -> *Ghost
   index_in_all_objects := index + OBJ_SHARED_COUNT;
   ghost.key = OBJ_CreateKey(index_in_all_objects, G.local_objects_creation_serials[index]);
 
-  ghost.init = true;
   ghost.creation_tick = G.local_objects_tick;
   ghost.flags = flags;
   return ghost;

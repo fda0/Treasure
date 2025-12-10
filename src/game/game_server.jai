@@ -56,7 +56,7 @@ SV_CreateObject :: (flags: OBJ_Flags) -> *Object
 
   for *SV.objects
   {
-    if !OBJ_IsInit(it)
+    if !OBJ_HasData(it)
     {
       obj = it;
       index = xx it_index;
@@ -71,7 +71,6 @@ SV_CreateObject :: (flags: OBJ_Flags) -> *Object
   SV.creation_serials[index] = max(SV.creation_serials[index] + 1, 1);
   obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
 
-  obj.init = true;
   obj.creation_tick = SV.tick;
   obj.flags = flags;
 
