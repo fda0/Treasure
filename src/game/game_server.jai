@@ -49,7 +49,7 @@ SV_DeleteObject :: (obj: *Object)
   obj.* = .{};
 }
 
-SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
+SV_CreateObject :: (flags: OBJ_Flags) -> *Object
 {
   obj: *Object;
   index: u32;
@@ -74,7 +74,6 @@ SV_CreateObject :: (flags: OBJ_Flags, team: OBJ_Team = .NO_TEAM) -> *Object
   obj.init = true;
   obj.creation_tick = SV.tick;
   obj.flags = flags;
-  obj.team = team;
 
   for * obj.base_stats.all { it.* = 1.0; }
   obj.base_stats.health_regen = 0;
@@ -103,10 +102,29 @@ SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
   return nearest;
 }
 
+SV_CreateMinion :: (team: OBJ_Team) -> *Object
+{
+  obj := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS |
+                         .ANIMATE_ROTATION | .ANIMATE_TRACKS | .UPDATE_STATS |
+                         .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
+  if !OBJ_IsNil(obj)
+  {
+    obj.model = .Zombie;
+    obj.team = team;
+
+    obj.base_stats.max_health = 60.0;
+    obj.health = obj.base_stats.max_health;
+
+    dim := 0.3;
+    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
+  }
+  return obj;
+}
+
 SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(
-    .MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
+    .MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
     .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
 
   if !OBJ_IsNil(obj)
@@ -119,15 +137,15 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
     obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
     obj.team = team;
 
-    obj.base_stats.max_health = 40;
-    obj.base_stats.health_regen = 10;
+    obj.base_stats.max_health = 60;
+    obj.base_stats.health_regen = 5;
     obj.base_stats.max_energy = 50;
     obj.base_stats.energy_regen = 2;
     obj.base_stats.move_speed = 1.5;
     obj.health = obj.base_stats.max_health;
     obj.energy = obj.base_stats.max_energy;
 
-    obj.skills[0] = .{energy_cost = 10, cooldown_cost = 5};
+    obj.skills[0] = .{energy_cost = 5, cooldown_cost = 1, flags = .TARGETS_POSITION};
     obj.skills[1] = .{energy_cost = 20, cooldown_cost = 10};
     obj.skills[2] = .{energy_cost = 30, cooldown_cost = 15};
     obj.skills[3] = .{energy_cost = 60, cooldown_cost = 20};

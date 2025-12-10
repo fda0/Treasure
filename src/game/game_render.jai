@@ -292,7 +292,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
-  draw_hp := OBJ_HasAnyFlag(ghost, .HAS_HP);
+  draw_bars := OBJ_HasAnyFlag(ghost, .DRAW_BARS);
 
   if draw_model
   {
@@ -323,7 +323,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     array_add(*batch.models[model_slot].buf, instance);
   }
 
-  if draw_hp
+  if draw_bars
   {
     bar_height := 10.0;
     start_x := -ghost.stats.max_health / 2;

@@ -45,6 +45,7 @@ OBJ_Flags :: enum_flags u32
 
   DRAW_MODEL;
   DRAW_COLLIDERS;
+  DRAW_BARS;
   DISABLE_MOUSE;
 
   HAS_HP;

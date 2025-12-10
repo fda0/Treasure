@@ -45,24 +45,14 @@ SIM_AdvanceByTick :: ()
 
     for team: BOTH_TEAMS
     {
-      sleeper := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .ANIMATE_ROTATION |
-         .ANIMATE_TRACKS | .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
-      if !OBJ_IsNil(sleeper)
+      minion := SV_CreateMinion(team);
+      if !OBJ_IsNil(minion)
       {
-        sleeper.model = .Zombie;
-        sleeper.base_stats.max_health = 60.0;
-        sleeper.health = sleeper.base_stats.max_health;
-        dim := 0.3;
-        sleeper.collider = OBJ_ColliderFromRect(.{dim,dim});
-
         sign := ifx team == .RED then -1.0 else 1.0;
-        sleeper.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
-
-        sleeper.team = team;
-
-        sleeper.activity = .{
+        minion.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
+        minion.activity = .{
           wants_to_attack = true,
-          target = SV_FindNearestToObject(sleeper, .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).key,
+          target = SV_FindNearestToObject(minion, .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).key,
         };
       }
     }
@@ -93,16 +83,16 @@ SIM_AdvanceByTick :: ()
   for *obj: SV.objects
   {
     if OBJ_IsNil(obj) continue;
-    SIM_UpdateActivity(obj);
-    SIM_UpdateTurret(obj);
-    SIM_UpdateTargetedProjectile(obj);
-    SIM_UpdateDeath(obj);
-    SIM_UpdateMove(obj);
-    SIM_UpdateRotation(obj);
+    inline SIM_UpdateActivity(obj);
+    inline SIM_UpdateTurret(obj);
+    inline SIM_UpdateTargetedProjectile(obj);
+    inline SIM_UpdateDeath(obj);
+    inline SIM_UpdateMove(obj);
+    inline SIM_UpdateRotation(obj);
   }
 }
 
-SIM_UpdateStats :: inline (obj: *Object)
+SIM_UpdateStats :: (obj: *Object)
 {
   if !(obj.flags & .UPDATE_STATS) return;
 
@@ -218,11 +208,14 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
         proj.p.z = 1.5;
         proj.model = .Carrot;
         proj.team = obj.team;
-        proj.desired_dp = .{0,1,0} * TICK_FLOAT_STEP;
-        proj.base_stats.max_health = 100.0;
-        proj.base_stats.health_regen = -50;
+        proj.base_stats.max_health = 1;
+        proj.base_stats.health_regen = -1;
         proj.health = proj.base_stats.max_health;
         proj.collider = OBJ_ColliderFromRect(.{0.5, 0.5});
+
+        direction := normalize(action.position.xy - obj.p.xy);
+        speed := 5.0;
+        proj.desired_dp = .{direction.x, direction.y, 0} * TICK_FLOAT_STEP * speed;
 
         case 1;
         array_add(*obj.effects, .{
@@ -357,7 +350,7 @@ SIM_UpdateActivity :: (obj: *Object)
   }
 }
 
-SIM_UpdateTurret :: inline (turret: *Object)
+SIM_UpdateTurret :: (turret: *Object)
 {
   if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) return;
 
@@ -436,7 +429,7 @@ SIM_UpdateTurret :: inline (turret: *Object)
   };
 }
 
-SIM_UpdateTargetedProjectile :: inline (projectile: *Object)
+SIM_UpdateTargetedProjectile :: (projectile: *Object)
 {
   if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) return;
   activity := *projectile.activity;
@@ -480,7 +473,7 @@ SIM_UpdateTargetedProjectile :: inline (projectile: *Object)
   }
 }
 
-SIM_UpdateDeath :: inline (obj: *Object)
+SIM_UpdateDeath :: (obj: *Object)
 {
   if OBJ_Test(obj, .{common = .IS_ALIVE_OR_NO_HP})
   {
@@ -511,7 +504,7 @@ SIM_UpdateDeath :: inline (obj: *Object)
   }
 }
 
-SIM_UpdateMove :: inline (obj: *Object)
+SIM_UpdateMove :: (obj: *Object)
 {
   PerfFunc();
   if OBJ_IsNil(obj) {
@@ -609,7 +602,7 @@ SIM_UpdateMove :: inline (obj: *Object)
 
     if closest_obstacle_separation_dist < 0.0 {
       if skillshot_mode {
-        SIM_DealDamage(closest_obstacle, obj, 40);
+        SIM_DealDamage(closest_obstacle, obj, 20);
         obj.health = 0;
         return;
       }
@@ -666,11 +659,12 @@ SIM_InitObjects :: ()
 
         turret := SV_CreateObject(
           .COLLIDE | .DRAW_MODEL | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION,
-          team);
+          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION);
 
         if !OBJ_IsNil(turret)
         {
+          turret.team = team;
+
           p := 6.0 + 10.0*tier;
           if team == .RED then p = -p;
           turret.p = .{-p,p,0};

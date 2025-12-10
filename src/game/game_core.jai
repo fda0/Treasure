@@ -554,6 +554,11 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
   PLAYER_LOGS :: false;
 
   snapshot_queue := *CL.snapshots[ghost_index];
+  if QueueIsEmpty(snapshot_queue) {
+    return;
+  }
+  
+  first_update := !ghost.handled_tick;
 
   #if PLAYER_LOGS {
     is_player_index := ghost_index == OBJ_IndexOfKey(G_GetGhost(.SHARED, CL.player_key).key);
@@ -569,7 +574,7 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
   }
 
   // We reached a destination tick - pick a new destination.
-  if ghost.at.tick >= ghost.dest.tick
+  if ghost.at.tick >= ghost.dest.tick || first_update
   {
     // Calculate ghost.tick_speed + snap to latest tick if we are too far behind.
     {
@@ -594,7 +599,7 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
       }
 
       // Snap to latest if we are too far behind.
-      if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick
+      if highest_tick < ghost.at.tick || smallest_tick > ghost.at.tick || first_update
       {
         #if PLAYER_LOGS if is_player_index {
           log("[RESET PLAYER PLAYBACK] old at: %, from: %, dest: %, tick_t: %; smallest: %, highest: %, new at: %",

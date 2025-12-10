@@ -86,7 +86,7 @@ UI_BuildHUD :: ()
                    floating.anchors = GetAnchor2(.LEFT, .BOTTOM)});
 
       cooldown_color := C32_SetAlphaf(TEXT_FG, Smoothstep(it.cooldown_timer, -0.1, 0.2));
-      CreateText(tprint("%", ff0(cooldown)),
+      CreateText(tprint("%", ceil(cooldown)),
                  .{text.color = cooldown_color,
                    text.font_size = Rem(1.4),
                    floating.attach_to = .PARENT,
