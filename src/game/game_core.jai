@@ -716,31 +716,40 @@ G_InterpolateSnapshotsForGhost :: (ghost: *Ghost, ghost_index: ObjIdx)
     }
   }
 
-  snap_range := max(ghost.dest.tick - ghost.from.tick, 1);
-  snap_progress := ghost.at.tick - ghost.from.tick;
-  snap_t := snap_progress / snap_range;
 
-  tick_t := ghost.tick_t / snap_range;
-  lerp_t := snap_t + tick_t;
-
-  ghost.at.obj = OBJ_LerpObject(ghost.from.obj, ghost.dest.obj, lerp_t);
-
-  init_ghost_anim := false;
-
-  if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
-  if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
-  if IsTickDue(ghost.at.obj.creation_tick, ghost) {
-    ghost.creation_time = G.frame_timestamp;
-    init_ghost_anim = true;
-  }
-  if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
-
-  if init_ghost_anim
+  // If from / dest is nil - don't use it in interpolation.
+  if !OBJ_HasData(ghost.from.obj) || !OBJ_HasData(ghost.dest.obj)
   {
-    ghost.anim = .{
-      rotation = ghost.rotation,
-      position = ghost.p,
-    };
+    ghost.at.obj = .{};
+  }
+  else
+  {
+    snap_range := max(ghost.dest.tick - ghost.from.tick, 1);
+    snap_progress := ghost.at.tick - ghost.from.tick;
+    snap_t := snap_progress / snap_range;
+
+    tick_t := ghost.tick_t / snap_range;
+    lerp_t := snap_t + tick_t;
+
+    ghost.at.obj = OBJ_LerpObject(ghost.from.obj, ghost.dest.obj, lerp_t);
+
+    init_ghost_anim := false;
+
+    if (!ghost.at.obj.creation_tick) ghost.creation_time = 0;
+    if (!ghost.at.obj.death_tick)    ghost.death_time = 0;
+    if IsTickDue(ghost.at.obj.creation_tick, ghost) {
+      ghost.creation_time = G.frame_timestamp;
+      init_ghost_anim = true;
+    }
+    if IsTickDue(ghost.at.obj.death_tick, ghost)    ghost.death_time = G.frame_timestamp;
+
+    if init_ghost_anim
+    {
+      ghost.anim = .{
+        rotation = ghost.rotation,
+        position = ghost.p,
+      };
+    }
   }
 }
 

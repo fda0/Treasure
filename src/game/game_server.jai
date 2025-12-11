@@ -105,10 +105,11 @@ SV_CreateMinion :: (team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS |
                          .ANIMATE_ROTATION | .ANIMATE_TRACKS | .UPDATE_STATS |
-                         .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH);
+                         .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH | .POST_DEATH_DELAY);
   if !OBJ_IsNil(obj)
   {
     obj.model = .Zombie;
+    obj.model = .Carrot;
     obj.team = team;
 
     obj.base_stats.max_health = 60.0;
@@ -124,7 +125,7 @@ SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(
     .MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN);
+    .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN | .POST_DEATH_DELAY);
 
   if !OBJ_IsNil(obj)
   {

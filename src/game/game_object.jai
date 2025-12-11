@@ -55,8 +55,9 @@ OBJ_Flags :: enum_flags u32
   IS_TURRET;
   TARGETED_PROJECTILE;
   HAS_ACTIVITY;
-  DELETE_ON_DEATH;
+  POST_DEATH_DELAY;
   RESPAWN;
+  DELETE_ON_DEATH;
   DIE_ON_CONTACT;
 };
 
@@ -287,7 +288,7 @@ OBJ_IsNil :: (ov: Ghost) -> bool { return *ov == *OBJ_GHOST_NIL; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
 OBJ_HasData :: (obj: Object) -> bool { return obj.flags != 0; }
-OBJ_HasAnyFlag :: (obj: Object, flag: OBJ_Flags) -> bool { return !!(obj.flags & flag); }
+OBJ_HasAnyFlag :: (obj: Object, flag: OBJ_Flags) -> bool { return (obj.flags & flag) != 0; }
 OBJ_HasAllFlags :: (obj: Object, flags: OBJ_Flags) -> bool { return (obj.flags & flags) == flags; }
 
 OBJ_TestParams :: struct

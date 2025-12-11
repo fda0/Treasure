@@ -205,7 +205,7 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
         proj := SV_CreateObject(.MOVE | .DRAW_MODEL | .DISABLE_MOUSE | .HAS_HP |
                                 .UPDATE_STATS | .DIE_ON_CONTACT | .DELETE_ON_DEATH);
         proj.p = obj.p;
-        proj.p.z = 1.5;
+        proj.p.z = 0.5;
         proj.model = .Carrot;
         proj.team = obj.team;
         proj.base_stats.max_health = 1;
@@ -485,19 +485,21 @@ SIM_UpdateDeath :: (obj: *Object)
 
     death_t := SecondsBetweenTicks(SV.tick, obj.death_tick);
 
-    if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH | .RESPAWN)
+    max_death_time := 0.0;
+    if OBJ_HasAnyFlag(obj, .POST_DEATH_DELAY)
     {
+      max_death_time = 4.0;
       obj.p.z = -clamp(death_t - 2.0, 0.0, 10.0);
     }
 
-    if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t > 4.0
+    if OBJ_HasAnyFlag(obj, .RESPAWN) && death_t >= max_death_time
     {
       obj.p = .{};
       obj.health = obj.stats.max_health;
       obj.death_tick = 0;
     }
 
-    if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t > 4.0
+    if OBJ_HasAnyFlag(obj, .DELETE_ON_DEATH) && death_t >= max_death_time
     {
       SV_DeleteObject(obj);
     }
