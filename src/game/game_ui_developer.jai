@@ -88,6 +88,7 @@ DEV_State :: struct // @todo serialize this struct to disk
   noclip: bool;
   sun_camera: bool;
   show_colliders: bool;
+  pause_ghosts_interpolation: bool;
   mouse_picking: enum_flags
   {
     ENABLED;
@@ -244,6 +245,7 @@ UI_BuildDeveloperWindow :: ()
       UI_Checkbox("Noclip camera", *noclip);
       UI_Checkbox("Sun camera", *sun_camera);
       UI_Checkbox("Show colliders", *show_colliders);
+      UI_Checkbox("Pause ghosts interpolation", *pause_ghosts_interpolation);
       UI_Checkbox("Enable mouse picking", *mouse_picking, .ENABLED);
       UI_Checkbox("Mouse picking - one pixel mode", *mouse_picking, .ONE_PIXEL);
       UI_Checkbox("Render normals", null);

@@ -327,7 +327,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
     ghost := *G.all_ghosts[ghost_index];
 
     is_shared := ghost_index < OBJ_SHARED_COUNT;
-    if is_shared {
+    if is_shared && !DEV.pause_ghosts_interpolation {
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
     inline AN_UpdateGhostTimers(ghost);
