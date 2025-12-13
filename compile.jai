@@ -166,15 +166,13 @@ BuildInProgress :: struct
 
 builds_in_progress: [..] BuildInProgress;
 
-Build :: (using config: BuildConfig)
+Build :: (config: BuildConfig)
 {
-  w := compiler_create_workspace(workspace_name);
+  w := compiler_create_workspace(config.workspace_name);
   options := get_build_options(w);
   options.output_path = BUILD_DIRECTORY;
-  options.output_executable_name = output_name;
+  options.output_executable_name = config.output_name;
   options.text_output_flags = .OUTPUT_TIMING_INFO;
-
-  // options.backend = .X64;
 
   modules_path: [..] string;
   array_add(*modules_path, "libs/");
@@ -187,10 +185,14 @@ Build :: (using config: BuildConfig)
     set_optimization(*options, .OPTIMIZED);
     options.stack_trace = false;
   }
+  else
+  {
+    options.backend = .X64;
+  }
 
   set_build_options(options, w);
   compiler_begin_intercept(w, .SKIP_ALL);
-  add_build_file(entry_file, w);
+  add_build_file(config.entry_file, w);
 
   array_add(*builds_in_progress, .{w, config});
 }
@@ -218,21 +220,20 @@ MessageLoop :: ()
           }
         }
 
-        using config;
-        if icon_path
+        if config.icon_path
         {
           exe_filename := tprint("%/%", get_build_options(message.workspace).output_path, phase.executable_name);
           #if OS == .WINDOWS
           {
             #import "Windows_Resources";
-            success := set_icon_by_filename(exe_filename, icon_path);
-            if !success then log_error("Failed to set the icon for exe '%' to filename '%'.", exe_filename, icon_path);
+            success := set_icon_by_filename(exe_filename, config.icon_path);
+            if !success then log_error("Failed to set the icon for exe '%' to filename '%'.", exe_filename, config.icon_path);
           }
         }
 
-        if autorun
+        if config.autorun
         {
-          Run(join(BUILD_DIRECTORY, "/", output_name), work_dir = BUILD_DIRECTORY);
+          Run(join(BUILD_DIRECTORY, "/", config.output_name), work_dir = BUILD_DIRECTORY);
         }
       }
     }
