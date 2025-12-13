@@ -71,7 +71,7 @@ NET_Init :: ()
 
   if !NET.socket
   {
-    NET.err = true;
+    // NET.err = true;
     Nlog(LOG_NetInfo, "Failed to create socket");
   }
   else

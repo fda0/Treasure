@@ -39,7 +39,6 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_core.jai";
 #load "game_global.jai";
 #load "game_sdl_platform.jai";
-#load "game_lane_multithreading.jai";
 #load "game_text.jai";
 #load "game_ui_core.jai";
 #load "game_ui_developer.jai";
@@ -76,7 +75,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/base_math.jai";
 #load "../shared/base_random.jai";
 #load "../shared/base_queue.jai";
-#load "../shared/base_barrier.jai";
+#load "../shared/base_lanes.jai";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
 #load "../shared/game_render_shared.jai";
