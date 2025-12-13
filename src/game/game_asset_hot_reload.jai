@@ -38,7 +38,7 @@ HR_FileWatcherCallback :: (watcher: *File_Watcher(void), change: *File_Change, u
   log("[HOT_RELOAD] Change for path %: %", change.full_path, change.events);
   if change.events & .MODIFIED
   {
-    if EndsWith(change.full_path, "data.pie")
+    if EndsWith(change.full_path, "assets.pie")
     {
       HR_ProcessNewPIEFile(change.full_path);
     }

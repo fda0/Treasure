@@ -171,7 +171,7 @@ main :: ()
   }
 
   PIE_FinalizeBuilder();
-  PIE_SaveToFile("data.pie");
+  PIE_SaveToFile("assets.pie");
   Timer("Saved to file");
 }
 

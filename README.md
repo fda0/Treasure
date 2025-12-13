@@ -17,6 +17,12 @@ Build the game, asset preprocessor, and libraries (cgltf, SDL DLLs):
 jai compile.jai - build_all
 ```
 
+Generate assets.pie file:
+```
+cd build
+Baker.exe
+```
+
 Launch the game (starts a local server in the same process):
 ```
 cd build

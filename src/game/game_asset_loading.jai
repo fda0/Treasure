@@ -4,7 +4,7 @@ using,only(AST,G,GPU) COMPS;
 
 ASSET_InitPreGPU :: ()
 {
-  if !AST.pie.err ASSET_LoadPieFile("data.pie");
+  if !AST.pie.err ASSET_LoadPieFile("assets.pie");
   if !AST.pie.err ASSET_InitSkeletons();
   if !AST.pie.err ASSET_InitMaterials();
   if !AST.pie.err ASSET_InitModels();
