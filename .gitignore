@@ -6,3 +6,5 @@ __*
 *.exe
 *.pdb
 *.rdi
+*.lib
+*.obj
