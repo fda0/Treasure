@@ -3,7 +3,7 @@
 main :: ()
 {
   Timer("init");
-  B.tex.format = .R8G8B8A8;
+  B.tex_format = .R8G8B8A8;
 
   PIE_InitBuilder();
 
@@ -179,12 +179,7 @@ BK_State :: struct
 {
   pie: PIE_Builder;
 
-  tex: struct
-  {
-    // bc7enc_compress_block_params params;
-    // SDL_Surface *bc7_block_surf;
-    format: PIE_TexFormat;
-  };
+  tex_format: PIE_TexFormat;
 
   init_time: Apollo_Time;
   last_time: Apollo_Time;
@@ -225,9 +220,9 @@ Timer :: (label: string)
 #import "Flat_Pool";
 #import "File";
 #import "sdl3_base+image";
-#load "baker_gltf_models.jai";
+#load "baker_gltf.jai";
 #load "baker_textures.jai";
-#load "pie_builder.jai";
+#load "baker_pie.jai";
 #load "../shared/base_utils.jai";
 #load "../shared/base_math.jai";
 #load "../shared/base_string.jai";

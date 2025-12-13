@@ -66,7 +66,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
 
     // Prepare mipmap sufraces
     lods_count: s32 = 1;
-    if B.tex.format == .BC7_RGBA
+    if B.tex_format == .BC7_RGBA
     {
       lods_count = CalculateMipMapCount(orig_width, orig_height);
       Check(BK_TexFile.BK_MIPMAPS_MAX >= lods_count);
@@ -90,8 +90,8 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
 
     // Set material texture values
     Check(!pie_material.tex.format);
-    Check(B.tex.format != .Empty);
-    pie_material.tex.format = B.tex.format;
+    Check(B.tex_format != .Empty);
+    pie_material.tex.format = B.tex_format;
     pie_material.tex.width = orig_width;
     pie_material.tex.height = orig_height;
     pie_material.tex.lods = lods_count;

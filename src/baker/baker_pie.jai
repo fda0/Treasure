@@ -15,7 +15,7 @@ PIE_Builder :: struct
   shaders: [..] PIE_Blob;
   fonts: [..] PIE_Blob;
   sounds: [..] PIE_Sound;
-};
+}
 
 //
 // Init, Finalize, Save to file
