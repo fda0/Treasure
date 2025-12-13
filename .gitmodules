@@ -1,12 +1,12 @@
 [submodule "SDL"]
-	path = SDL
+	path = libs/SDL
 	url = https://github.com/libsdl-org/SDL
-[submodule "SDL_image"]
-	path = SDL_image
+[submodule "libs/SDL_image"]
+	path = libs/SDL_image
 	url = https://github.com/libsdl-org/SDL_image.git
-[submodule "SDL_net"]
-	path = SDL_net
+[submodule "libs/SDL_net"]
+	path = libs/SDL_net
 	url = https://github.com/libsdl-org/SDL_net.git
-[submodule "SDL_ttf"]
+[submodule "libs/SDL_ttf"]
 	path = libs/SDL_ttf
 	url = https://github.com/libsdl-org/SDL_ttf.git
