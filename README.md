@@ -24,7 +24,7 @@ Treasure.exe -server -client
 ```
 
 
-# Educational resources I found useful
+# Resources I found useful
 
 ## Collision
 - [Collision Detection with SAT (Math for Game Developers) by pikuma](https://www.youtube.com/watch?v=-EsWKT7Doww)
@@ -38,7 +38,7 @@ Treasure.exe -server -client
 - [Quaternions, Double-cover, and the Rest Pose Neighborhood (2006) by Casey Muratori](https://caseymuratori.com/blog_0002) + [video](https://www.youtube.com/watch?v=vmAY5kP-tpU)
 - [Understanding Slerp, Then Not Using It by Jonathan Blow](http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/)
 
-## Using .gltf files - models and animations
+## Models / animations
 - https://github.com/jkuhlmann/cgltf - small, portable library that parses .gltf files into structs and arrays.
 - [Skeletal animation in glTF - lisyarus blog](https://lisyarus.github.io/blog/posts/gltf-animation.html)
 
