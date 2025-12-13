@@ -8,7 +8,7 @@
 
 # Cloning & building
 ```bash
-git clone git@github.com:fda0/Treasure.git
+git clone https://github.com/fda0/Treasure.git
 git submodule update --init --recursive
 ```
 
