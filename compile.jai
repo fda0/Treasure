@@ -97,7 +97,7 @@ build :: ()
     Check(Run(stage2, workdir));
 
     log("- generating SDL bindings -");
-    SDL :: #import,file "src/bindings/generate_bindings_sdl3.jai";
+    SDL :: #import,file "libs/bindings/generate_bindings_sdl3.jai";
     Check(SDL.GenerateBindings(.{targets = .BASE,
                                  optimizations = .DEBUG,
                                  base_directory = "libs/",
@@ -125,7 +125,7 @@ build :: ()
 
   if build_targets & .CGLTF
   {
-    CGLTF :: #import,file "src/bindings/build_cgltf.jai";
+    CGLTF :: #import,file "libs/bindings/build_cgltf.jai";
     CGLTF.Build();
   }
 
