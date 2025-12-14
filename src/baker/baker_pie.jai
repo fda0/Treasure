@@ -42,9 +42,9 @@ PIE_FinalizeBuilder :: ()
 {
   // Prepare PIE_Links and append it to memory
   links: PIE_Links;
-  PIE_ListSetArray(*links.models.vertices, PIE.vertices);
-  PIE_ListSetArray(*links.models.indices, PIE.indices);
-  PIE_ListSetArray(*links.models.list, PIE.models);
+  PIE_ListSetArray(*links.vertices, PIE.vertices);
+  PIE_ListSetArray(*links.indices, PIE.indices);
+  PIE_ListSetArray(*links.models, PIE.models);
   PIE_ListSetArray(*links.skeletons, PIE.skeletons);
   PIE_ListSetArray(*links.materials, PIE.materials);
   PIE_ListSetArray(*links.shaders, PIE.shaders);

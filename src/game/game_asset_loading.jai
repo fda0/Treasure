@@ -218,7 +218,7 @@ ASSET_LoadPieFile :: (file_path: string)
   if err return;
   pie.links = links.data;
 
-  models := PIE_LOAD_ListToArray(pie.links.models.list);
+  models := PIE_LOAD_ListToArray(pie.links.models);
   materials := PIE_LOAD_ListToArray(pie.links.materials);
   shaders := PIE_LOAD_ListToArray(pie.links.shaders);
   fonts := PIE_LOAD_ListToArray(pie.links.fonts);
@@ -347,11 +347,11 @@ ASSET_InitModels :: ()
 
   // Load meshes
   {
-    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(pie.links.models.vertices.array), "WORLD vertices");
-    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(pie.links.models.indices.array), "Model indices");
+    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(pie.links.vertices.array), "WORLD vertices");
+    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(pie.links.indices.array), "Model indices");
 
-    vertices_string := PIE_LOAD_ListToString(pie.links.models.vertices);
-    indices_string := PIE_LOAD_ListToString(pie.links.models.indices);
+    vertices_string := PIE_LOAD_ListToString(pie.links.vertices);
+    indices_string := PIE_LOAD_ListToString(pie.links.indices);
 
     cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
     GPU_TransferBuffer(cmd, AST.model_vertices, vertices_string.data, xx vertices_string.count);

@@ -4,10 +4,16 @@ Kilobyte :: v => v * 1024;
 Megabyte :: v => v * 1024 * 1024;
 Gigabyte :: v => v * 1024 * 1024 * 1024;
 
-SameSizePointerCast :: ($DstType: Type, ptr: *$SrcType) -> *DstType #expand
-{
-  #assert(size_of(DstType) == size_of(SrcType));
-  return ptr.(*DstType);
+AsPointerType :: ($CAST_T: Type, ptr: *$SRC_T) -> *CAST_T #expand {
+  #run {
+    assert(size_of(CAST_T) == size_of(SRC_T), "Size % -> %; % -> %", CAST_T, size_of(CAST_T), SRC_T, size_of(SRC_T));
+    assert(align_of(CAST_T) == align_of(SRC_T), "Align % -> %; % -> %", CAST_T, align_of(CAST_T), SRC_T, align_of(SRC_T));
+  }
+  return ptr.(*CAST_T);
+}
+
+AsType :: ($CAST_T: Type, ptr: $SRC_T) -> CAST_T #expand {
+  return AsPointerType(CAST_T, *ptr).*;
 }
 
 EnumCount :: ($t: Type) -> s64 {

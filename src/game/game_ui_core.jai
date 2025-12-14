@@ -82,7 +82,7 @@ UI_ProcessBoxRenderCommands :: ()
       draw_shape = true;
 
       case .BORDER;
-      shape.border_widths = SameSizePointerCast([4] float, *cmd.border_widths).*;
+      shape.border_widths = AsType([4] float, cmd.border_widths);
       draw_shape = true;
 
       case .TEXT;

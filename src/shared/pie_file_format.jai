@@ -2,20 +2,40 @@
 // This file describes PIE file format - which is produced by "baker" asset preprocessor.
 // .pie files pack all the data needed by the game like models' meshes & animations, materials, textures.
 //
-
 PIE_ListUntyped :: struct
 {
   count: s64;
   offset: s64;
 }
-
 PIE_List :: struct($TYPE: Type)
 {
-  using #as untyped: PIE_ListUntyped;
-
-  #place untyped;
-  array: [] TYPE;
+  #as using untyped: PIE_ListUntyped;
+  #place untyped; array: [] TYPE;
 }
+
+RD_WorldVertex :: struct
+{
+  p: V3;
+  normal: V3;
+  uv: V2;
+  // @todo color_packed: u32; (Carrot model uses vertex colors!)
+  joints_packed4: u32;
+  joint_weights: V4;
+};
+
+RD_WorldShaderFlags :: enum_flags u32
+{
+  DoMeshSkinning;
+  UseInstanceBuffer;
+  SampleTexDiffuse;
+  SampleTexNormal;
+  SampleTexRoughness;
+  ApplyShadows;
+  DrawBorderAtUVEdge;
+  EnableHueShift;
+  DiscardColorPickZero;
+  PixelEarlyExit;
+};
 
 PIE_AnimationChannelType :: enum u32
 {
@@ -131,12 +151,9 @@ PIE_Blob :: struct
 
 PIE_Links :: struct
 {
-  models: struct
-  {
-    vertices: PIE_List(RD_WorldVertex);
-    indices: PIE_List(u16);
-    list: PIE_List(PIE_Model);
-  };
+  vertices: PIE_List(RD_WorldVertex);
+  indices: PIE_List(u16);
+  models: PIE_List(PIE_Model);
 
   skeletons: PIE_List(PIE_Skeleton);
   materials: PIE_List(PIE_Material);

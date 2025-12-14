@@ -77,8 +77,8 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/base_queue.jai";
 #load "../shared/base_lanes.jai";
 #load "../shared/base_color.jai";
-#load "../shared/pie_file_format.jai";
 #load "../shared/game_render_shared.jai";
+#load "../shared/pie_file_format.jai";
 #import "tr_hash_table";
 
 #import "superluminal"()(ENABLE_PROFILER = true);
