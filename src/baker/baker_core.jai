@@ -1,13 +1,29 @@
 BK_State :: struct
 {
-  pie: PIE_Builder;
-
+  // global settings
   tex_format: PIE_TexFormat;
 
+  // threading
+  core_count: s64;
+  lanes: [] BK_Lane;
+
+  // profiling
   init_time: Apollo_Time;
   last_time: Apollo_Time;
-};
+
+  // final .pie file builder
+  pie: PIE_Builder;
+}
 B: BK_State;
+
+BK_Lane :: struct
+{
+  models: [..] PIE_Model;
+  vertices: [..] RD_WorldVertex;
+  indices: [..] u16;
+  skeletons: [..] PIE_Skeleton;
+  materials: [..] PIE_Material;
+}
 
 BK_SetDefaultsPIEMaterial :: (pie_material: *PIE_Material)
 {
@@ -37,20 +53,3 @@ Timer :: (label: string)
     B.last_time = new_time;
   }
 }
-
-#import "Basic";
-#import "String";
-#import "Flat_Pool";
-#import "File";
-#import "sdl3_base+image";
-#load "baker_gltf.jai";
-#load "baker_textures.jai";
-#load "baker_pie.jai";
-#load "../shared/base_utils.jai";
-#load "../shared/base_math.jai";
-#load "../shared/base_string.jai";
-#load "../shared/base_hash.jai";
-#load "../shared/base_array.jai";
-#load "../shared/base_color.jai";
-#load "../shared/pie_file_format.jai";
-#load "../shared/game_render_shared.jai";

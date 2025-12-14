@@ -35,7 +35,7 @@ LaneGroupCreate :: (thread_count: s64) -> *LaneGroup {
 LaneGroupLaunch :: (proc: Thread_Proc, group: *LaneGroup, launch_lane0_on_this_thread: bool) {
   for *group.threads {
     if it_index > 0 || !launch_lane0_on_this_thread {
-      thread_init(it, G_LoopThreadEntry);
+      thread_init(it, proc);
       thread_start(it);
     }
   }

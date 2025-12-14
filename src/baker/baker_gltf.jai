@@ -1,7 +1,7 @@
-#import "cgltf";
-
-BK_GLTF_Spec :: struct
+BK_GLTF_LoadSpec :: struct
 {
+  file_path: string;
+
   height: float; // automatically adjust scale so model is equal height (meters) on Z axis
   disable_z0: bool; // automatically move model to start at z = 0
 
@@ -34,11 +34,11 @@ BK_GLTF_Model :: struct
   skeleton_index: u32;
   is_skinned: bool;
   joints_count: u32;
-  spec: BK_GLTF_Spec;
+  spec: BK_GLTF_LoadSpec;
   spec_transform: Mat4;
 };
 
-BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
+BK_GLTF_Load :: (spec: BK_GLTF_LoadSpec)
 {
   auto_release_temp();
   push_allocator(temp);
@@ -58,29 +58,29 @@ BK_GLTF_Load :: (file_path: string, spec: BK_GLTF_Spec)
 
   // Parse .gltf file & load buffers
   data: *cgltf_data;
-  res := cgltf_parse_file(*options, to_c_string(file_path), *data);
+  res := cgltf_parse_file(*options, to_c_string(spec.file_path), *data);
   if res != .cgltf_result_success
   {
-    log_error("[GLTF LOADER] Failed to parse %", file_path);
+    log_error("[GLTF LOADER] Failed to parse %", spec.file_path);
     return;
   }
 
-  res = cgltf_load_buffers(*options, data, to_c_string(file_path));
+  res = cgltf_load_buffers(*options, data, to_c_string(spec.file_path));
   if res != .cgltf_result_success
   {
-    log_error("[GLTF LOADER] Failed to load buffers, %", file_path);
+    log_error("[GLTF LOADER] Failed to load buffers, %", spec.file_path);
     return;
   }
 
   res = cgltf_validate(data);
   if res != .cgltf_result_success
   {
-    log_error("[GLTF LOADER] Failed to validate data, %", file_path);
+    log_error("[GLTF LOADER] Failed to validate data, %", spec.file_path);
     return;
   }
 
   // Prepare strings based on file_path
-  dir_path, file_name_no_ext, _, _ := path_decomp(file_path);
+  dir_path, file_name_no_ext, _, _ := path_decomp(spec.file_path);
 
   // Collect data from .gltf file
   // @todo Arena_Scope scratch = Arena_PushScope(BAKER.tmp);

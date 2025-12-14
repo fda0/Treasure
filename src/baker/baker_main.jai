@@ -3,9 +3,21 @@
 main :: ()
 {
   Timer("init");
-  B.tex_format = .R8G8B8A8;
 
+  B.tex_format = .R8G8B8A8;
   PIE_InitBuilder();
+
+  B.core_count = get_number_of_processors();
+  lane_group := LaneGroupCreate(B.core_count);
+  LaneGroupLaunch(BK_ProcessAssets, lane_group, true);
+}
+
+BK_ProcessAssets :: (thread: *Thread) -> s64
+{
+  thread_name := sprint("Client_%", LaneIdx());
+  // PerfThreadName(thread_name);
+
+  if LaneIdx() != 0 return 0;
 
   // Load .gltf models
   {
@@ -14,26 +26,25 @@ main :: ()
     rot_z := RotationAroundAxis(AxisV3(.Z), 0.25);
     rot_xz := rot_z * rot_x;
 
-    spec := BK_GLTF_Spec.{height = 1.7, rot = rot_xz};
     // @todo detect duplicated skeleton & animations and reuse it
     // BK_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
     // BK_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
     // BK_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
 
-    BK_GLTF_Load("../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", spec);
-    BK_GLTF_Load("../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", .{height = 1.0, rot = rot_xz});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz});
 
-    BK_GLTF_Load("../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", .{height = 3.0, rot = rot_xz, name = "Plank"});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"});
 
-    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Potion_1.gltf", .{height = 0.2, rot = rot_xz, name = "Potion"});
-    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Stool.gltf", .{height = 0.4, rot = rot_xz});
-    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Carrot.gltf", .{height = 1.0, rot = rot_xz});
-    BK_GLTF_Load("../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", .{height = 0.5, rot = rot_xz, name = "Bed"});
-    BK_GLTF_Load("../res/models/Quaternius/PirateKit/UI_Red_X.gltf", .{height = 0.05, rot = rot_xz, name = "Cross"});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"});
+    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"});
 
 
-    BK_GLTF_Load("../res/models/Other/Flag/Flag.glb", .{height = 1.0, rot = rot_x});
-    BK_GLTF_Load("../res/models/Other/tree_low-poly/scene.gltf", .{disable_z0 = true, height = 5.0, name = "Tree"});
+    BK_GLTF_Load(.{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x});
+    BK_GLTF_Load(.{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"});
     Timer("GLTF models loaded");
   }
 
@@ -72,7 +83,7 @@ main :: ()
     };
     // log("generated source_flags:\n%", source_flags);
 
-    base_dir := "../src/shader/";
+    base_dir := "../src/shaders/";
     source_util := read_entire_file(join(base_dir, "shader_util.hlsl"));
 
     GetArgs :: (source_file: string, entry: string, shader_type: Shader_Type) -> Dxc_Shader_Compiler_Args #expand
@@ -173,6 +184,30 @@ main :: ()
   PIE_FinalizeBuilder();
   PIE_SaveToFile("assets.pie");
   Timer("Saved to file");
+  return 0;
 }
 
+#import "Basic";
+#import "String";
+#import "Flat_Pool";
+#import "File";
+#import "Thread";
+#import "System";
+
+
+#import "cgltf";
+using,except(MSG) SDL :: #import "sdl3_base+image";
+
 #load "baker_core.jai";
+#load "baker_gltf.jai";
+#load "baker_textures.jai";
+#load "baker_pie.jai";
+#load "../shared/base_lanes.jai";
+#load "../shared/base_utils.jai";
+#load "../shared/base_math.jai";
+#load "../shared/base_string.jai";
+#load "../shared/base_hash.jai";
+#load "../shared/base_array.jai";
+#load "../shared/base_color.jai";
+#load "../shared/pie_file_format.jai";
+#load "../shared/game_render_shared.jai";
