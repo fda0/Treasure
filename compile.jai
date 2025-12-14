@@ -133,7 +133,7 @@ build :: ()
   {
     Build(.{workspace_name = "Baker",
             output_name = "Baker",
-            entry_file = "src/baker/baker_entry.jai",
+            entry_file = "src/baker/baker_main.jai",
             icon_path = "res/ico/cook.ico",
             autorun = run_baker});
   }

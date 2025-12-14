@@ -2,7 +2,7 @@ PIE_Builder :: struct
 {
   file: Flat_Pool;
 
-  active_list: *PIE_List;
+  active_list: *PIE_ListUntyped;
   active_list_type: Type;
 
   vertices: [..] RD_WorldVertex;
@@ -16,6 +16,7 @@ PIE_Builder :: struct
   fonts: [..] PIE_Blob;
   sounds: [..] PIE_Sound;
 }
+// PIE: PIE_Builder;
 
 //
 // Init, Finalize, Save to file
@@ -72,11 +73,10 @@ PIE_SaveToFile :: (file_path: string)
 //
 // File buffer / List helers
 //
-PIE_CurrentFileOffset :: () -> u32
+PIE_CurrentFileOffset :: () -> s64
 {
-  using B.pie;
-  offset := file.current_point.(u64) - file.memory_base.(u64);
-  return xx offset;
+  offset := B.pie.file.current_point - B.pie.file.memory_base;
+  return offset;
 }
 
 // Alignment
@@ -108,13 +108,12 @@ PIE_FileIsAlignedToType :: ($T: Type) -> bool
 }
 
 // ListStart / ListEnd
-PIE_ListStart :: (list: *PIE_ListT($LT))
+PIE_ListStart :: (list: *PIE_List($LT))
 {
-  using B.pie;
-  Check(!list.size);
-  Check(!active_list && !active_list_type);
-  active_list = list;
-  active_list_type = LT;
+  Check(!list.count);
+  Check(!B.pie.active_list && !B.pie.active_list_type);
+  B.pie.active_list = list;
+  B.pie.active_list_type = LT;
 
   PIE_FileAlignToType(LT);
   list.offset = PIE_CurrentFileOffset();
@@ -122,19 +121,23 @@ PIE_ListStart :: (list: *PIE_ListT($LT))
 
 PIE_ListEnd :: ()
 {
-  using B.pie;
-  Check(active_list && active_list_type);
-  Check(!active_list.size);
+  // Check that ListStart was called first
+  Check(B.pie.active_list && B.pie.active_list_type);
+  Check(!B.pie.active_list.count);
 
+  // Calculate offet / count
   current_offset := PIE_CurrentFileOffset();
-  Check(current_offset >= active_list.offset);
-  active_list.size = current_offset - active_list.offset;
+  Check(current_offset >= B.pie.active_list.offset);
+  size_bytes := current_offset - B.pie.active_list.offset;
 
-  active_list_type_size := active_list_type.(*Type_Info).runtime_size;
-  Check(active_list.size % active_list_type_size == 0);
+  type_size := B.pie.active_list_type.(*Type_Info).runtime_size;
+  Check(size_bytes % type_size == 0);
 
-  active_list = null;
-  memset(*active_list_type, 0, size_of(Type));
+  B.pie.active_list.count = size_bytes / type_size;
+
+  // Clean up active_list references
+  B.pie.active_list = null;
+  memset(*B.pie.active_list_type, 0, size_of(Type));
 }
 
 // AllocInFile
@@ -195,7 +198,7 @@ PIE_FileAppendPrint :: (format_string: string, args: .. Any)
 }
 
 // ListAlloc
-PIE_ListAllocArray :: (list: *PIE_ListT($LT), count: s64, $T: Type) -> [] T
+PIE_ListAllocArray :: (list: *PIE_List($LT), count: s64, $T: Type) -> [] T
 {
   #assert(LT == T);
   PIE_ListStart(list);
@@ -205,7 +208,7 @@ PIE_ListAllocArray :: (list: *PIE_ListT($LT), count: s64, $T: Type) -> [] T
 }
 
 // ListSet
-PIE_ListSetValue :: (list: *PIE_ListT($LT), value: $T)
+PIE_ListSetValue :: (list: *PIE_List($LT), value: $T)
 {
   #assert(LT == T);
   PIE_ListStart(list);
@@ -213,7 +216,7 @@ PIE_ListSetValue :: (list: *PIE_ListT($LT), value: $T)
   PIE_ListEnd();
 }
 
-PIE_ListSetArray :: (list: *PIE_ListT($LT), array: [] $T)
+PIE_ListSetArray :: (list: *PIE_List($LT), array: [] $T)
 {
   #assert(LT == T);
   PIE_ListStart(list);
@@ -221,7 +224,7 @@ PIE_ListSetArray :: (list: *PIE_ListT($LT), array: [] $T)
   PIE_ListEnd();
 }
 
-PIE_ListSetString :: (list: *PIE_ListT($LT), str: string)
+PIE_ListSetString :: (list: *PIE_List($LT), str: string)
 {
   #assert(LT == u8);
   PIE_ListStart(list);
@@ -229,7 +232,7 @@ PIE_ListSetString :: (list: *PIE_ListT($LT), str: string)
   PIE_ListEnd();
 }
 
-PIE_ListSetPrint :: (list: *PIE_ListT($LT), format_string: string, args: .. Any)
+PIE_ListSetPrint :: (list: *PIE_List($LT), format_string: string, args: .. Any)
 {
   #assert(LT == u8);
   PIE_ListStart(list);

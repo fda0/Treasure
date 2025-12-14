@@ -56,15 +56,10 @@ PIE_LOAD_OffsetSizeToArray :: (offset: s64, size: s64, $T: Type) -> [] T
 
 PIE_LOAD_ListToString :: (list: PIE_List) -> string
 {
-  return PIE_LOAD_OffsetSizeToString(list.offset, list.size);
+  return PIE_LOAD_OffsetSizeToString(list.offset, array_size_bytes(list.array));
 }
 
-PIE_LOAD_ListCount :: (list: PIE_ListT($LT)) -> s64
+PIE_LOAD_ListToArray :: (list: PIE_List) -> [] list.TYPE
 {
-  return list.size / size_of(LT);
-}
-
-PIE_LOAD_ListToArray :: (list: PIE_ListT($LT)) -> [] LT
-{
-  return PIE_LOAD_OffsetSizeToArray(list.offset, list.size, LT);
+  return PIE_LOAD_OffsetSizeToArray(list.offset, array_size_bytes(list.array), list.TYPE);
 }

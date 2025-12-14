@@ -460,7 +460,7 @@ BK_GLTF_ExportSkeletonToPie :: (model: *BK_GLTF_Model, data: *cgltf_data)
 
     // First allocate all strings in file in one continuous chunk.
     // Track min&max paris of each string and put them in file at the end.
-    temp_name_ranges := NewArray(xx joints_count, Range(u32));
+    temp_name_ranges := NewArray(xx joints_count, Range(s64));
     for joint_index: MakeRange(joints_count)
     {
       temp_name_ranges[joint_index].min = PIE_CurrentFileOffset();

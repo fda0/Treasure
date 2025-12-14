@@ -167,7 +167,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
       {
         source := SDL_GPUTextureTransferInfo.{
           transfer_buffer = transfer,
-          offset = it.data_offset,
+          offset = xx it.data_offset,
           pixels_per_row = it.width,
         };
         destination := SDL_GPUTextureRegion.{
@@ -347,8 +347,8 @@ ASSET_InitModels :: ()
 
   // Load meshes
   {
-    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, pie.links.models.vertices.size, "WORLD vertices");
-    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, pie.links.models.indices.size, "Model indices");
+    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(pie.links.models.vertices.array), "WORLD vertices");
+    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(pie.links.models.indices.array), "Model indices");
 
     vertices_string := PIE_LOAD_ListToString(pie.links.models.vertices);
     indices_string := PIE_LOAD_ListToString(pie.links.models.indices);
@@ -483,8 +483,8 @@ ASSET_InitSkeletons :: ()
         chan.inputs = PIE_LOAD_ListToArray(pie_chan.inputs);
 
         comp_count := ifx chan.type == .Rotation then 4 else 3;
-        PIE_LOAD_Check(comp_count * chan.inputs.count * size_of(float) == pie_chan.outputs.size,
-          tprint("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), pie_chan.outputs.size));
+        PIE_LOAD_Check(comp_count * chan.inputs.count * size_of(float) == array_size_bytes(pie_chan.outputs.array),
+          tprint("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs.array)));
         chan.outputs = PIE_LOAD_ListToArray(pie_chan.outputs);
       }
     }
