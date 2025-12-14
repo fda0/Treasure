@@ -228,7 +228,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
 BK_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
 {
   // Allocate and prepare PIE_Material & array of PIE_Texture
-  pie_material := array_add(*B.pie.materials);
+  pie_material := array_add(*PIE.materials);
   BK_SetDefaultsPIEMaterial(pie_material);
 
   PIE_ListSetPrint(*pie_material.name, "%", tex_name);

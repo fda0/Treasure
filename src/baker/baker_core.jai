@@ -10,9 +10,6 @@ BK_State :: struct
   // profiling
   init_time: Apollo_Time;
   last_time: Apollo_Time;
-
-  // final .pie file builder
-  pie: PIE_Builder;
 }
 B: BK_State;
 

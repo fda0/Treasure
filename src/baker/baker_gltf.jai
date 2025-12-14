@@ -100,9 +100,9 @@ BK_GLTF_Load :: (spec: BK_GLTF_LoadSpec)
     gltf_material := data.materials[mesh_index];
 
     // Create material
-    bk_mesh.material_index = B.pie.materials.count;
+    bk_mesh.material_index = PIE.materials.count;
     {
-      pie_material := array_add(*B.pie.materials);
+      pie_material := array_add(*PIE.materials);
       BK_SetDefaultsPIEMaterial(pie_material);
 
       // Fill material name
@@ -366,8 +366,8 @@ BK_GLTF_Load :: (spec: BK_GLTF_LoadSpec)
 BK_GLTF_ExportSkeletonToPie :: (model: *BK_GLTF_Model, data: *cgltf_data)
 {
   model.has_skeleton = true;
-  model.skeleton_index = xx B.pie.skeletons.count;
-  pie_skel := array_add(*B.pie.skeletons);
+  model.skeleton_index = xx PIE.skeletons.count;
+  pie_skel := array_add(*PIE.skeletons);
 
   // Root transform
   pie_skel.root_transform = model.spec_transform;
@@ -535,7 +535,7 @@ BK_GLTF_ExportSkeletonToPie :: (model: *BK_GLTF_Model, data: *cgltf_data)
 
 BK_GLTF_ExportModelToPie :: (bk_model: BK_GLTF_Model)
 {
-  pie_model := array_add(*B.pie.models);
+  pie_model := array_add(*PIE.models);
 
   // Name string
   PIE_ListSetString(*pie_model.name, bk_model.name);
@@ -549,7 +549,7 @@ BK_GLTF_ExportModelToPie :: (bk_model: BK_GLTF_Model)
   {
     pie_mesh := *pie_meshes[mesh_index];
     pie_mesh.material_index = xx bk_mesh.material_index;
-    pie_mesh.vertices_start_index = xx B.pie.vertices.count;
+    pie_mesh.vertices_start_index = xx PIE.vertices.count;
 
     // vertices
     for vert_i: MakeRange(bk_mesh.verts_count)
@@ -628,14 +628,14 @@ BK_GLTF_ExportModelToPie :: (bk_model: BK_GLTF_Model)
         vert.joint_weights = weights;
       }
 
-      array_add(*B.pie.vertices, vert);
+      array_add(*PIE.vertices, vert);
     }
 
     // Indices
     {
-      pie_mesh.indices_start_index = xx B.pie.indices.count;
+      pie_mesh.indices_start_index = xx PIE.indices.count;
       pie_mesh.indices_count += xx bk_mesh.indices.count;
-      array_add_from_another_array(*B.pie.indices, bk_mesh.indices);
+      array_add_from_another_array(*PIE.indices, bk_mesh.indices);
     }
   }
 }
