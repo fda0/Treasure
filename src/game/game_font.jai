@@ -63,13 +63,13 @@ FONT_Init :: ()
   for enum_values_as_enum(FONT_Family)
   {
     if FONT.err break;
-    if it.(s64) > AST.fonts.count
+    if it.(s64) >= AST.pie.fonts.count
     {
-      log_error("Font %(%) is missing in .pie file. Loaded fonts count: %", it, it.(s64), AST.fonts.count);
+      log_error("Font %(%) is missing in .pie file. Loaded fonts count: %", it, it.(s64), AST.pie.fonts.count);
       break;
     }
 
-    font_data := AST.fonts[it];
+    font_data := AST.pie.fonts[it].data.str;
     FONT.err = FT_New_Memory_Face(FONT.ft_library, font_data.data, xx font_data.count, 0, *FONT.ft_faces[it]);
   }
 

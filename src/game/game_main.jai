@@ -60,7 +60,6 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_render.jai";
 #load "game_font.jai";
 #load "game_tests.jai";
-#load "game_pie_loader.jai";
 #load "game_stats.jai";
 #load "game_logging.jai";
 #load "game_unique_variables.jai";
@@ -77,7 +76,6 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/base_queue.jai";
 #load "../shared/base_lanes.jai";
 #load "../shared/base_color.jai";
-#load "../shared/game_render_shared.jai";
 #load "../shared/pie_file_format.jai";
 #import "tr_hash_table";
 

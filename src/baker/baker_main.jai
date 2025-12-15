@@ -210,4 +210,3 @@ using,except(MSG) SDL :: #import "sdl3_base+image";
 #load "../shared/base_array.jai";
 #load "../shared/base_color.jai";
 #load "../shared/pie_file_format.jai";
-#load "../shared/game_render_shared.jai";

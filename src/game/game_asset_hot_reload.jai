@@ -22,8 +22,7 @@ HR_ProcessNewPIEFile :: (file_path: string)
   log("HR is disabled for now; @todo reenable it");
   if (1) return;
 
-  if !AST.pie.err ASSET_LoadPieFile(file_path);
-  if !AST.pie.err ASSET_InitShaders();
+  ASSET_LoadPieFile(file_path);
   GPU_InitPipelines(); // @todo in the future detect what changes were found in .pie file and re-init only needed parts of the engine.
 }
 

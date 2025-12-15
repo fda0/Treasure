@@ -23,8 +23,6 @@ ASSET_State :: struct
   skeletons: [] Skeleton;
 
   // Blobs
-  shaders: [] string;
-  fonts: [] string;
   sounds: [] AUDIO_Sound;
 
   model_id_to_slot: [ModelID_Count] ModelSlot;
@@ -96,11 +94,12 @@ IsNil :: (a: *Model) -> bool { return a == *AST.models[0]; }
 
 ASSET_PieFile :: struct
 {
-  file: string;
-  err: bool;
+  file: string; // @todo remove?
 
   header: *PIE_Header;
   links: *PIE_Links;
+  vertices: [] RD_WorldVertex;
+  indices: [] u16;
   models: [] PIE_Model;
   materials: [] PIE_Material;
   shaders: [] PIE_Blob;
@@ -125,8 +124,8 @@ ModelFromID :: (id: ModelID) -> *Model { return ModelFromSlot(ModelSlotFromID(id
 
 GetShader :: (type: ShaderType) -> string
 {
-  if xx type >= AST.shaders.count then return "";
-  return AST.shaders[type];
+  if type.(s64) >= AST.pie.shaders.count return "";
+  return AST.pie.shaders[type].data.str;
 }
 
 //

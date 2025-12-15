@@ -6,7 +6,7 @@ TEXT_LineParams :: struct
   draw_color: Color32;
 
   dimensions: V2; // out
-};
+}
 
 // All in one text function - can do layout, drawing and/or text dimension measurement
 TEXT_ProcessLine :: (text: string, font: FONT_Family, pixel_height: u16, using params: *TEXT_LineParams)

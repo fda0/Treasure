@@ -11,6 +11,10 @@ PIE_List :: struct($TYPE: Type)
 {
   #as using untyped: PIE_ListUntyped;
   #place untyped; array: [] TYPE;
+
+  #if size_of(TYPE) == 1 {
+    #place untyped; str: string;
+  }
 }
 
 RD_WorldVertex :: struct
@@ -21,7 +25,7 @@ RD_WorldVertex :: struct
   // @todo color_packed: u32; (Carrot model uses vertex colors!)
   joints_packed4: u32;
   joint_weights: V4;
-};
+}
 
 RD_WorldShaderFlags :: enum_flags u32
 {
@@ -35,7 +39,7 @@ RD_WorldShaderFlags :: enum_flags u32
   EnableHueShift;
   DiscardColorPickZero;
   PixelEarlyExit;
-};
+}
 
 PIE_AnimationChannelType :: enum u32
 {
@@ -134,7 +138,7 @@ PIE_Material :: struct
     layers: s32;
     full_data: PIE_List(u8);
     sections: PIE_List(PIE_MaterialTexSection);
-  };
+  }
 }
 
 PIE_Sound :: struct
