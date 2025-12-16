@@ -1,4 +1,4 @@
-PIE_Builder :: struct
+B_PieBuilder :: struct
 {
   file: Flat_Pool;
 
@@ -16,14 +16,15 @@ PIE_Builder :: struct
   fonts: [..] PIE_Blob;
   sounds: [..] PIE_Sound;
 }
-PIE: PIE_Builder;
 
 //
 // Init, Finalize, Save to file
 //
+B_LanePie :: () -> *B_PieBuilder { return *B.pies[LaneIdx()]; }
 
-PIE_InitBuilder :: ()
+B_InitPieBuilder :: ()
 {
+  PIE := B_LanePie();
   PIE.file.alignment = 1; // We are doing our own, tightly packed, precise alignment on per-type basis.
   init(*PIE.file, reserve = Gigabyte(2));
   remember_allocators(*PIE.vertices);
@@ -35,33 +36,35 @@ PIE_InitBuilder :: ()
   remember_allocators(*PIE.fonts);
   remember_allocators(*PIE.sounds);
 
-  PIE_FileAllocType(PIE_Header);
+  B_FileAllocType(PIE_Header);
 }
 
-PIE_FinalizeBuilder :: ()
+B_FinalizePieBuilder :: ()
 {
+  PIE := B_LanePie();
   // Prepare PIE_Links and append it to memory
   links: PIE_Links;
-  PIE_ListSetArray(*links.vertices, PIE.vertices);
-  PIE_ListSetArray(*links.indices, PIE.indices);
-  PIE_ListSetArray(*links.models, PIE.models);
-  PIE_ListSetArray(*links.skeletons, PIE.skeletons);
-  PIE_ListSetArray(*links.materials, PIE.materials);
-  PIE_ListSetArray(*links.shaders, PIE.shaders);
-  PIE_ListSetArray(*links.fonts, PIE.fonts);
-  PIE_ListSetArray(*links.sounds, PIE.sounds);
+  B_ListSetArray(*links.vertices, PIE.vertices);
+  B_ListSetArray(*links.indices, PIE.indices);
+  B_ListSetArray(*links.models, PIE.models);
+  B_ListSetArray(*links.skeletons, PIE.skeletons);
+  B_ListSetArray(*links.materials, PIE.materials);
+  B_ListSetArray(*links.shaders, PIE.shaders);
+  B_ListSetArray(*links.fonts, PIE.fonts);
+  B_ListSetArray(*links.sounds, PIE.sounds);
 
   // Prepare PIE_Header
   header := PIE.file.memory_base.(*PIE_Header);
-  PIE_ListSetValue(*header.links, links);
+  B_ListSetValue(*header.links, links);
 
   // Calculate hash
   hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), PIE.file.current_point);
   header.file_hash = Hash64Any(PIE_MAGIC_HASH_SEED, hashable_file);
 }
 
-PIE_SaveToFile :: (file_path: string)
+B_SaveToFile :: (file_path: string)
 {
+  PIE := B_LanePie();
   content := StrFirstLast(PIE.file.memory_base, PIE.file.current_point);
   write_entire_file(file_path, content);
 }
@@ -69,16 +72,18 @@ PIE_SaveToFile :: (file_path: string)
 //
 // File buffer / List helers
 //
-PIE_CurrentFileOffset :: () -> s64
+B_CurrentFileOffset :: () -> s64
 {
+  PIE := B_LanePie();
   offset := PIE.file.current_point - PIE.file.memory_base;
   return offset;
 }
 
 // Alignment
-PIE_FileAlign :: (alignment: s64)
+B_FileAlign :: (alignment: s64)
 {
-  current_offset := PIE_CurrentFileOffset();
+  PIE := B_LanePie();
+  current_offset := B_CurrentFileOffset();
   missaligned_bytes := current_offset % alignment;
   if missaligned_bytes
   {
@@ -88,39 +93,41 @@ PIE_FileAlign :: (alignment: s64)
   }
 }
 
-PIE_FileAlignToType :: ($T: Type)
+B_FileAlignToType :: ($T: Type)
 {
-  PIE_FileAlign(align_of(T));
+  B_FileAlign(align_of(T));
 }
 
-PIE_FileIsAlignedToType :: ($T: Type) -> bool
+B_FileIsAlignedToType :: ($T: Type) -> bool
 {
-  current_offset := PIE_CurrentFileOffset();
+  current_offset := B_CurrentFileOffset();
   alignment := align_of(T);
   missaligned_bytes := current_offset % alignment;
   return missaligned_bytes == 0;
 }
 
 // ListStart / ListEnd
-PIE_ListStart :: (list: *PIE_List($LT))
+B_ListStart :: (list: *PIE_List($LT))
 {
+  PIE := B_LanePie();
   Check(!list.count);
   Check(!PIE.active_list && !PIE.active_list_type);
   PIE.active_list = list;
   PIE.active_list_type = LT;
 
-  PIE_FileAlignToType(LT);
-  list.offset = PIE_CurrentFileOffset();
+  B_FileAlignToType(LT);
+  list.offset = B_CurrentFileOffset();
 }
 
-PIE_ListEnd :: ()
+B_ListEnd :: ()
 {
+  PIE := B_LanePie();
   // Check that ListStart was called first
   Check(PIE.active_list && PIE.active_list_type);
   Check(!PIE.active_list.count);
 
   // Calculate offet / count
-  current_offset := PIE_CurrentFileOffset();
+  current_offset := B_CurrentFileOffset();
   Check(current_offset >= PIE.active_list.offset);
   size_bytes := current_offset - PIE.active_list.offset;
 
@@ -135,96 +142,100 @@ PIE_ListEnd :: ()
 }
 
 // AllocInFile
-PIE_FileAllocBytes :: (size: s64) -> *void
+B_FileAllocBytes :: (size: s64) -> *void
 {
+  PIE := B_LanePie();
   bytes := get(*PIE.file, size);
   memset(bytes, 0, size);
   return bytes;
 }
 
-PIE_FileAllocType :: ($T: Type) -> *T
+B_FileAllocType :: ($T: Type) -> *T
 {
-  Check(PIE_FileIsAlignedToType(T));
+  PIE := B_LanePie();
+  Check(B_FileIsAlignedToType(T));
   Check(!PIE.active_list_type || PIE.active_list_type == T);
-  return PIE_FileAllocBytes(size_of(T));
+  return B_FileAllocBytes(size_of(T));
 }
 
-PIE_FileAllocArray :: (count: s64, $T: Type) -> [] T
+B_FileAllocArray :: (count: s64, $T: Type) -> [] T
 {
-  Check(PIE_FileIsAlignedToType(T));
+  PIE := B_LanePie();
+  Check(B_FileIsAlignedToType(T));
   Check(!PIE.active_list_type || PIE.active_list_type == T);
 
   result: [] T;
   result.count = count;
-  result.data = PIE_FileAllocBytes(count * size_of(T));
+  result.data = B_FileAllocBytes(count * size_of(T));
   return result;
 }
 
 // FileAppend
-PIE_FileAppendValue :: (value: $T)
+B_FileAppendValue :: (value: $T)
 {
+  PIE := B_LanePie();
   Check(!PIE.active_list_type || PIE.active_list_type == T);
-  dst := PIE_FileAllocType(T);
+  dst := B_FileAllocType(T);
   dst.* = value;
 }
 
-PIE_FileAppendArray :: (array: [] $T)
+B_FileAppendArray :: (array: [] $T)
 {
-  dst := PIE_FileAllocArray(array.count, T);
+  dst := B_FileAllocArray(array.count, T);
   memcpy(dst.data, array.data, size_of(T)*array.count);
 }
 
-PIE_FileAppendString :: (str: string)
+B_FileAppendString :: (str: string)
 {
-  PIE_FileAppendArray(cast([] u8) str);
+  B_FileAppendArray(cast([] u8) str);
 }
 
-PIE_FileAppendPrint :: (format_string: string, args: .. Any)
+B_FileAppendPrint :: (format_string: string, args: .. Any)
 {
   auto_release_temp();
   printed := tprint(format_string, ..args);
-  PIE_FileAppendString(printed);
+  B_FileAppendString(printed);
 }
 
 // ListAlloc
-PIE_ListAllocArray :: (list: *PIE_List($LT), count: s64, $T: Type) -> [] T
+B_ListAllocArray :: (list: *PIE_List($LT), count: s64, $T: Type) -> [] T
 {
   #assert(LT == T);
-  PIE_ListStart(list);
-  result := PIE_FileAllocArray(count, T);
-  PIE_ListEnd();
+  B_ListStart(list);
+  result := B_FileAllocArray(count, T);
+  B_ListEnd();
   return result;
 }
 
 // ListSet
-PIE_ListSetValue :: (list: *PIE_List($LT), value: $T)
+B_ListSetValue :: (list: *PIE_List($LT), value: $T)
 {
   #assert(LT == T);
-  PIE_ListStart(list);
-  PIE_FileAppendValue(value);
-  PIE_ListEnd();
+  B_ListStart(list);
+  B_FileAppendValue(value);
+  B_ListEnd();
 }
 
-PIE_ListSetArray :: (list: *PIE_List($LT), array: [] $T)
+B_ListSetArray :: (list: *PIE_List($LT), array: [] $T)
 {
   #assert(LT == T);
-  PIE_ListStart(list);
-  PIE_FileAppendArray(array);
-  PIE_ListEnd();
+  B_ListStart(list);
+  B_FileAppendArray(array);
+  B_ListEnd();
 }
 
-PIE_ListSetString :: (list: *PIE_List($LT), str: string)
+B_ListSetString :: (list: *PIE_List($LT), str: string)
 {
   #assert(LT == u8);
-  PIE_ListStart(list);
-  PIE_FileAppendString(str);
-  PIE_ListEnd();
+  B_ListStart(list);
+  B_FileAppendString(str);
+  B_ListEnd();
 }
 
-PIE_ListSetPrint :: (list: *PIE_List($LT), format_string: string, args: .. Any)
+B_ListSetPrint :: (list: *PIE_List($LT), format_string: string, args: .. Any)
 {
   #assert(LT == u8);
-  PIE_ListStart(list);
-  PIE_FileAppendPrint(format_string, ..args);
-  PIE_ListEnd();
+  B_ListStart(list);
+  B_FileAppendPrint(format_string, ..args);
+  B_ListEnd();
 }

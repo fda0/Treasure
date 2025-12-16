@@ -1,20 +1,20 @@
-BK_TEX_Input :: struct
+B_TEX_Input :: struct
 {
   str: string;
   type: enum {PATH; DATA;};
 }
 
-BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
+B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
 {
   auto_release_temp();
   push_allocator(temp);
 
-  BK_TexFile :: struct
+  B_TexFile :: struct
   {
-    BK_MIPMAPS_MAX :: 16;
-    surfs: [BK_MIPMAPS_MAX] *SDL_Surface;
+    B_MIPMAPS_MAX :: 16;
+    surfs: [B_MIPMAPS_MAX] *SDL_Surface;
   };
-  files := NewArray(inputs.count, BK_TexFile);
+  files := NewArray(inputs.count, B_TexFile);
 
   errors := false;
   for * files
@@ -69,7 +69,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
     if B.tex_format == .BC7_RGBA
     {
       lods_count = CalculateMipMapCount(orig_width, orig_height);
-      Check(BK_TexFile.BK_MIPMAPS_MAX >= lods_count);
+      Check(B_TexFile.B_MIPMAPS_MAX >= lods_count);
     }
 
     for * files
@@ -98,9 +98,9 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
     pie_material.tex.layers = xx inputs.count;
 
     pie_textures_count := pie_material.tex.lods * pie_material.tex.layers;
-    pie_texture_sections := PIE_ListAllocArray(*pie_material.tex.sections, pie_textures_count, PIE_MaterialTexSection);
+    pie_texture_sections := B_ListAllocArray(*pie_material.tex.sections, pie_textures_count, PIE_MaterialTexSection);
 
-    PIE_ListStart(*pie_material.tex.full_data);
+    B_ListStart(*pie_material.tex.full_data);
 
     // Iterate over fliles
     if pie_material.tex.format == .R8G8B8A8
@@ -125,11 +125,11 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
           pie_sect.height = xx surf.h;
           pie_sect.lod = xx lod_index;
           pie_sect.layer = xx file_index;
-          pie_sect.data_offset = PIE_CurrentFileOffset() - pie_material.tex.full_data.offset;
+          pie_sect.data_offset = B_CurrentFileOffset() - pie_material.tex.full_data.offset;
           pie_sect.data_size = xx pie_data_size;
 
           // Alloc data buffer
-          pie_data := PIE_FileAllocBytes(pie_data_size);
+          pie_data := B_FileAllocBytes(pie_data_size);
 
           // Copy data to .pie file buffer
           if surf.w * size_of(u32) == surf.pitch
@@ -147,7 +147,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
   //     U32 pie_texture_index = 0;
   //     ForU32(file_index, paths_count)
   //     {
-  //       BK_TexFile *file = files + file_index;
+  //       B_TexFile *file = files + file_index;
 
   //       // Iterate over lods
   //       ForU32(lod_index, lods_count)
@@ -155,7 +155,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
   //         SDL_Surface *surf = file.surfs[lod_index];
 
   //         Check(pie_texture_index < pie_textures_count);
-  //         PIE_MaterialTexSection *pie_sect = pie_texture_sections + pie_texture_index;
+  //         B_MaterialTexSection *pie_sect = pie_texture_sections + pie_texture_index;
   //         pie_texture_index += 1;
 
   //         // Calculate data buffer dimensions
@@ -172,7 +172,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
   //         pie_sect.data_size = pie_data_size;
 
   //         // Alloc data buffer
-  //         U8 *pie_data = PIE_Reserve(&build.file, U8, pie_data_size);
+  //         U8 *pie_data = B_Reserve(&build.file, U8, pie_data_size);
   //         U8 *pie_data_end = pie_data + pie_data_size;
   //         U8 *pie_pixels = pie_data;
 
@@ -215,7 +215,7 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
   //     }
     }
 
-    PIE_ListEnd();
+    B_ListEnd();
   }
 
   if errors
@@ -225,13 +225,14 @@ BK_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] BK_TEX_Input)
   }
 }
 
-BK_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
+B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
 {
-  // Allocate and prepare PIE_Material & array of PIE_Texture
+  PIE := B_LanePie();
+  // Allocate and prepare PIE_Material & array of B_Texture
   pie_material := array_add(*PIE.materials);
-  BK_SetDefaultsPIEMaterial(pie_material);
+  B_SetDefaultsPIEMaterial(pie_material);
 
-  PIE_ListSetPrint(*pie_material.name, "%", tex_name);
+  B_ListSetPrint(*pie_material.name, "%", tex_name);
   pie_material.params.specular = xx specular_color;
 
   {
@@ -244,12 +245,12 @@ BK_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
       "NormalGL.jpg",
       "Roughness.jpg",
     ];
-    file_paths: [postfixes.count] BK_TEX_Input;
+    file_paths: [postfixes.count] B_TEX_Input;
 
     for postfixes
       file_paths[it_index].str = tprint("../res/tex/%1/%1_1K-JPG_%", tex_name, it);
 
     // Load textures
-    BK_TEX_LoadPaths(pie_material, file_paths);
+    B_TEX_LoadPaths(pie_material, file_paths);
   }
 }

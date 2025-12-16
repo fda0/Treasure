@@ -1,19 +1,20 @@
-// @speed - multithread
-// @speed - cache
 main :: ()
 {
   Timer("init");
 
   B.tex_format = .R8G8B8A8;
-  PIE_InitBuilder();
 
   B.core_count = get_number_of_processors();
+  B.pies = NewArray(B.core_count, B_PieBuilder);
   lane_group := LaneGroupCreate(B.core_count);
-  LaneGroupLaunch(BK_ProcessAssets, lane_group, true);
+  LaneGroupLaunch(B_ProcessAssets, lane_group, true);
 }
 
-BK_ProcessAssets :: (thread: *Thread) -> s64
+B_ProcessAssets :: (thread: *Thread) -> s64
 {
+  B_InitPieBuilder();
+  PIE := B_LanePie();
+
   thread_name := sprint("Client_%", LaneIdx());
   // PerfThreadName(thread_name);
 
@@ -27,24 +28,24 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
     rot_xz := rot_z * rot_x;
 
     // @todo detect duplicated skeleton & animations and reuse it
-    // BK_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
-    // BK_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
-    // BK_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
+    // B_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
+    // B_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
+    // B_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
 
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz});
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz});
 
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"});
 
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"});
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz});
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz});
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"});
-    BK_GLTF_Load(.{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"});
+    B_GLTF_Load(.{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"});
 
 
-    BK_GLTF_Load(.{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x});
-    BK_GLTF_Load(.{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"});
+    B_GLTF_Load(.{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x});
+    B_GLTF_Load(.{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"});
     Timer("GLTF models loaded");
   }
 
@@ -55,19 +56,19 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
     spec_low := Color32_Grayf(0.1);
     spec_mid := Color32_Grayf(0.2);
     spec_big := Color32_Grayf(0.4);
-    // BK_TEX_LoadPBRs("Bricks071", spec_mid);
-    // BK_TEX_LoadPBRs("Bricks097", spec_mid);
-    BK_TEX_LoadPBRs("Clay002", spec_big);
-    BK_TEX_LoadPBRs("Grass004", spec_tiny);
-    // BK_TEX_LoadPBRs("Ground037", spec_tiny);
-    // BK_TEX_LoadPBRs("Ground068", spec_tiny);
-    BK_TEX_LoadPBRs("Ground075", spec_mid);
-    // BK_TEX_LoadPBRs("Ground078", spec_tiny);
-    BK_TEX_LoadPBRs("Leather011", spec_big);
-    // BK_TEX_LoadPBRs("PavingStones067", spec_low);
-    // BK_TEX_LoadPBRs("Tiles087", spec_big);
-    // BK_TEX_LoadPBRs("Tiles101", spec_big);
-    // BK_TEX_LoadPBRs("TestPBR001", spec_mid);
+    // B_TEX_LoadPBRs("Bricks071", spec_mid);
+    // B_TEX_LoadPBRs("Bricks097", spec_mid);
+    B_TEX_LoadPBRs("Clay002", spec_big);
+    B_TEX_LoadPBRs("Grass004", spec_tiny);
+    // B_TEX_LoadPBRs("Ground037", spec_tiny);
+    // B_TEX_LoadPBRs("Ground068", spec_tiny);
+    B_TEX_LoadPBRs("Ground075", spec_mid);
+    // B_TEX_LoadPBRs("Ground078", spec_tiny);
+    B_TEX_LoadPBRs("Leather011", spec_big);
+    // B_TEX_LoadPBRs("PavingStones067", spec_low);
+    // B_TEX_LoadPBRs("Tiles087", spec_big);
+    // B_TEX_LoadPBRs("Tiles101", spec_big);
+    // B_TEX_LoadPBRs("TestPBR001", spec_mid);
     Timer("PBR textures loaded");
   }
 
@@ -115,10 +116,10 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
     ui_vs := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderVS", .Vertex));
     ui_ps := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderPS", .Fragment));
     // @todo Things like entrypoint name could be saved into .pie file too.
-    PIE_ListSetArray(*array_add(*PIE.shaders).data, world_vs);
-    PIE_ListSetArray(*array_add(*PIE.shaders).data, world_ps);
-    PIE_ListSetArray(*array_add(*PIE.shaders).data, ui_vs);
-    PIE_ListSetArray(*array_add(*PIE.shaders).data, ui_ps);
+    B_ListSetArray(*array_add(*PIE.shaders).data, world_vs);
+    B_ListSetArray(*array_add(*PIE.shaders).data, world_ps);
+    B_ListSetArray(*array_add(*PIE.shaders).data, ui_vs);
+    B_ListSetArray(*array_add(*PIE.shaders).data, ui_ps);
     Timer("Shaders compiled");
   }
 
@@ -139,8 +140,8 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
       Check(success, "Failed to load font file %", path);
 
       blob: PIE_Blob;
-      PIE_ListSetString(*blob.data, data);
-      PIE_ListSetString(*blob.info, it);
+      B_ListSetString(*blob.data, data);
+      B_ListSetString(*blob.info, it);
       array_add(*PIE.fonts, blob);
     }
 
@@ -173,7 +174,7 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
 
       data_string := string.{count = xx data_size, data = data_ptr};
       pie_sound: PIE_Sound;
-      PIE_ListSetString(*pie_sound.data, data_string);
+      B_ListSetString(*pie_sound.data, data_string);
       pie_sound.format = audio_spec;
       array_add(*PIE.sounds, pie_sound);
     }
@@ -181,10 +182,54 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
     Timer("Loaded sound files");
   }
 
-  PIE_FinalizeBuilder();
-  PIE_SaveToFile("assets.pie");
+  B_FinalizePieBuilder();
+  B_SaveToFile("assets.pie");
   Timer("Saved to file");
   return 0;
+}
+
+B_State :: struct
+{
+  // global settings
+  tex_format: PIE_TexFormat;
+
+  // threading
+  core_count: s64;
+  pies: [] B_PieBuilder;
+
+  // profiling
+  init_time: Apollo_Time;
+  last_time: Apollo_Time;
+}
+B: B_State;
+
+B_SetDefaultsPIEMaterial :: (pie_material: *PIE_Material)
+{
+  pie_material.params.diffuse = xx Color32_RGBi(128,128,128);
+  pie_material.params.specular = xx Color32_RGBf(0.05, 0.02, 0.01);
+  pie_material.params.roughness = 0.5;
+}
+
+Check :: (arg: bool, message := "", args: .. Any, loc := #caller_location) #no_debug #expand {
+  if !arg && assert_helper(message, ..args, loc) then debug_break();
+}
+
+Timer :: (label: string)
+{
+  new_time := current_time_monotonic();
+  if !B.init_time
+  {
+    B.init_time = new_time;
+    B.last_time = new_time;
+  }
+  else
+  {
+    delta_itself := new_time - B.last_time;
+    delta_total := new_time - B.init_time;
+    ms :: to_milliseconds;
+    log("[Timer %] itself: %ms; total: %ms", label, ms(delta_itself), ms(delta_total));
+    B.last_time = new_time;
+  }
 }
 
 #import "Basic";
@@ -194,11 +239,9 @@ BK_ProcessAssets :: (thread: *Thread) -> s64
 #import "Thread";
 #import "System";
 
-
 #import "cgltf";
 using,except(MSG) SDL :: #import "sdl3_base+image";
 
-#load "baker_core.jai";
 #load "baker_gltf.jai";
 #load "baker_textures.jai";
 #load "baker_pie.jai";
