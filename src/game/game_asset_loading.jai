@@ -415,8 +415,8 @@ ASSET_InitModels :: () #expand
     AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(pie.indices), "Model indices");
 
     cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
-    GPU_TransferBuffer(cmd, AST.model_vertices, pie.vertices.data, xx pie.vertices.count);
-    GPU_TransferBuffer(cmd, AST.model_indices, pie.indices.data, xx pie.indices.count);
+    GPU_TransferBuffer(cmd, AST.model_vertices, pie.vertices.data, xx array_size_bytes(pie.vertices));
+    GPU_TransferBuffer(cmd, AST.model_indices, pie.indices.data, xx array_size_bytes(pie.indices));
     SDL_SubmitGPUCommandBuffer(cmd);
   }
 
