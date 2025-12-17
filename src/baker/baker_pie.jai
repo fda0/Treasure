@@ -22,6 +22,104 @@ B_PieBuilder :: struct
 //
 B_LanePie :: () -> *B_PieBuilder { return *B.pies[LaneIdx()]; }
 
+
+//
+// @todo B_MergePieBuilders appears to work.
+//       Explore ways of making this code less insane.
+//
+B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
+{
+  dst_off: s64 = dst.file.current_point - dst.file.memory_base;
+  src_off: s64 = src.file.current_point - src.file.memory_base;
+
+  for *model: src.models
+  {
+    if model.is_skinned {
+      model.skeleton_index += xx dst.skeletons.count;
+    }
+
+    for i: MakeRange(model.meshes.count)
+    {
+      mesh := (src.file.memory_base + model.meshes.offset + i * size_of(PIE_Mesh)).(*PIE_Mesh);
+      mesh.material_index += xx dst.materials.count;
+      mesh.vertices_start_index += xx dst.vertices.count;
+      mesh.indices_start_index += xx dst.indices.count;
+    }
+
+    model.name.offset += dst_off;
+    model.meshes.offset += dst_off;
+  }
+
+  for *skeleton: src.skeletons
+  {
+    for i: MakeRange(skeleton.name_ranges.count)
+    {
+      name_range := (src.file.memory_base + skeleton.name_ranges.offset + i * size_of(Range(s64))).(*Range(s64));
+      name_range.min += dst_off;
+      name_range.max += dst_off;
+    }
+
+    for i: MakeRange(skeleton.anims.count)
+    {
+      anim := (src.file.memory_base + skeleton.anims.offset + i * size_of(PIE_Animation)).(*PIE_Animation);
+      for j: MakeRange(anim.channels.count)
+      {
+        channel := (src.file.memory_base + anim.channels.offset + j * size_of(PIE_AnimationChannel)).(*PIE_AnimationChannel);
+        channel.inputs.offset += dst_off;
+        channel.outputs.offset += dst_off;
+      }
+
+      anim.name.offset += dst_off;
+      anim.channels.offset += dst_off;
+    }
+
+    skeleton.inverse_matrices.offset += dst_off;
+    skeleton.child_index_buffer.offset += dst_off;
+    skeleton.child_index_ranges.offset += dst_off;
+    skeleton.translations.offset += dst_off;
+    skeleton.rotations.offset += dst_off;
+    skeleton.scales.offset += dst_off;
+    skeleton.name_ranges.offset += dst_off;
+    skeleton.anims.offset += dst_off;
+  }
+
+  for *material: src.materials
+  {
+    material.name.offset += dst_off;
+    material.tex.full_data.offset += dst_off;
+    material.tex.sections.offset += dst_off;
+  }
+
+  for *shader: src.shaders
+  {
+    shader.data.offset += dst_off;
+    shader.info.offset += dst_off;
+  }
+
+  for *font: src.fonts
+  {
+    font.data.offset += dst_off;
+    font.info.offset += dst_off;
+  }
+
+  for *sound: src.sounds
+  {
+    sound.data.offset += dst_off;
+  }
+
+  array_add_from_another_array(*dst.vertices, src.vertices);
+  array_add_from_another_array(*dst.indices, src.indices);
+  array_add_from_another_array(*dst.models, src.models);
+  array_add_from_another_array(*dst.skeletons, src.skeletons);
+  array_add_from_another_array(*dst.materials, src.materials);
+  array_add_from_another_array(*dst.shaders, src.shaders);
+  array_add_from_another_array(*dst.fonts, src.fonts);
+  array_add_from_another_array(*dst.sounds, src.sounds);
+
+  dst_file_mem := get(*dst.file, src_off);
+  memcpy(dst_file_mem, src.file.memory_base, src_off);
+}
+
 B_InitPieBuilder :: ()
 {
   PIE := B_LanePie();
