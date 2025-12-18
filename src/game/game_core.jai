@@ -121,7 +121,7 @@ G_Iterate :: ()
   PerfFunc();
 
   // Advance time
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     now := TimeNow();
     G.delta_timestamp = now - G.frame_timestamp;
@@ -136,7 +136,7 @@ G_Iterate :: ()
   }
 
   // Mouse input things
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     if KEY_Pressed(.F11) G.window_fullscreen = !G.window_fullscreen;
     if DEV.show || DEV.noclip || !G.window_has_focus {
@@ -147,7 +147,7 @@ G_Iterate :: ()
   }
 
   // Pre frame inits
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     if !G.headless
     {
@@ -164,7 +164,7 @@ G_Iterate :: ()
   }
 
   // Hacky font testing
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     if !G.headless && KEY_Pressed(.F)
     {
@@ -182,13 +182,13 @@ G_Iterate :: ()
   }
 
   // Client network
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     CL_IterateReceive();
     CL_SendPlayerActions();
   }
 
-  if IsLaneTaskIdx(0) && !G.headless
+  if IsLaneFromTaskIdx(0) && !G.headless
   {
     G_CalculateCameraAndMouseInput();
     G_AdvanceLocalObjects();
@@ -228,25 +228,25 @@ G_Iterate :: ()
 
   LaneSync();
 
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     RD_UploadWorldBatchesToGPUTransferBuffers();
   }
 
-  if IsLaneTaskIdx(1) && !G.headless
+  if IsLaneFromTaskIdx(1) && !G.headless
   {
     UI_BuildHUD();
     UI_FinishBoxLayout();
   }
 
   // Prepare client player input and send it
-  if IsLaneTaskIdx(2) && !G.headless
+  if IsLaneFromTaskIdx(2) && !G.headless
   {
     G_ProcessInputAndSendToClient();
   }
 
   // Play sounds
-  if IsLaneTaskIdx(3) && !G.headless
+  if IsLaneFromTaskIdx(3) && !G.headless
   {
     // Play debug sound
     if KEY_Pressed(.M) AUDIO_PlaySound(.HIT);
@@ -254,7 +254,7 @@ G_Iterate :: ()
   }
 
   // Update marker object
-  if IsLaneTaskIdx(4) && !G.headless
+  if IsLaneFromTaskIdx(4) && !G.headless
   {
     for * G.local_ghosts
     {
@@ -270,7 +270,7 @@ G_Iterate :: ()
   LaneSync();
 
   // Post frame work
-  if IsLaneTaskIdx(0) && !G.headless
+  if IsLaneFromTaskIdx(0) && !G.headless
   {
     RD_UITranslate3DShapes();
     UI_ProcessBoxRenderCommands();
@@ -286,13 +286,13 @@ G_Iterate :: ()
   }
 
   // Post frame logic
-  if IsLaneTaskIdx(0)
+  if IsLaneFromTaskIdx(0)
   {
     STATS_PostFrame();
     LOG_FileFlush();
   }
 
-  if IsLaneTaskIdx(0) && !G.time_finished_first_iterate
+  if IsLaneFromTaskIdx(0) && !G.time_finished_first_iterate
   {
     G.time_finished_first_iterate = current_time_monotonic();
     ms :: to_milliseconds;

@@ -27,37 +27,26 @@ B_ProcessAssets :: (thread: *Thread) -> s64
     rot_z := RotationAroundAxis(AxisV3(.Z), 0.25);
     rot_xz := rot_z * rot_x;
 
-    // @todo detect duplicated skeleton & animations and reuse it
-    // B_GLTF_Load("../res/models/UltimateModularWomen/Worker.gltf", spec);
-    // B_GLTF_Load("../res/models/UltimateModularWomen/Formal.gltf", spec);
-    // B_GLTF_Load("../res/models/UltimateModularWomen/Casual.gltf", spec);
+    // @todo @size Detect duplicated skeleton & animations and reuse them.
 
-    if LaneIdx() == 0
-    {
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz});
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz});
-    }
-    else if LaneIdx() == 1
-    {
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"});
+    all_loads := B_GLTF_LoadSpec.[
+      .{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz},
+      .{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz},
+      .{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"},
+      .{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"},
+      .{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz},
+      .{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz},
+      .{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"},
+      .{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"},
+      .{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x},
+      .{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"},
+    ];
 
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"});
-    }
-    else if LaneIdx() == 2
+    for LaneRange(all_loads)
     {
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz});
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz});
+      B_GLTF_Load(it);
     }
-    else if LaneIdx() == 3
-    {
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"});
-      B_GLTF_Load(.{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"});
-    }
-    else if LaneIdx() == 4
-    {
-      B_GLTF_Load(.{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x});
-      B_GLTF_Load(.{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"});
-    }
+
     Timer("GLTF models loaded");
   }
 
