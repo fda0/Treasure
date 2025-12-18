@@ -3,9 +3,8 @@ main :: ()
   Timer("init");
 
   B.tex_format = .R8G8B8A8;
-
   B.core_count = get_number_of_processors();
-  B.core_count = 5;
+  log("Core count: %", B.core_count);
 
   B.pies = NewArray(B.core_count, B_PieBuilder);
   lane_group := LaneGroupCreate(B.core_count);
@@ -42,22 +41,24 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       .{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"},
     ];
 
-    for LaneRange(all_loads)
+    per_lane_loads := LaneRange(all_loads);
+    // log("lane % has % loads", LaneIdx(), per_lane_loads.count);
+    for per_lane_loads
     {
       B_GLTF_Load(it);
     }
-
-    Timer("GLTF models loaded");
   }
 
   B_FileAlign(128);
   LaneSync();
   if LaneIdx() != 0 return 0;
+  Timer("GLTF models loaded");
 
   for 1..LaneCount()-1
   {
     B_MergePieBuilders(*B.pies[0], *B.pies[it]);
   }
+  Timer("PIEs merged");
 
   // Load texture files
   {
