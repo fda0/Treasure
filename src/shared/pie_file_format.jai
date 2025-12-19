@@ -10,10 +10,10 @@ PIE_ListUntyped :: struct
 PIE_List :: struct($TYPE: Type)
 {
   #as using untyped: PIE_ListUntyped;
-  #place untyped; array: [] TYPE;
+  #overlay(untyped) array: [] TYPE;
 
   #if size_of(TYPE) == 1 {
-    #place untyped; str: string;
+    #overlay(untyped) str: string;
   }
 }
 

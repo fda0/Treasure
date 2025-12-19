@@ -49,7 +49,7 @@ BorderOutside :: (w: Length) -> BorderWidths { return .{w,w,w,w, .{}}; }
 Padding :: struct
 {
   left, right, top, bottom: Length;
-  #place left; axes: [2] struct {
+  #overlay(left) axes: [2] struct {
     lower, upper: Length;
   };
 };
@@ -166,7 +166,7 @@ LengthToPx :: (length: Length, relative_to: *Box, axis: Axis2, clamp_at_zero: bo
 Length2 :: struct
 {
   x, y: Length;
-  #place x; axes: [2] Length;
+  #overlay(x) axes: [2] Length;
 }
 
 LengthToPx2 :: (len2: Length2, owner_box: *Box, clamp_to_zero: bool) -> V2
@@ -358,12 +358,12 @@ BoxSpec :: struct
       pref: Length2;
       min: Length2;
       max: Length2;
-      #place pref; all: [3] Length2;
+      #overlay(pref) all: [3] Length2;
     }
 
     padding: Padding;
     child_gap: Length;
-    child_align: struct { x, y: Align; #place x; axes: [2] Align; }
+    child_align: struct { x, y: Align; #overlay(x) axes: [2] Align; }
     child_order: Order;
   }
 
@@ -429,7 +429,7 @@ Box :: struct
   padding: struct
   {
     left, right, top, bottom: float;
-    #place left; axes: [2] struct {
+    #overlay(left) axes: [2] struct {
       lower, upper: float;
     };
   };
@@ -451,7 +451,7 @@ Box :: struct
 
   signal: SignalFlags;
 
-  #place inner; inners: [3] V2;
+  #overlay(inner) inners: [3] V2;
 };
 
 DimType :: enum u8

@@ -29,8 +29,7 @@ Ghost :: struct
     is_hit_weight: float;
   };
 
-  #place at;
-  using #as at_obj: Object;
+  #overlay(at) using #as at_obj: Object;
 };
 
 IsTickDue :: (tick: ServerTick, ghost: Ghost) -> bool

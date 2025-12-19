@@ -1835,12 +1835,10 @@ SYNCHRONIZATION_BARRIER_FLAGS :: enum_flags s32
 OVERLAPPED :: struct {
     // @bryce The non-internal names were added for clarity
     Internal:                 u64;
-    #place Internal;
-    Status:                   u64;
+    #overlay(Internal) Status: u64;
 
     InternalHigh:             u64;
-    #place InternalHigh;
-    NumberOfBytesTransferred: u64;
+    #overlay(InternalHigh) NumberOfBytesTransferred: u64;
 
     union {
         struct {
@@ -4147,8 +4145,7 @@ FILETIME :: struct {
     dwLowDateTime  : u32;
     dwHighDateTime : u32;
 
-    #place dwLowDateTime;
-    QuadPart: u64 = --- #align 4;
+    #overlay(dwLowDateTime) QuadPart: u64 = --- #align 4;
 }
 
 TIME_ZONE_INFORMATION :: struct { // @@
@@ -4826,14 +4823,14 @@ safe_release :: (obj: *IUnknown) { // This overload is needed because it seems l
 
 // @@ This needs to have a different name, because the overload resolution does not prefer this function when called with a **IUnknown argument.
 safe_release_and_reset :: (b: **$T/interface IUnknown) {
-    p := <<b;
+    p := b.*;
     if p then p.vtable.Release(xx p);
-    <<b = null;
+    b.* = null;
 }
 safe_release_and_reset :: (b: **IUnknown) { // This overload is needed because it seems like the compiler currently does not consider #as when checking "interface" restrictions
-    p := <<b;
+    p := b.*;
     if p then p.vtable.Release(xx p);
-    <<b = null;
+    b.* = null;
 }
 
 string_to_guid :: uid;

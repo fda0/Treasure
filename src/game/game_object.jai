@@ -97,12 +97,10 @@ OBJ_StatType :: enum u8
 
 OBJ_Stats :: struct
 {
-  all: [OBJ_StatCount] float;
-
-  #place all;
   #insert -> string {
     builder: String_Builder;
 
+    first_name: string;
     names := enum_names(OBJ_StatType);
     for names
     {
@@ -111,8 +109,14 @@ OBJ_Stats :: struct
         copy[it] = String.to_lower(copy[it]);
       }
 
+      if it_index == 0 {
+        first_name = copy;
+      }
+
       print_to_builder(*builder, "%: float;\n", copy);
     }
+
+    print_to_builder(*builder, "#overlay(%) all: [OBJ_StatCount] float;\n", first_name);
 
     result := builder_to_string(*builder);
     // log("OBJ_Stats generated:\n%", result);
@@ -284,7 +288,6 @@ OBJ_Distance2D :: (a: *Object, b: *Object) -> float { return distance(a.p.xy, b.
 OBJ_NilObject :: () -> *Object { return xx *OBJ_GHOST_NIL; }
 OBJ_NilGhost :: () -> *Ghost { return *OBJ_GHOST_NIL; }
 OBJ_IsNil :: (obj: Object) -> bool { return *obj == xx *OBJ_GHOST_NIL; }
-OBJ_IsNil :: (ov: Ghost) -> bool { return *ov == *OBJ_GHOST_NIL; }
 operator == :: (a: OBJ_Key, b: OBJ_Key) -> bool { return (a.index24_serial8 == b.index24_serial8); }
 
 OBJ_HasData :: (obj: Object) -> bool { return obj.flags != 0; }

@@ -18,9 +18,9 @@ Mat4 :: struct // @todo change to row-major matrices in the future?
   _13, _23, _33, _43 : float;
   _14, _24, _34, _44 : float;
 
-  #place _11; flat: [16]   float = ---;
-  #place _11; elem: [4][4] float = ---;
-  #place _11; cols: [4]    V4    = ---;
+  #overlay(_11) flat: [16]   float = ---;
+  #overlay(_11) elem: [4][4] float = ---;
+  #overlay(_11) cols: [4]    V4    = ---;
 };
 
 IsInteger :: (T: Type) -> bool
@@ -616,7 +616,7 @@ transpose :: (m: Mat4) -> Mat4
 Vec2 :: struct($T: Type)
 {
   x, y: T;
-  #place x; component: [2] T;
+  #overlay(x) component: [2] T;
 };
 
 // vec x vec
