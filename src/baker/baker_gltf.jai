@@ -40,7 +40,6 @@ B_GLTF_Model :: struct
 
 B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
 {
-  PIE := B_LanePie();
   auto_release_temp();
   push_allocator(temp);
 
@@ -101,9 +100,9 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
     gltf_material := data.materials[mesh_index];
 
     // Create material
-    bk_mesh.material_index = PIE.materials.count;
+    bk_mesh.material_index = context.pie.materials.count;
     {
-      pie_material := array_add(*PIE.materials);
+      pie_material := array_add(*context.pie.materials);
       B_SetDefaultsPIEMaterial(pie_material);
 
       // Fill material name
@@ -366,10 +365,9 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
 
 B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
 {
-  PIE := B_LanePie();
   model.has_skeleton = true;
-  model.skeleton_index = xx PIE.skeletons.count;
-  pie_skel := array_add(*PIE.skeletons);
+  model.skeleton_index = xx context.pie.skeletons.count;
+  pie_skel := array_add(*context.pie.skeletons);
 
   // Root transform
   pie_skel.root_transform = model.spec_transform;
@@ -537,8 +535,7 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
 
 B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
 {
-  PIE := B_LanePie();
-  pie_model := array_add(*PIE.models);
+  pie_model := array_add(*context.pie.models);
 
   // Name string
   B_ListSetString(*pie_model.name, bk_model.name);
@@ -552,7 +549,7 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
   {
     pie_mesh := *pie_meshes[mesh_index];
     pie_mesh.material_index = xx bk_mesh.material_index;
-    pie_mesh.vertices_start_index = xx PIE.vertices.count;
+    pie_mesh.vertices_start_index = xx context.pie.vertices.count;
 
     // vertices
     for vert_i: MakeRange(bk_mesh.verts_count)
@@ -631,14 +628,14 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
         vert.joint_weights = weights;
       }
 
-      array_add(*PIE.vertices, vert);
+      array_add(*context.pie.vertices, vert);
     }
 
     // Indices
     {
-      pie_mesh.indices_start_index = xx PIE.indices.count;
+      pie_mesh.indices_start_index = xx context.pie.indices.count;
       pie_mesh.indices_count += xx bk_mesh.indices.count;
-      array_add_from_another_array(*PIE.indices, bk_mesh.indices);
+      array_add_from_another_array(*context.pie.indices, bk_mesh.indices);
     }
   }
 }

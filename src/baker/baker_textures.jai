@@ -227,9 +227,8 @@ B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
 
 B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
 {
-  PIE := B_LanePie();
   // Allocate and prepare PIE_Material & array of B_Texture
-  pie_material := array_add(*PIE.materials);
+  pie_material := array_add(*context.pie.materials);
   B_SetDefaultsPIEMaterial(pie_material);
 
   B_ListSetPrint(*pie_material.name, "%", tex_name);

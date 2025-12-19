@@ -8,13 +8,15 @@ main :: ()
 
   B.pies = NewArray(B.core_count, B_PieBuilder);
   lane_group := LaneGroupCreate(B.core_count);
+  for * lane_group.threads {
+    it.starting_context.pie = *B.pies[it_index];
+  }
   LaneGroupLaunch(B_ProcessAssets, lane_group, true);
 }
 
 B_ProcessAssets :: (thread: *Thread) -> s64
 {
   B_InitPieBuilder();
-  PIE := B_LanePie();
 
   thread_name := sprint("Client_%", LaneIdx());
   // PerfThreadName(thread_name);
@@ -49,13 +51,12 @@ B_ProcessAssets :: (thread: *Thread) -> s64
     }
   }
 
-  B_FileAlign(128);
+  B_FileAlign(8);
   LaneSync();
-  if LaneIdx() != 0 return 0;
+  if (LaneIdx() != 0) return 0;
   Timer("GLTF models loaded");
 
-  for 1..LaneCount()-1
-  {
+  for 1..LaneCount()-1 {
     B_MergePieBuilders(*B.pies[0], *B.pies[it]);
   }
   Timer("PIEs merged");
@@ -127,10 +128,10 @@ B_ProcessAssets :: (thread: *Thread) -> s64
     ui_vs := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderVS", .Vertex));
     ui_ps := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderPS", .Fragment));
     // @todo Things like entrypoint name could be saved into .pie file too.
-    B_ListSetArray(*array_add(*PIE.shaders).data, world_vs);
-    B_ListSetArray(*array_add(*PIE.shaders).data, world_ps);
-    B_ListSetArray(*array_add(*PIE.shaders).data, ui_vs);
-    B_ListSetArray(*array_add(*PIE.shaders).data, ui_ps);
+    B_ListSetArray(*array_add(*context.pie.shaders).data, world_vs);
+    B_ListSetArray(*array_add(*context.pie.shaders).data, world_ps);
+    B_ListSetArray(*array_add(*context.pie.shaders).data, ui_vs);
+    B_ListSetArray(*array_add(*context.pie.shaders).data, ui_ps);
     Timer("Shaders compiled");
   }
 
@@ -153,7 +154,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       blob: PIE_Blob;
       B_ListSetString(*blob.data, data);
       B_ListSetString(*blob.info, it);
-      array_add(*PIE.fonts, blob);
+      array_add(*context.pie.fonts, blob);
     }
 
     Timer("Loaded font files");
@@ -187,7 +188,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       pie_sound: PIE_Sound;
       B_ListSetString(*pie_sound.data, data_string);
       pie_sound.format = audio_spec;
-      array_add(*PIE.sounds, pie_sound);
+      array_add(*context.pie.sounds, pie_sound);
     }
 
     Timer("Loaded sound files");
