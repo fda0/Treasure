@@ -50,7 +50,7 @@ PIE_AnimationChannelType :: enum u32
 
 PIE_AnimationChannel :: struct
 {
-  joint_index30_type2: u32;  // [u32 | (PIE_AnimationChannelType << 30)] // @todo this is silly, simplify
+  joint_index30_type2: u32; // [u32 | (PIE_AnimationChannelType << 30)] // @todo this is silly, simplify
   inputs: PIE_List(float);  // float * count
   outputs: PIE_List(float); // float * (3 or 4 [V3 or Quat]) * count
 }
@@ -88,7 +88,7 @@ PIE_Mesh :: struct
 
 PIE_Model :: struct
 {
-  name: PIE_List(u8);
+  name: string;
   is_skinned: bool;
   skeleton_index: u32; // for skinned only
   meshes: PIE_List(PIE_Mesh);

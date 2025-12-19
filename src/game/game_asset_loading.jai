@@ -203,9 +203,22 @@ ASSET_LoadPieFile :: (file_path: string)
   address_patch := file.data.(s64);
   Patch :: (list: *PIE_List) #expand
   {
+    offset: *s64;
+    size_bytes := list.count;
+    #if T == PIE_List {
+      offset = *list.offset;
+      size_bytes = list.count * size_of(list.TYPE);
+    } else if type_info(T).kind == .ARRAY {
+      offset = *list.data.(s64);
+      size_bytes = array_size_bytes(list);
+    } else if T == string {
+      offset = *list.data.(s64);
+      size_bytes = list.count;
+    }
+
     // Check list underflow / overflow
-    list_end := list.offset + array_size_bytes(list.array);
-    if list.offset < 0 {
+    list_end := offset.* + size_bytes;
+    if offset.* < 0 {
       log("% Found a list that underflows", desc);
       `return;
     }
@@ -214,7 +227,7 @@ ASSET_LoadPieFile :: (file_path: string)
       `return;
     }
 
-    list.offset += address_patch;
+    offset.* += address_patch;
   }
 
   // Patch all lists

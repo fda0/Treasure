@@ -538,7 +538,7 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
   pie_model := array_add(*context.pie.models);
 
   // Name string
-  B_ListSetString(*pie_model.name, bk_model.name);
+  pie_model.name = B_CopyString(bk_model.name);
 
   pie_model.is_skinned = bk_model.is_skinned;
   pie_model.skeleton_index = bk_model.skeleton_index;

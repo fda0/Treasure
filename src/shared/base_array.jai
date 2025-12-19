@@ -89,6 +89,11 @@ array_size_bytes :: (array: [] $T) -> s64 {
   return array.count * size_of(T);
 }
 
+array_align_of :: (array: [] $T) -> s64 {
+  return align_of(T);
+}
+
+
 // Dynamic array helpers
 array_add_alloc :: (array: *[..] $T, alloc_count: s64, $initialize:=true) -> allocated_slice: [] T
 {

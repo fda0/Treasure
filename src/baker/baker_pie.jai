@@ -28,6 +28,25 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   dst_off: s64 = dst.file.current_point - dst.file.memory_base;
   src_off: s64 = src.file.current_point - src.file.memory_base;
 
+  FixOffset :: (target: *$T) #expand
+  {
+    data: *s64;
+    align := 1;
+
+    #if T == PIE_List {
+      data = *target.offset;
+      align = align_of(T);
+    } else #if T == string {
+      data = xx  *target.data;
+    } else #if type_info(T).type == .ARRAY {
+      data = xx  *target.data;
+      align = array_align_of(T);
+    }
+
+    data.* += dst_off;
+    assert(data.* % align == 0);
+  }
+
   for *model: src.models
   {
     if model.is_skinned {
@@ -42,7 +61,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
       mesh.indices_start_index += xx dst.indices.count;
     }
 
-    model.name.offset += dst_off;
+    FixOffset(*model.name);
     model.meshes.offset += dst_off;
   }
 
@@ -120,6 +139,7 @@ B_InitPieBuilder :: ()
 {
   context.pie.file.alignment = 1; // We are doing our own, tightly packed, precise alignment on per-type basis.
   init(*context.pie.file, reserve = Gigabyte(2));
+
   remember_allocators(*context.pie.vertices);
   remember_allocators(*context.pie.indices);
   remember_allocators(*context.pie.models);
@@ -194,6 +214,26 @@ B_FileIsAlignedToType :: ($T: Type) -> bool
   missaligned_bytes := current_offset % alignment;
   return missaligned_bytes == 0;
 }
+
+
+B_CopyString :: (s: string) -> string
+{
+  memory := get(*context.pie.file, s.count);
+  memcpy(memory, s.data, s.count);
+  return string.{s.count, memory};
+}
+
+B_NewArray :: (count: s64, $T: Type, aligned := true) -> [] T
+{
+  if (aligned) B_FileAlignToType(T);
+
+  size_bytes := count * size_of(T);
+  memory := get(*context.pie.file, size_bytes);
+  memset(memory, 0, size_bytes);
+  return [] T.{count, memory};
+}
+
+
 
 // ListStart / ListEnd
 B_ListStart :: (list: *PIE_List($LT))
@@ -322,3 +362,4 @@ B_ListSetPrint :: (list: *PIE_List($LT), format_string: string, args: .. Any)
   B_FileAppendPrint(format_string, ..args);
   B_ListEnd();
 }
+
