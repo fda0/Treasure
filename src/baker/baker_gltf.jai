@@ -389,20 +389,16 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
       comp_count := cgltf_num_components(inv_bind.type);
       Check(comp_count == 16);
 
-      B_ListStart(*pie_skel.inverse_matrices);
-      matrices := B_FileAllocArray(xx inv_bind.count, Mat4);
+      pie_skel.inverse_matrices = B_NewArray(xx inv_bind.count, Mat4);
       float_count := comp_count * inv_bind.count;
-      unpacked_count := cgltf_accessor_unpack_floats(inv_bind, matrices.data.(*float), float_count);
+      unpacked_count := cgltf_accessor_unpack_floats(inv_bind, xx pie_skel.inverse_matrices.data, float_count);
       Check(unpacked_count == float_count);
-      B_ListEnd();
     }
 
     // Child hierarchy indices.
     {
-      temp_ranges := NewArray(xx joints_count, Range(u32));
-
-      B_ListStart(*pie_skel.child_index_buffer);
-      indices := B_FileAllocArray(xx joints_count, u32);
+      pie_skel.child_index_buffer = B_NewArray(xx joints_count, u32);
+      pie_skel.child_index_ranges = B_NewArray(xx joints_count, Range(u32));
 
       indices_counter: u32;
       for joint_index: MakeRange(joints_count)
@@ -415,17 +411,15 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
           child_joint_index := B_GLTF_FindJointIndex(skin, child);
 
           if child_index == 0
-            temp_ranges[joint_index].min = indices_counter;
+            pie_skel.child_index_ranges[joint_index].min = indices_counter;
 
           Check(indices_counter < xx joints_count);
-          indices[indices_counter] = child_joint_index;
+          pie_skel.child_index_buffer[indices_counter] = child_joint_index;
           indices_counter += 1;
 
-          temp_ranges[joint_index].max = indices_counter;
+          pie_skel.child_index_ranges[joint_index].max = indices_counter;
         }
       }
-      B_ListEnd();
-      B_ListSetArray(*pie_skel.child_index_ranges, temp_ranges);
     }
 
     // rest pose transformations

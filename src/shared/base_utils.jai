@@ -31,11 +31,9 @@ ZeroArray :: (arr: [] $T) {
   }
 }
 
-ZeroType :: (ptr: *$T)
-{
+ZeroValue :: (ptr: *$T) {
   memset(ptr, 0, size_of(T));
 }
-
 
 CalculateMipMapCount :: (width: $T, height: T) -> T // @todo test
 #modify { return IsInteger(T), "Argument is not of an integer type."; }

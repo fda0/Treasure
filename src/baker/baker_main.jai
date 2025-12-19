@@ -4,7 +4,6 @@ main :: ()
 
   B.tex_format = .R8G8B8A8;
   B.core_count = get_number_of_processors();
-  log("Core count: %", B.core_count);
 
   B.pies = NewArray(B.core_count, B_PieBuilder);
   lane_group := LaneGroupCreate(B.core_count);

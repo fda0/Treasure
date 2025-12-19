@@ -201,24 +201,28 @@ ASSET_LoadPieFile :: (file_path: string)
   }
 
   address_patch := file.data.(s64);
-  Patch :: (list: *PIE_List) #expand
+  Patch :: (list: *$T) #expand
   {
-    offset: *s64;
+    data: *s64;
     size_bytes := list.count;
-    #if T == PIE_List {
-      offset = *list.offset;
-      size_bytes = list.count * size_of(list.TYPE);
-    } else if type_info(T).kind == .ARRAY {
-      offset = *list.data.(s64);
-      size_bytes = array_size_bytes(list);
-    } else if T == string {
-      offset = *list.data.(s64);
+    align := 1;
+
+    #if T == string {
+      data = xx *list.data;
       size_bytes = list.count;
+    } else #if type_info(T).type == .ARRAY {
+      data = xx *list.data;
+      align = array_align_of(list.*);
+      size_bytes = array_size_bytes(list.*);
+    } else {
+      data = *list.offset;
+      align = align_of(list.TYPE);
+      size_bytes = list.count * size_of(list.TYPE);
     }
 
     // Check list underflow / overflow
-    list_end := offset.* + size_bytes;
-    if offset.* < 0 {
+    list_end := data.* + size_bytes;
+    if data.* < 0 {
       log("% Found a list that underflows", desc);
       `return;
     }
@@ -227,7 +231,11 @@ ASSET_LoadPieFile :: (file_path: string)
       `return;
     }
 
-    offset.* += address_patch;
+    data.* += address_patch;
+    if (data.* % align != 0) {
+      log("% Asset file contains unaligned data", desc);
+      `return;
+    }
   }
 
   // Patch all lists
@@ -248,7 +256,7 @@ ASSET_LoadPieFile :: (file_path: string)
     Patch(*it.meshes);
   }
 
-  for * links.skeletons.array {
+  for * links.skeletons {
     Patch(*it.inverse_matrices);
     Patch(*it.child_index_buffer);
     Patch(*it.child_index_ranges);
@@ -441,7 +449,7 @@ ASSET_InitModels :: () #expand
   for pie_model: pie.models
   {
     model := array_add(*AST.models);
-    model.name = pie_model.name.str;
+    model.name = pie_model.name;
     model.hash = AssetHashFromName(.Model, model.name);
     model.is_skinned = !!pie_model.is_skinned;
 
@@ -505,7 +513,7 @@ ASSET_InitSkeletons :: ()
   using,only(pie) COMPS.AST;
   desc := "@todo";
 
-  pie_skeletons := pie.links.skeletons.array;
+  pie_skeletons := pie.links.skeletons;
   AST.skeletons = NewArray(pie_skeletons.count, Skeleton);
 
   for *skel: AST.skeletons
@@ -513,9 +521,9 @@ ASSET_InitSkeletons :: ()
     pie_skel := *pie_skeletons[it_index];
     skel.root_transform = pie_skel.root_transform;
 
-    skel.inverse_matrices   = pie_skel.inverse_matrices.array;
-    skel.child_index_buffer = pie_skel.child_index_buffer.array;
-    skel.child_index_ranges = pie_skel.child_index_ranges.array;
+    skel.inverse_matrices   = pie_skel.inverse_matrices;
+    skel.child_index_buffer = pie_skel.child_index_buffer;
+    skel.child_index_ranges = pie_skel.child_index_ranges;
     skel.bind_translations  = pie_skel.translations.array;
     skel.bind_rotations     = pie_skel.rotations.array;
     skel.bind_scales        = pie_skel.scales.array;

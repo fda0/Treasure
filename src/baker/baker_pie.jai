@@ -19,40 +19,106 @@ B_PieBuilder :: struct
 
 #add_context pie: *B_PieBuilder;
 
-//
-// @todo B_MergePieBuilders appears to work.
-//       Explore ways of making this code less insane.
-//
+B_OffsetPieBuilderAddresses :: (builder: *B_PieBuilder, address_offset: s64)
+{
+  ApplyOffset :: (target: *$T) #expand
+  {
+    data: *s64;
+    align := 1;
+
+    #if T == string {
+      data = xx  *target.data;
+    } else #if type_info(T).type == .ARRAY {
+      data = xx  *target.data;
+      align = array_align_of(target.*);
+    } else {
+      data = *target.offset;
+      align = align_of(T);
+    }
+
+    data.* += address_offset;
+    assert(data.* % align == 0);
+  }
+
+  for *model: builder.models
+  {
+    ApplyOffset(*model.name);
+    ApplyOffset(*model.meshes);
+  }
+
+  for *skeleton: builder.skeletons
+  {
+    for i: MakeRange(skeleton.name_ranges.count)
+    {
+      name_range := (builder.file.memory_base + skeleton.name_ranges.offset + i * size_of(Range(s64))).(*Range(s64));
+      name_range.min += address_offset;
+      name_range.max += address_offset;
+    }
+
+    for i: MakeRange(skeleton.anims.count)
+    {
+      anim := (builder.file.memory_base + skeleton.anims.offset + i * size_of(PIE_Animation)).(*PIE_Animation);
+      for j: MakeRange(anim.channels.count)
+      {
+        channel := (builder.file.memory_base + anim.channels.offset + j * size_of(PIE_AnimationChannel)).(*PIE_AnimationChannel);
+        ApplyOffset(*channel.inputs);
+        ApplyOffset(*channel.outputs);
+      }
+
+      ApplyOffset(*anim.name);
+      ApplyOffset(*anim.channels);
+    }
+
+    ApplyOffset(*skeleton.inverse_matrices);
+    ApplyOffset(*skeleton.child_index_buffer);
+    ApplyOffset(*skeleton.child_index_ranges);
+    ApplyOffset(*skeleton.translations);
+    ApplyOffset(*skeleton.rotations);
+    ApplyOffset(*skeleton.scales);
+    ApplyOffset(*skeleton.name_ranges);
+    ApplyOffset(*skeleton.anims);
+  }
+
+  for *material: builder.materials
+  {
+    ApplyOffset(*material.name);
+    ApplyOffset(*material.tex.full_data);
+    ApplyOffset(*material.tex.sections);
+  }
+
+  for *shader: builder.shaders
+  {
+    ApplyOffset(*shader.data);
+    ApplyOffset(*shader.info);
+  }
+
+  for *font: builder.fonts
+  {
+    ApplyOffset(*font.data);
+    ApplyOffset(*font.info);
+  }
+
+  for *sound: builder.sounds
+  {
+    ApplyOffset(*sound.data);
+  }
+}
+
 B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
 {
   dst_off: s64 = dst.file.current_point - dst.file.memory_base;
   src_off: s64 = src.file.current_point - src.file.memory_base;
 
-  FixOffset :: (target: *$T) #expand
-  {
-    data: *s64;
-    align := 1;
+  B_OffsetPieBuilderAddresses(src, dst_off);
 
-    #if T == PIE_List {
-      data = *target.offset;
-      align = align_of(T);
-    } else #if T == string {
-      data = xx  *target.data;
-    } else #if type_info(T).type == .ARRAY {
-      data = xx  *target.data;
-      align = array_align_of(T);
+  for *model: src.models {
+    if model.is_skinned {
+      model.skeleton_index += xx dst.skeletons.count;
     }
-
-    data.* += dst_off;
-    assert(data.* % align == 0);
   }
 
   for *model: src.models
   {
-    if model.is_skinned {
-      model.skeleton_index += xx dst.skeletons.count;
-    }
-
     for i: MakeRange(model.meshes.count)
     {
       mesh := (src.file.memory_base + model.meshes.offset + i * size_of(PIE_Mesh)).(*PIE_Mesh);
@@ -60,66 +126,6 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
       mesh.vertices_start_index += xx dst.vertices.count;
       mesh.indices_start_index += xx dst.indices.count;
     }
-
-    FixOffset(*model.name);
-    model.meshes.offset += dst_off;
-  }
-
-  for *skeleton: src.skeletons
-  {
-    for i: MakeRange(skeleton.name_ranges.count)
-    {
-      name_range := (src.file.memory_base + skeleton.name_ranges.offset + i * size_of(Range(s64))).(*Range(s64));
-      name_range.min += dst_off;
-      name_range.max += dst_off;
-    }
-
-    for i: MakeRange(skeleton.anims.count)
-    {
-      anim := (src.file.memory_base + skeleton.anims.offset + i * size_of(PIE_Animation)).(*PIE_Animation);
-      for j: MakeRange(anim.channels.count)
-      {
-        channel := (src.file.memory_base + anim.channels.offset + j * size_of(PIE_AnimationChannel)).(*PIE_AnimationChannel);
-        channel.inputs.offset += dst_off;
-        channel.outputs.offset += dst_off;
-      }
-
-      anim.name.offset += dst_off;
-      anim.channels.offset += dst_off;
-    }
-
-    skeleton.inverse_matrices.offset += dst_off;
-    skeleton.child_index_buffer.offset += dst_off;
-    skeleton.child_index_ranges.offset += dst_off;
-    skeleton.translations.offset += dst_off;
-    skeleton.rotations.offset += dst_off;
-    skeleton.scales.offset += dst_off;
-    skeleton.name_ranges.offset += dst_off;
-    skeleton.anims.offset += dst_off;
-  }
-
-  for *material: src.materials
-  {
-    material.name.offset += dst_off;
-    material.tex.full_data.offset += dst_off;
-    material.tex.sections.offset += dst_off;
-  }
-
-  for *shader: src.shaders
-  {
-    shader.data.offset += dst_off;
-    shader.info.offset += dst_off;
-  }
-
-  for *font: src.fonts
-  {
-    font.data.offset += dst_off;
-    font.info.offset += dst_off;
-  }
-
-  for *sound: src.sounds
-  {
-    sound.data.offset += dst_off;
   }
 
   array_add_from_another_array(*dst.vertices, src.vertices);
@@ -159,7 +165,7 @@ B_FinalizePieBuilder :: ()
   B_ListSetArray(*links.vertices, context.pie.vertices);
   B_ListSetArray(*links.indices, context.pie.indices);
   B_ListSetArray(*links.models, context.pie.models);
-  B_ListSetArray(*links.skeletons, context.pie.skeletons);
+  links.skeletons = B_CopyArray(context.pie.skeletons);
   B_ListSetArray(*links.materials, context.pie.materials);
   B_ListSetArray(*links.shaders, context.pie.shaders);
   B_ListSetArray(*links.fonts, context.pie.fonts);
@@ -223,13 +229,21 @@ B_CopyString :: (s: string) -> string
   return string.{s.count, memory};
 }
 
-B_NewArray :: (count: s64, $T: Type, aligned := true) -> [] T
+B_CopyArray :: (a: [] $T) -> [] T
+{
+  result := B_NewArray(a.count, T, initialized = false);
+  memcpy(result.data, a.data, result.count);
+  return result;
+}
+
+B_NewArray :: (count: s64, $T: Type, initialized := true, aligned := true) -> [] T
 {
   if (aligned) B_FileAlignToType(T);
 
   size_bytes := count * size_of(T);
   memory := get(*context.pie.file, size_bytes);
-  memset(memory, 0, size_bytes);
+  if (initialized) memset(memory, 0, size_bytes);
+
   return [] T.{count, memory};
 }
 

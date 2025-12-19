@@ -7,7 +7,7 @@ PIE_ListUntyped :: struct
   count: s64;
   offset: s64;
 }
-PIE_List :: struct($TYPE: Type)
+  PIE_List :: struct($TYPE: Type)
 {
   #as using untyped: PIE_ListUntyped;
   #overlay(untyped) array: [] TYPE;
@@ -65,9 +65,9 @@ PIE_Animation :: struct
 PIE_Skeleton :: struct
 {
   // each of these has the same count of elements (joints_count)
-  inverse_matrices: PIE_List(Mat4);
-  child_index_buffer: PIE_List(u32); // @todo use u16 here?
-  child_index_ranges: PIE_List(Range(u32)); // @todo use u16 here?
+  inverse_matrices: [] Mat4;
+  child_index_buffer: [] u32; // @todo use u16 here?
+  child_index_ranges: [] Range(u32); // @todo use u16 here?
   translations: PIE_List(V3);
   rotations: PIE_List(Quat);
   scales: PIE_List(V3);
@@ -159,7 +159,7 @@ PIE_Links :: struct
   indices: PIE_List(u16);
   models: PIE_List(PIE_Model);
 
-  skeletons: PIE_List(PIE_Skeleton);
+  skeletons: [] PIE_Skeleton;
   materials: PIE_List(PIE_Material);
 
   shaders: PIE_List(PIE_Blob);

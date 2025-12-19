@@ -406,7 +406,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
     FONT.active_layer_index %= FONT.layers.count;
 
     active_layer := *FONT.layers[FONT.active_layer_index];
-    ZeroType(active_layer);
+    ZeroValue(active_layer);
 
     slot = FONT_CreateGlyphInLayer(active_layer, hash, xx bitmap_dim.x, xx bitmap_dim.y);
   }
