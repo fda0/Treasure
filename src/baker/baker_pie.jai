@@ -16,90 +16,82 @@ B_PieBuilder :: struct
 
 #add_context pie: *B_PieBuilder;
 
-B_OffsetPieBuilderAddresses :: (builder: *B_PieBuilder, address_offset: s64)
+B_OffsetAddress :: (target: *$T, offset: s64) #expand
 {
-  ApplyOffset :: (target: *$T) #expand
-  {
-    data: *s64;
-    align := 1;
-
-    #if T == string {
-      data = xx  *target.data;
-    } else #if type_info(T).type == .ARRAY {
-      data = xx  *target.data;
-      align = array_align_of(target.*);
-    } else {
-      data = *target.offset;
-      align = align_of(T);
-    }
-
-    data.* += address_offset;
-    assert(data.* % align == 0);
+  data: *s64 = xx *target.data;
+  align := 1;
+  #if type_info(T).type == .ARRAY {
+    align = array_align_of(target.*);
   }
 
-  for * model: builder.models
+  data.* += offset;
+  assert(data.* % align == 0);
+}
+
+B_OffsetAddresses :: (builder_or_links: *$T, offset: s64)
+{
+  for * model: builder_or_links.models
   {
-    ApplyOffset(*model.name);
-    ApplyOffset(*model.meshes);
+    B_OffsetAddress(*model.name, offset);
+    B_OffsetAddress(*model.meshes, offset);
   }
 
-  for * skeleton: builder.skeletons
+  for * skeleton: builder_or_links.skeletons
   {
     for * skeleton.names {
-      ApplyOffset(it);
+      B_OffsetAddress(it, offset);
     }
 
     for * anim: skeleton.anims
     {
       for * channel: anim.channels
       {
-        ApplyOffset(*channel.inputs);
-        ApplyOffset(*channel.outputs);
+        B_OffsetAddress(*channel.inputs, offset);
+        B_OffsetAddress(*channel.outputs, offset);
       }
-      ApplyOffset(*anim.name);
-      ApplyOffset(*anim.channels);
+      B_OffsetAddress(*anim.name, offset);
+      B_OffsetAddress(*anim.channels, offset);
     }
 
-    ApplyOffset(*skeleton.inverse_matrices);
-    ApplyOffset(*skeleton.child_index_buffer);
-    ApplyOffset(*skeleton.child_index_ranges);
-    ApplyOffset(*skeleton.translations);
-    ApplyOffset(*skeleton.rotations);
-    ApplyOffset(*skeleton.scales);
-    ApplyOffset(*skeleton.names);
-    ApplyOffset(*skeleton.anims);
+    B_OffsetAddress(*skeleton.inverse_matrices, offset);
+    B_OffsetAddress(*skeleton.child_index_buffer, offset);
+    B_OffsetAddress(*skeleton.child_index_ranges, offset);
+    B_OffsetAddress(*skeleton.translations, offset);
+    B_OffsetAddress(*skeleton.rotations, offset);
+    B_OffsetAddress(*skeleton.scales, offset);
+    B_OffsetAddress(*skeleton.names, offset);
+    B_OffsetAddress(*skeleton.anims, offset);
   }
 
-  for * material: builder.materials
+  for * material: builder_or_links.materials
   {
-    ApplyOffset(*material.name);
-    ApplyOffset(*material.tex.buffer);
-    ApplyOffset(*material.tex.sections);
+    B_OffsetAddress(*material.name, offset);
+    B_OffsetAddress(*material.tex.buffer, offset);
+    B_OffsetAddress(*material.tex.sections, offset);
   }
 
-  for * shader: builder.shaders
+  for * shader: builder_or_links.shaders
   {
-    ApplyOffset(*shader.buffer);
-    ApplyOffset(*shader.info);
+    B_OffsetAddress(*shader.buffer, offset);
+    B_OffsetAddress(*shader.info, offset);
   }
 
-  for * font: builder.fonts
+  for * font: builder_or_links.fonts
   {
-    ApplyOffset(*font.buffer);
-    ApplyOffset(*font.info);
+    B_OffsetAddress(*font.buffer, offset);
+    B_OffsetAddress(*font.info, offset);
   }
 
-  for * sound: builder.sounds
+  for * sound: builder_or_links.sounds
   {
-    ApplyOffset(*sound.buffer);
+    B_OffsetAddress(*sound.buffer, offset);
   }
 }
 
 B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
 {
-  dst_off: s64 = dst.file.current_point - dst.file.memory_base;
-  src_off: s64 = src.file.current_point - src.file.memory_base;
 
+  // Rebase source indices
   for * model: src.models {
     if model.is_skinned {
       model.skeleton_index += xx dst.skeletons.count;
@@ -116,8 +108,17 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
     }
   }
 
-  B_OffsetPieBuilderAddresses(src, dst_off);
+  // Copy pie file content
+  src_file_size: s64 = src.file.current_point - src.file.memory_base;
+  src_to_dst_offset: s64 = dst.file.current_point - src.file.memory_base;
 
+  dst_file_mem := get(*dst.file, src_file_size);
+  memcpy(dst_file_mem, src.file.memory_base, src_file_size);
+
+  // Rebase source address offsets
+  B_OffsetAddresses(src, src_to_dst_offset);
+
+  // Copy arrays
   array_add_from_another_array(*dst.vertices, src.vertices);
   array_add_from_another_array(*dst.indices, src.indices);
   array_add_from_another_array(*dst.models, src.models);
@@ -126,9 +127,6 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   array_add_from_another_array(*dst.shaders, src.shaders);
   array_add_from_another_array(*dst.fonts, src.fonts);
   array_add_from_another_array(*dst.sounds, src.sounds);
-
-  dst_file_mem := get(*dst.file, src_off);
-  memcpy(dst_file_mem, src.file.memory_base, src_off);
 }
 
 B_InitPieBuilder :: ()
@@ -152,6 +150,7 @@ B_FinalizePieBuilder :: ()
 {
   header := context.pie.file.memory_base.(*PIE_Header);
 
+  // Fill links
   header.links = B_NewArray(1, PIE_Links);
   header.links[0].vertices = B_CopyArray(context.pie.vertices);
   header.links[0].indices = B_CopyArray(context.pie.indices);
@@ -161,6 +160,19 @@ B_FinalizePieBuilder :: ()
   header.links[0].shaders = B_CopyArray(context.pie.shaders);
   header.links[0].fonts = B_CopyArray(context.pie.fonts);
   header.links[0].sounds = B_CopyArray(context.pie.sounds);
+
+  // Rebase arrays/strings in pie builder to base address 0 before serialization.
+  to_zero_offset := 0 - header.(s64);
+  B_OffsetAddresses(*header.links[0], to_zero_offset);
+  B_OffsetAddress(*header.links[0].vertices, to_zero_offset);
+  B_OffsetAddress(*header.links[0].indices, to_zero_offset);
+  B_OffsetAddress(*header.links[0].models, to_zero_offset);
+  B_OffsetAddress(*header.links[0].skeletons, to_zero_offset);
+  B_OffsetAddress(*header.links[0].materials, to_zero_offset);
+  B_OffsetAddress(*header.links[0].shaders, to_zero_offset);
+  B_OffsetAddress(*header.links[0].fonts, to_zero_offset);
+  B_OffsetAddress(*header.links[0].sounds, to_zero_offset);
+  B_OffsetAddress(*header.links, to_zero_offset);
 
   // Calculate hash
   hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), context.pie.file.current_point);
@@ -201,15 +213,6 @@ B_FileAlignToType :: ($T: Type)
   B_FileAlign(align_of(T));
 }
 
-B_FileIsAlignedToType :: ($T: Type) -> bool
-{
-  current_offset := B_CurrentFileOffset();
-  alignment := align_of(T);
-  missaligned_bytes := current_offset % alignment;
-  return missaligned_bytes == 0;
-}
-
-
 B_CopyString :: (s: string) -> string
 {
   memory := get(*context.pie.file, s.count);
@@ -220,7 +223,7 @@ B_CopyString :: (s: string) -> string
 B_CopyArray :: (a: [] $T) -> [] T
 {
   result := B_NewArray(a.count, T, initialized = false);
-  memcpy(result.data, a.data, result.count);
+  memcpy(result.data, a.data, array_size_bytes(result));
   return result;
 }
 
@@ -234,5 +237,3 @@ B_NewArray :: (count: s64, $T: Type, initialized := true, aligned := true) -> []
 
   return [] T.{count, memory};
 }
-
-

@@ -37,6 +37,9 @@ ASSET_PostFrame :: ()
   }
 }
 
+// ASSET_Error :: log;
+ASSET_Error :: #bake_arguments assert(arg = false);
+
 ASSET_InitSounds :: ()
 {
   AST.sounds = NewArray(AST.pie.sounds.count, AUDIO_Sound);
@@ -165,19 +168,24 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
   material.stream.flags |= .LOADED;
 }
 
+file_:string;
+address_patch_: s64;
+
 // LOAD .PIE
 ASSET_LoadPieFile :: (file_path: string)
 {
   desc := tprint("[Processing asset file %]", file_path);
 
   file, read_success := read_entire_file(file_path);
+  file_ = file;
+
   if !read_success {
-    log("% Failed to open file", desc);
+    ASSET_Error("% Failed to open file", desc);
     return;
   }
 
   if file.count < size_of(PIE_Header) {
-    log("% Asset file can't fit header", desc);
+    ASSET_Error("% Asset file can't fit header", desc);
     return;
   }
 
@@ -186,50 +194,44 @@ ASSET_LoadPieFile :: (file_path: string)
   hashable := Skip(file, size_of(type_of(header.file_hash)));
   calculated_hash := Hash64Any(PIE_MAGIC_HASH_SEED, hashable);
   if calculated_hash != header.file_hash {
-    log("% Calculated (%) doesn't match file hash (%).", desc, calculated_hash, header.file_hash);
+    ASSET_Error("% Calculated (%) doesn't match file hash (%).", desc, calculated_hash, header.file_hash);
     return;
   }
 
   if header.links.count != 1 {
-    log("% Expected a header with exactly one link, got: %", desc, header.links.count);
+    ASSET_Error("% Expected a header with exactly one link, got: %", desc, header.links.count);
     return;
   }
 
   address_patch := file.data.(s64);
-  Patch :: (list: *$T) #expand
+  address_patch_ = address_patch;
+  Patch :: (list: *$T)
   {
-    data: *s64;
+    desc := "@todo";
+
+    data: *s64 = xx *list.data;
     size_bytes := list.count;
     align := 1;
-
-    #if T == string {
-      data = xx *list.data;
-      size_bytes = list.count;
-    } else #if type_info(T).type == .ARRAY {
-      data = xx *list.data;
-      align = array_align_of(list.*);
+    #if type_info(T).type == .ARRAY {
       size_bytes = array_size_bytes(list.*);
-    } else {
-      data = *list.offset;
-      align = align_of(list.TYPE);
-      size_bytes = list.count * size_of(list.TYPE);
+      align = array_align_of(list.*);
     }
 
     // Check list underflow / overflow
     list_end := data.* + size_bytes;
     if data.* < 0 {
-      log("% Found a list that underflows", desc);
-      `return;
+      ASSET_Error("% Found a list that underflows", desc);
+      return;
     }
-    if list_end > file.count {
-      log("% Found a list that overflows", desc);
-      `return;
+    if list_end > file_.count {
+      ASSET_Error("% Found a list that overflows", desc);
+      return;
     }
 
-    data.* += address_patch;
+    data.* += address_patch_;
     if (data.* % align != 0) {
-      log("% Asset file contains unaligned data", desc);
-      `return;
+      ASSET_Error("% Asset file contains unaligned data", desc);
+      return;
     }
   }
 
@@ -252,6 +254,8 @@ ASSET_LoadPieFile :: (file_path: string)
   }
 
   for * links.skeletons {
+    skel := it;
+
     Patch(*it.inverse_matrices);
     Patch(*it.child_index_buffer);
     Patch(*it.child_index_ranges);
@@ -453,7 +457,7 @@ ASSET_InitModels :: () #expand
     if pie_model.is_skinned
     {
       if pie_model.skeleton_index >= AST.skeletons.count {
-        log("% Wkeleton index overflow", `desc);
+        ASSET_Error("% Wkeleton index overflow", `desc);
         `return;
       }
 
@@ -467,7 +471,7 @@ ASSET_InitModels :: () #expand
 
       if !is_index_in_bounds(AST.materials, pie_mesh.material_index)
       {
-        log("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count);
+        ASSET_Error("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count);
         `return;
       }
 
@@ -530,7 +534,7 @@ ASSET_InitSkeletons :: ()
         skel.joints_count != skel.bind_scales.count ||
         skel.joints_count != skel.joint_names.count)
     {
-      log("% joints count mismatch detected", desc);
+      ASSET_Error("% joints count mismatch detected", desc);
       return;
     }
 
@@ -557,7 +561,7 @@ ASSET_InitSkeletons :: ()
 
         comp_count := ifx chan.type == .Rotation then 4 else 3;
         if !(comp_count * chan.inputs.count * size_of(float) == array_size_bytes(pie_chan.outputs)) {
-          log("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs));
+          ASSET_Error("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs));
           return;
         }
 
