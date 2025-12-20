@@ -19,6 +19,8 @@ B_PieBuilder :: struct
 B_OffsetAddress :: (target: *$T, offset: s64) #expand
 {
   data: *s64 = xx *target.data;
+  if (data.* == 0) return;
+
   align := 1;
   #if type_info(T).type == .ARRAY {
     align = array_align_of(target.*);
@@ -90,7 +92,6 @@ B_OffsetAddresses :: (builder_or_links: *$T, offset: s64)
 
 B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
 {
-
   // Rebase source indices
   for * model: src.models {
     if model.is_skinned {
@@ -108,15 +109,14 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
     }
   }
 
+  // Rebase source address offsets
+  src_to_dst_offset: s64 = dst.file.current_point - src.file.memory_base;
+  B_OffsetAddresses(src, src_to_dst_offset);
+
   // Copy pie file content
   src_file_size: s64 = src.file.current_point - src.file.memory_base;
-  src_to_dst_offset: s64 = dst.file.current_point - src.file.memory_base;
-
-  dst_file_mem := get(*dst.file, src_file_size);
-  memcpy(dst_file_mem, src.file.memory_base, src_file_size);
-
-  // Rebase source address offsets
-  B_OffsetAddresses(src, src_to_dst_offset);
+  dst_append_memory := get(*dst.file, src_file_size);
+  memcpy(dst_append_memory, src.file.memory_base, src_file_size);
 
   // Copy arrays
   array_add_from_another_array(*dst.vertices, src.vertices);
@@ -127,6 +127,17 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   array_add_from_another_array(*dst.shaders, src.shaders);
   array_add_from_another_array(*dst.fonts, src.fonts);
   array_add_from_another_array(*dst.sounds, src.sounds);
+
+  // Clear src to avoid use after merge
+  array_reset(*src.vertices);
+  array_reset(*src.indices);
+  array_reset(*src.models);
+  array_reset(*src.skeletons);
+  array_reset(*src.materials);
+  array_reset(*src.shaders);
+  array_reset(*src.fonts);
+  array_reset(*src.sounds);
+  fini(*src.file);
 }
 
 B_InitPieBuilder :: ()

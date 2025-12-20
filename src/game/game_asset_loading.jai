@@ -32,8 +32,9 @@ ASSET_PostFrame :: ()
   {
     LOAD_T_SPEED :: 10.0;
     using it.stream;
-    if flags & .LOADED
+    if flags & .LOADED {
       loaded_t = min(1.0, loaded_t + G.dt * LOAD_T_SPEED);
+    }
   }
 }
 
@@ -210,6 +211,8 @@ ASSET_LoadPieFile :: (file_path: string)
     desc := "@todo";
 
     data: *s64 = xx *list.data;
+    if (data.* == 0) return;
+
     size_bytes := list.count;
     align := 1;
     #if type_info(T).type == .ARRAY {
