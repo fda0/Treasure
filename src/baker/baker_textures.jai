@@ -4,7 +4,7 @@ B_TEX_Input :: struct
   type: enum {PATH; DATA;};
 }
 
-B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
+B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
 {
   auto_release_temp();
   push_allocator(temp);
@@ -89,59 +89,51 @@ B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
     }
 
     // Set material texture values
-    Check(!pie_material.tex.format);
+    Check(!material.tex.format);
     Check(B.tex_format != .Empty);
-    pie_material.tex.format = B.tex_format;
-    pie_material.tex.width = orig_width;
-    pie_material.tex.height = orig_height;
-    pie_material.tex.lods = lods_count;
-    pie_material.tex.layers = xx inputs.count;
+    material.tex.format = B.tex_format;
+    material.tex.width = orig_width;
+    material.tex.height = orig_height;
+    material.tex.lods = lods_count;
+    material.tex.layers = xx inputs.count;
 
-    pie_textures_count := pie_material.tex.lods * pie_material.tex.layers;
-    pie_texture_sections := B_ListAllocArray(*pie_material.tex.sections, pie_textures_count, PIE_MaterialTexSection);
+    material.tex.sections = B_NewArray(material.tex.lods * material.tex.layers, PIE_MaterialTexSection);
 
-    B_ListStart(*pie_material.tex.full_data);
+    full_data_start := context.pie.file.current_point;
 
     // Iterate over fliles
-    if pie_material.tex.format == .R8G8B8A8
+    if material.tex.format == .R8G8B8A8
     {
       pie_texture_index := 0;
       for file, file_index: files
       {
         // Iterate over lods
-        for lod_index: MakeRange(lods_count)
+        for surf: file.surfs
         {
-          surf := file.surfs[lod_index];
-
-          Check(pie_texture_index < pie_textures_count);
-          pie_sect := *pie_texture_sections[pie_texture_index];
+          section := *material.tex.sections[pie_texture_index];
           pie_texture_index += 1;
 
           // Calc
-          pie_data_size := surf.w * surf.h * size_of(u32);
+          pixels_size := surf.w * surf.h * size_of(u32);
 
           // Fill texture data
-          pie_sect.width = xx surf.w;
-          pie_sect.height = xx surf.h;
-          pie_sect.lod = xx lod_index;
-          pie_sect.layer = xx file_index;
-          pie_sect.data_offset = B_CurrentFileOffset() - pie_material.tex.full_data.offset;
-          pie_sect.data_size = xx pie_data_size;
+          section.width = xx surf.w;
+          section.height = xx surf.h;
+          section.lod = xx it_index;
+          section.layer = xx file_index;
+          section.data_offset = context.pie.file.current_point - full_data_start;
+          section.data_size = xx pixels_size;
 
-          // Alloc data buffer
-          pie_data := B_FileAllocBytes(pie_data_size);
-
-          // Copy data to .pie file buffer
-          if surf.w * size_of(u32) == surf.pitch
-            memcpy(pie_data, surf.pixels, pie_data_size);
-          else
-            Check(false, "Surface pitch has to be equal to with byte size currently.");
+          // Alloc & copy pixels
+          Check(surf.w * size_of(u32) == surf.pitch, "Surface pitch has to be equal to with byte size currently.");
+          pixels := B_NewArray(pixels_size, u8);
+          memcpy(pixels.data, surf.pixels, pixels_size);
 
           SDL_DestroySurface(surf);
         }
       }
     }
-    else if pie_material.tex.format == .BC7_RGBA
+    else if material.tex.format == .BC7_RGBA
     {
       Check(false, "BC7 path not implemented");
   //     U32 pie_texture_index = 0;
@@ -168,7 +160,7 @@ B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
   //         pie_sect.height = surf.h;
   //         pie_sect.lod = lod_index;
   //         pie_sect.layer = file_index;
-  //         pie_sect.data_offset = build.file.used - pie_material.tex.full_data.offset;
+  //         pie_sect.data_offset = build.file.used - material.tex.full_data.offset;
   //         pie_sect.data_size = pie_data_size;
 
   //         // Alloc data buffer
@@ -214,25 +206,24 @@ B_TEX_LoadPaths :: (pie_material: *PIE_Material, inputs: [] B_TEX_Input)
   //       }
   //     }
     }
-
-    B_ListEnd();
   }
 
   if errors
   {
-    for files
+    for files {
       if it.surfs[0] then SDL_DestroySurface(it.surfs[0]);
+    }
   }
 }
 
 B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
 {
   // Allocate and prepare PIE_Material & array of B_Texture
-  pie_material := array_add(*context.pie.materials);
-  B_SetDefaultsPIEMaterial(pie_material);
+  material := array_add(*context.pie.materials);
+  B_SetDefaultsPIEMaterial(material);
 
-  B_ListSetPrint(*pie_material.name, "%", tex_name);
-  pie_material.params.specular = xx specular_color;
+  material.name = B_CopyString(tex_name);
+  material.params.specular = xx specular_color;
 
   {
     auto_release_temp();
@@ -250,6 +241,6 @@ B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
       file_paths[it_index].str = tprint("../res/tex/%1/%1_1K-JPG_%", tex_name, it);
 
     // Load textures
-    B_TEX_LoadPaths(pie_material, file_paths);
+    B_TEX_LoadPaths(material, file_paths);
   }
 }

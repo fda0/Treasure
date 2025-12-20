@@ -2,9 +2,6 @@ B_PieBuilder :: struct
 {
   file: Flat_Pool;
 
-  active_list: *PIE_ListUntyped;
-  active_list_type: Type;
-
   vertices: [..] RD_WorldVertex;
   indices: [..] u16;
 
@@ -40,31 +37,25 @@ B_OffsetPieBuilderAddresses :: (builder: *B_PieBuilder, address_offset: s64)
     assert(data.* % align == 0);
   }
 
-  for *model: builder.models
+  for * model: builder.models
   {
     ApplyOffset(*model.name);
     ApplyOffset(*model.meshes);
   }
 
-  for *skeleton: builder.skeletons
+  for * skeleton: builder.skeletons
   {
-    for i: MakeRange(skeleton.name_ranges.count)
-    {
-      name_range := (builder.file.memory_base + skeleton.name_ranges.offset + i * size_of(Range(s64))).(*Range(s64));
-      name_range.min += address_offset;
-      name_range.max += address_offset;
+    for * skeleton.names {
+      ApplyOffset(it);
     }
 
-    for i: MakeRange(skeleton.anims.count)
+    for * anim: skeleton.anims
     {
-      anim := (builder.file.memory_base + skeleton.anims.offset + i * size_of(PIE_Animation)).(*PIE_Animation);
-      for j: MakeRange(anim.channels.count)
+      for * channel: anim.channels
       {
-        channel := (builder.file.memory_base + anim.channels.offset + j * size_of(PIE_AnimationChannel)).(*PIE_AnimationChannel);
         ApplyOffset(*channel.inputs);
         ApplyOffset(*channel.outputs);
       }
-
       ApplyOffset(*anim.name);
       ApplyOffset(*anim.channels);
     }
@@ -75,30 +66,30 @@ B_OffsetPieBuilderAddresses :: (builder: *B_PieBuilder, address_offset: s64)
     ApplyOffset(*skeleton.translations);
     ApplyOffset(*skeleton.rotations);
     ApplyOffset(*skeleton.scales);
-    ApplyOffset(*skeleton.name_ranges);
+    ApplyOffset(*skeleton.names);
     ApplyOffset(*skeleton.anims);
   }
 
-  for *material: builder.materials
+  for * material: builder.materials
   {
     ApplyOffset(*material.name);
     ApplyOffset(*material.tex.full_data);
     ApplyOffset(*material.tex.sections);
   }
 
-  for *shader: builder.shaders
+  for * shader: builder.shaders
   {
     ApplyOffset(*shader.data);
     ApplyOffset(*shader.info);
   }
 
-  for *font: builder.fonts
+  for * font: builder.fonts
   {
     ApplyOffset(*font.data);
     ApplyOffset(*font.info);
   }
 
-  for *sound: builder.sounds
+  for * sound: builder.sounds
   {
     ApplyOffset(*sound.data);
   }
@@ -109,24 +100,23 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   dst_off: s64 = dst.file.current_point - dst.file.memory_base;
   src_off: s64 = src.file.current_point - src.file.memory_base;
 
-  B_OffsetPieBuilderAddresses(src, dst_off);
-
-  for *model: src.models {
+  for * model: src.models {
     if model.is_skinned {
       model.skeleton_index += xx dst.skeletons.count;
     }
   }
 
-  for *model: src.models
+  for src.models
   {
-    for i: MakeRange(model.meshes.count)
+    for * it.meshes
     {
-      mesh := (src.file.memory_base + model.meshes.offset + i * size_of(PIE_Mesh)).(*PIE_Mesh);
-      mesh.material_index += xx dst.materials.count;
-      mesh.vertices_start_index += xx dst.vertices.count;
-      mesh.indices_start_index += xx dst.indices.count;
+      it.material_index += xx dst.materials.count;
+      it.vertices_start_index += xx dst.vertices.count;
+      it.indices_start_index += xx dst.indices.count;
     }
   }
+
+  B_OffsetPieBuilderAddresses(src, dst_off);
 
   array_add_from_another_array(*dst.vertices, src.vertices);
   array_add_from_another_array(*dst.indices, src.indices);
@@ -155,25 +145,22 @@ B_InitPieBuilder :: ()
   remember_allocators(*context.pie.fonts);
   remember_allocators(*context.pie.sounds);
 
-  B_FileAllocType(PIE_Header);
+  B_NewArray(1, PIE_Header);
 }
 
 B_FinalizePieBuilder :: ()
 {
-  // Prepare PIE_Links and append it to memory
-  links: PIE_Links;
-  B_ListSetArray(*links.vertices, context.pie.vertices);
-  B_ListSetArray(*links.indices, context.pie.indices);
-  B_ListSetArray(*links.models, context.pie.models);
-  links.skeletons = B_CopyArray(context.pie.skeletons);
-  B_ListSetArray(*links.materials, context.pie.materials);
-  B_ListSetArray(*links.shaders, context.pie.shaders);
-  B_ListSetArray(*links.fonts, context.pie.fonts);
-  B_ListSetArray(*links.sounds, context.pie.sounds);
-
-  // Prepare PIE_Header
   header := context.pie.file.memory_base.(*PIE_Header);
-  B_ListSetValue(*header.links, links);
+
+  header.links = B_NewArray(1, PIE_Links);
+  header.links[0].vertices = B_CopyArray(context.pie.vertices);
+  header.links[0].indices = B_CopyArray(context.pie.indices);
+  header.links[0].models = B_CopyArray(context.pie.models);
+  header.links[0].skeletons = B_CopyArray(context.pie.skeletons);
+  header.links[0].materials = B_CopyArray(context.pie.materials);
+  header.links[0].shaders = B_CopyArray(context.pie.shaders);
+  header.links[0].fonts = B_CopyArray(context.pie.fonts);
+  header.links[0].sounds = B_CopyArray(context.pie.sounds);
 
   // Calculate hash
   hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), context.pie.file.current_point);
@@ -194,6 +181,7 @@ B_CurrentFileOffset :: () -> s64
   offset := context.pie.file.current_point - context.pie.file.memory_base;
   return offset;
 }
+
 
 // Alignment
 B_FileAlign :: (alignment: s64)
@@ -247,133 +235,4 @@ B_NewArray :: (count: s64, $T: Type, initialized := true, aligned := true) -> []
   return [] T.{count, memory};
 }
 
-
-
-// ListStart / ListEnd
-B_ListStart :: (list: *PIE_List($LT))
-{
-  Check(!list.count);
-  Check(!context.pie.active_list && !context.pie.active_list_type);
-  context.pie.active_list = list;
-  context.pie.active_list_type = LT;
-
-  B_FileAlignToType(LT);
-  list.offset = B_CurrentFileOffset();
-}
-
-B_ListEnd :: ()
-{
-  // Check that ListStart was called first
-  Check(context.pie.active_list && context.pie.active_list_type);
-  Check(!context.pie.active_list.count);
-
-  // Calculate offet / count
-  current_offset := B_CurrentFileOffset();
-  Check(current_offset >= context.pie.active_list.offset);
-  size_bytes := current_offset - context.pie.active_list.offset;
-
-  type_size := context.pie.active_list_type.(*Type_Info).runtime_size;
-  Check(size_bytes % type_size == 0);
-
-  context.pie.active_list.count = size_bytes / type_size;
-
-  // Clean up active_list references
-  context.pie.active_list = null;
-  memset(*context.pie.active_list_type, 0, size_of(Type));
-}
-
-// AllocInFile
-B_FileAllocBytes :: (size: s64) -> *void
-{
-  bytes := get(*context.pie.file, size);
-  memset(bytes, 0, size);
-  return bytes;
-}
-
-B_FileAllocType :: ($T: Type) -> *T
-{
-  Check(B_FileIsAlignedToType(T));
-  Check(!context.pie.active_list_type || context.pie.active_list_type == T);
-  return B_FileAllocBytes(size_of(T));
-}
-
-B_FileAllocArray :: (count: s64, $T: Type) -> [] T
-{
-  Check(B_FileIsAlignedToType(T));
-  Check(!context.pie.active_list_type || context.pie.active_list_type == T);
-
-  result: [] T;
-  result.count = count;
-  result.data = B_FileAllocBytes(count * size_of(T));
-  return result;
-}
-
-// FileAppend
-B_FileAppendValue :: (value: $T)
-{
-  Check(!context.pie.active_list_type || context.pie.active_list_type == T);
-  dst := B_FileAllocType(T);
-  dst.* = value;
-}
-
-B_FileAppendArray :: (array: [] $T)
-{
-  dst := B_FileAllocArray(array.count, T);
-  memcpy(dst.data, array.data, size_of(T)*array.count);
-}
-
-B_FileAppendString :: (str: string)
-{
-  B_FileAppendArray(cast([] u8) str);
-}
-
-B_FileAppendPrint :: (format_string: string, args: .. Any)
-{
-  auto_release_temp();
-  printed := tprint(format_string, ..args);
-  B_FileAppendString(printed);
-}
-
-// ListAlloc
-B_ListAllocArray :: (list: *PIE_List($LT), count: s64, $T: Type) -> [] T
-{
-  #assert(LT == T);
-  B_ListStart(list);
-  result := B_FileAllocArray(count, T);
-  B_ListEnd();
-  return result;
-}
-
-// ListSet
-B_ListSetValue :: (list: *PIE_List($LT), value: $T)
-{
-  #assert(LT == T);
-  B_ListStart(list);
-  B_FileAppendValue(value);
-  B_ListEnd();
-}
-
-B_ListSetArray :: (list: *PIE_List($LT), array: [] $T)
-{
-  #assert(LT == T);
-  B_ListStart(list);
-  B_FileAppendArray(array);
-  B_ListEnd();
-}
-
-B_ListSetString :: (list: *PIE_List($LT), str: string)
-{
-  #assert(LT == u8);
-  B_ListStart(list);
-  B_FileAppendString(str);
-  B_ListEnd();
-}
-
-B_ListSetPrint :: (list: *PIE_List($LT), format_string: string, args: .. Any)
-{
-  #assert(LT == u8);
-  B_ListStart(list);
-  B_FileAppendPrint(format_string, ..args);
-  B_ListEnd();
-}
 

@@ -102,11 +102,11 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
     // Create material
     bk_mesh.material_index = context.pie.materials.count;
     {
-      pie_material := array_add(*context.pie.materials);
-      B_SetDefaultsPIEMaterial(pie_material);
+      material := array_add(*context.pie.materials);
+      B_SetDefaultsPIEMaterial(material);
 
       // Fill material name
-      B_ListSetPrint(*pie_material.name, "%.m%.%", model.name, mesh_index, to_string(gltf_material.name));
+      material.name = B_CopyString(tprint("%.m%.%", model.name, mesh_index, to_string(gltf_material.name)));
 
       diffuse_tex: B_TEX_Input;
       normal_tex: B_TEX_Input;
@@ -118,8 +118,8 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_metallic_roughness
       {
         metal := *gltf_material.pbr_metallic_roughness;
-        pie_material.params.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
-        pie_material.params.roughness = metal.roughness_factor;
+        material.params.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
+        material.params.roughness = metal.roughness_factor;
 
         if metal.base_color_texture.texture
           diffuse_tex = B_GLTF_ImageToTexInput(metal.base_color_texture.texture.image, dir_path);
@@ -128,9 +128,9 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_specular_glossiness
       {
         gloss := *gltf_material.pbr_specular_glossiness;
-        pie_material.params.diffuse   = xx Color32_RGBAf(gloss.diffuse_factor);
-        pie_material.params.specular  = xx Color32_RGBf(gloss.specular_factor);
-        pie_material.params.roughness = 1.0 - gloss.glossiness_factor;
+        material.params.diffuse   = xx Color32_RGBAf(gloss.diffuse_factor);
+        material.params.specular  = xx Color32_RGBf(gloss.specular_factor);
+        material.params.roughness = 1.0 - gloss.glossiness_factor;
 
         if gloss.diffuse_texture.texture
           diffuse_tex = B_GLTF_ImageToTexInput(gloss.diffuse_texture.texture.image, dir_path);
@@ -140,7 +140,7 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       }
 
       if (gltf_material.alpha_mode != .cgltf_alpha_mode_opaque)
-        pie_material.params.flags |= .HasAlpha;
+        material.params.flags |= .HasAlpha;
 
       // Prepare tex_paths array
       // These are expected to be in a fixed order for now
@@ -167,7 +167,7 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       }
 
       if tex_inputs_count
-        B_TEX_LoadPaths(pie_material, Prefix(tex_inputs, tex_inputs_count));
+        B_TEX_LoadPaths(material, Prefix(tex_inputs, tex_inputs_count));
     }
   }
 
@@ -367,38 +367,38 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
 {
   model.has_skeleton = true;
   model.skeleton_index = xx context.pie.skeletons.count;
-  pie_skel := array_add(*context.pie.skeletons);
+  skeleton := array_add(*context.pie.skeletons);
 
   // Root transform
-  pie_skel.root_transform = model.spec_transform;
+  skeleton.root_transform = model.spec_transform;
 
   Check(data.skins_count == 1);
   skin := data.skins;
-  joints_count := skin.joints_count;
+  joints_count := skin.joints_count.(s64);
 
   // Joints data
   {
     // Unpack inverse bind matrices.
     {
-      inv_bind := skin.inverse_bind_matrices;
-      Check(inv_bind != null);
-      Check(inv_bind.count == joints_count);
-      Check(inv_bind.component_type == .cgltf_component_type_r_32f);
-      Check(inv_bind.type == .cgltf_type_mat4);
+      ibm := skin.inverse_bind_matrices;
+      Check(ibm != null);
+      Check(ibm.count == xx joints_count);
+      Check(ibm.component_type == .cgltf_component_type_r_32f);
+      Check(ibm.type == .cgltf_type_mat4);
 
-      comp_count := cgltf_num_components(inv_bind.type);
+      comp_count := cgltf_num_components(ibm.type);
       Check(comp_count == 16);
 
-      pie_skel.inverse_matrices = B_NewArray(xx inv_bind.count, Mat4);
-      float_count := comp_count * inv_bind.count;
-      unpacked_count := cgltf_accessor_unpack_floats(inv_bind, xx pie_skel.inverse_matrices.data, float_count);
+      skeleton.inverse_matrices = B_NewArray(xx ibm.count, Mat4);
+      float_count := comp_count * ibm.count;
+      unpacked_count := cgltf_accessor_unpack_floats(ibm, xx skeleton.inverse_matrices.data, float_count);
       Check(unpacked_count == float_count);
     }
 
     // Child hierarchy indices.
     {
-      pie_skel.child_index_buffer = B_NewArray(xx joints_count, u32);
-      pie_skel.child_index_ranges = B_NewArray(xx joints_count, Range(u32));
+      skeleton.child_index_buffer = B_NewArray(joints_count, u32);
+      skeleton.child_index_ranges = B_NewArray(joints_count, Range(u32));
 
       indices_counter: u32;
       for joint_index: MakeRange(joints_count)
@@ -411,157 +411,134 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
           child_joint_index := B_GLTF_FindJointIndex(skin, child);
 
           if child_index == 0
-            pie_skel.child_index_ranges[joint_index].min = indices_counter;
+            skeleton.child_index_ranges[joint_index].min = indices_counter;
 
           Check(indices_counter < xx joints_count);
-          pie_skel.child_index_buffer[indices_counter] = child_joint_index;
+          skeleton.child_index_buffer[indices_counter] = child_joint_index;
           indices_counter += 1;
 
-          pie_skel.child_index_ranges[joint_index].max = indices_counter;
+          skeleton.child_index_ranges[joint_index].max = indices_counter;
         }
       }
     }
 
-    // rest pose transformations
-    {
-      // Translations
-      B_ListStart(*pie_skel.translations);
-      for joint_index: MakeRange(joints_count)
-      {
-        joint := skin.joints[joint_index];
-        B_FileAppendValue(V3.{component = joint.translation});
-      }
-      B_ListEnd();
-
-      // Rotations
-      B_ListStart(*pie_skel.rotations);
-      for joint_index: MakeRange(joints_count)
-      {
-        joint := skin.joints[joint_index];
-        B_FileAppendValue(Quat.{component = joint.rotation});
-      }
-      B_ListEnd();
-
-      // Scales
-      B_ListStart(*pie_skel.scales);
-      for joint_index: MakeRange(joints_count)
-      {
-        joint := skin.joints[joint_index];
-        B_FileAppendValue(V3.{component = joint.scale});
-      }
-      B_ListEnd();
+    // Rest pose transformations - translations, rotations, scales, names
+    skeleton.translations = B_NewArray(joints_count, V3);
+    for * skeleton.translations {
+      it.component = skin.joints[it_index].translation;
     }
 
-    // First allocate all strings in file in one continuous chunk.
-    // Track min&max paris of each string and put them in file at the end.
-    temp_name_ranges := NewArray(xx joints_count, Range(s64));
-    for joint_index: MakeRange(joints_count)
-    {
-      temp_name_ranges[joint_index].min = B_CurrentFileOffset();
-      joint := skin.joints[joint_index];
-      B_FileAppendString(to_string(joint.name));
-      temp_name_ranges[joint_index].max = B_CurrentFileOffset();
+    skeleton.rotations = B_NewArray(joints_count, Quat);
+    for * skeleton.rotations {
+      it.component = skin.joints[it_index].rotation;
     }
-    B_ListSetArray(*pie_skel.name_ranges, temp_name_ranges);
+
+    skeleton.scales = B_NewArray(joints_count, V3);
+    for * skeleton.scales {
+      it.component = skin.joints[it_index].scale;
+    }
+
+    skeleton.names = B_NewArray(joints_count, string);
+    for * skeleton.names {
+      it.* = B_CopyString(to_string(skin.joints[it_index].name));
+    }
   }
 
   // Animations
   if data.animations_count
   {
-    pie_animations := B_ListAllocArray(*pie_skel.anims, xx data.animations_count, PIE_Animation);
-    for * pie_anim: pie_animations
+    skeleton.anims = B_NewArray(xx data.animations_count, PIE_Animation);
+    for * skeleton.anims
     {
       gltf_anim := *data.animations[it_index];
       t_min := FLOAT32_MAX;
       t_max := -FLOAT32_MAX;
 
       // Name string
-      B_ListSetString(*pie_anim.name, to_string(gltf_anim.name));
+      it.name = B_CopyString(to_string(gltf_anim.name));
 
       // Channels
-      pie_channels := B_ListAllocArray(*pie_anim.channels, xx gltf_anim.channels_count, PIE_AnimationChannel);
-      for * pie_chan: pie_channels
+      it.channels = B_NewArray(xx gltf_anim.channels_count, PIE_AnimationChannel);
+      for * it.channels
       {
-        gltf_chan := *gltf_anim.channels[it_index];
-        gltf_sampler := gltf_chan.sampler;
+        gltf_channel := *gltf_anim.channels[it_index];
+        gltf_sampler := gltf_channel.sampler;
         Check(gltf_sampler.interpolation == .cgltf_interpolation_type_linear);
         Check(gltf_sampler.input.count == gltf_sampler.output.count);
 
-        sample_count := gltf_sampler.input.count;
-        joint_index := B_GLTF_FindJointIndex(skin, gltf_chan.target_node);
+        sample_count := gltf_sampler.input.count.(s64);
+        joint_index := B_GLTF_FindJointIndex(skin, gltf_channel.target_node);
 
         channel_type: PIE_AnimationChannelType;
-        if gltf_chan.target_path == {
+        if gltf_channel.target_path == {
           case; Check(false, "Unsupported channel target");
           case .cgltf_animation_path_type_translation; channel_type = .Translation;
           case .cgltf_animation_path_type_rotation;    channel_type = .Rotation;
           case .cgltf_animation_path_type_scale;       channel_type = .Scale;
         }
 
-        pie_chan.joint_index30_type2 = joint_index | (channel_type << 30).(u32);
+        it.joint_index30_type2 = joint_index | (channel_type << 30).(u32);
 
 
-        // inputs
-        in_nums := B_ListAllocArray(*pie_chan.inputs, xx sample_count, float);
-        in_unpacked_count := cgltf_accessor_unpack_floats(gltf_sampler.input, in_nums.data, sample_count);
-        Check(in_unpacked_count == sample_count);
+        // Inputs
+        it.inputs = B_NewArray(sample_count, float);
+        unpacked_inputs := cgltf_accessor_unpack_floats(gltf_sampler.input, it.inputs.data, xx it.inputs.count);
+        Check(unpacked_inputs == xx it.inputs.count);
 
-        for MakeRange(sample_count)
-        {
-          n := in_nums[it];
-          if n > t_max then t_max = n;
-          if n < t_min then t_min = n;
+        for it.inputs {
+          t_max = max(t_max, it);
+          t_min = min(t_min, it);
         }
 
         // outputs
-        out_comp_count := cgltf_num_components(gltf_sampler.output.type);
-        out_count := out_comp_count * sample_count;
-        out_nums := B_ListAllocArray(*pie_chan.outputs, xx out_count, float);
-        out_unpacked_count := cgltf_accessor_unpack_floats(gltf_sampler.output, out_nums.data, out_count);
-        Check(out_unpacked_count == out_count);
+        output_component_count := cgltf_num_components(gltf_sampler.output.type).(s64);
+        it.outputs = B_NewArray(sample_count * output_component_count, float);
+        unpacked_outputs := cgltf_accessor_unpack_floats(gltf_sampler.output, it.outputs.data, xx it.outputs.count);
+        Check(unpacked_outputs == xx it.outputs.count);
       }
 
-      pie_anim.t_min = t_min;
-      pie_anim.t_max = t_max;
+      it.t_min = t_min;
+      it.t_max = t_max;
     }
   }
 }
 
-B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
+B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
 {
-  pie_model := array_add(*context.pie.models);
+  model := array_add(*context.pie.models);
 
   // Name string
-  pie_model.name = B_CopyString(bk_model.name);
+  model.name = B_CopyString(baker_model.name);
 
-  pie_model.is_skinned = bk_model.is_skinned;
-  pie_model.skeleton_index = bk_model.skeleton_index;
+  model.is_skinned = baker_model.is_skinned;
+  model.skeleton_index = baker_model.skeleton_index;
 
-  pie_meshes := B_ListAllocArray(*pie_model.meshes, bk_model.meshes.count, PIE_Mesh);
+  model.meshes = B_NewArray(baker_model.meshes.count, PIE_Mesh);
 
-  for bk_mesh, mesh_index: bk_model.meshes
+  for * model.meshes
   {
-    pie_mesh := *pie_meshes[mesh_index];
-    pie_mesh.material_index = xx bk_mesh.material_index;
-    pie_mesh.vertices_start_index = xx context.pie.vertices.count;
+    baker_mesh := baker_model.meshes[it_index];
+
+    it.material_index = xx baker_mesh.material_index;
+    it.vertices_start_index = xx context.pie.vertices.count;
 
     // vertices
-    for vert_i: MakeRange(bk_mesh.verts_count)
+    for vert_i: MakeRange(baker_mesh.verts_count)
     {
       vert: RD_WorldVertex;
 
       // POS
       vert.p = V3.{
-        bk_mesh.positions[vert_i*3 + 0],
-        bk_mesh.positions[vert_i*3 + 1],
-        bk_mesh.positions[vert_i*3 + 2],
+        baker_mesh.positions[vert_i*3 + 0],
+        baker_mesh.positions[vert_i*3 + 1],
+        baker_mesh.positions[vert_i*3 + 2],
       };
 
       // NORMAL
       vert.normal = V3.{
-        bk_mesh.normals[vert_i*3 + 0],
-        bk_mesh.normals[vert_i*3 + 1],
-        bk_mesh.normals[vert_i*3 + 2],
+        baker_mesh.normals[vert_i*3 + 0],
+        baker_mesh.normals[vert_i*3 + 1],
+        baker_mesh.normals[vert_i*3 + 2],
       };
 
       // NORMAL validation
@@ -581,25 +558,25 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
 
       // UV
       vert.uv = V2.{
-        bk_mesh.texcoords[vert_i*2 + 0],
-        bk_mesh.texcoords[vert_i*2 + 1],
+        baker_mesh.texcoords[vert_i*2 + 0],
+        baker_mesh.texcoords[vert_i*2 + 1],
       };
 
       // SKINNED specific
-      if pie_model.is_skinned
+      if model.is_skinned
       {
         joint_indices: [4] u32 = .[
-          bk_mesh.joint_indices[vert_i*4 + 0],
-          bk_mesh.joint_indices[vert_i*4 + 1],
-          bk_mesh.joint_indices[vert_i*4 + 2],
-          bk_mesh.joint_indices[vert_i*4 + 3],
+          baker_mesh.joint_indices[vert_i*4 + 0],
+          baker_mesh.joint_indices[vert_i*4 + 1],
+          baker_mesh.joint_indices[vert_i*4 + 2],
+          baker_mesh.joint_indices[vert_i*4 + 3],
         ];
 
         // Validate joint indices
         for joint_indices
         {
-          if it >= bk_model.joints_count
-            log("[GLTF LOADER] Joint index overflow. %u >= %u", it, bk_model.joints_count, flags=.WARNING);
+          if it >= baker_model.joints_count
+            log("[GLTF LOADER] Joint index overflow. %u >= %u", it, baker_model.joints_count, flags=.WARNING);
         }
 
         vert.joints_packed4 = (joint_indices[0] |
@@ -608,10 +585,10 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
                                (joint_indices[3] << 24));
 
         weights := V4.{
-          bk_mesh.weights[vert_i*4 + 0],
-          bk_mesh.weights[vert_i*4 + 1],
-          bk_mesh.weights[vert_i*4 + 2],
-          bk_mesh.weights[vert_i*4 + 3],
+          baker_mesh.weights[vert_i*4 + 0],
+          baker_mesh.weights[vert_i*4 + 1],
+          baker_mesh.weights[vert_i*4 + 2],
+          baker_mesh.weights[vert_i*4 + 3],
         };
 
         // Validate weights
@@ -627,9 +604,9 @@ B_GLTF_ExportModelToPie :: (bk_model: B_GLTF_Model)
 
     // Indices
     {
-      pie_mesh.indices_start_index = xx context.pie.indices.count;
-      pie_mesh.indices_count += xx bk_mesh.indices.count;
-      array_add_from_another_array(*context.pie.indices, bk_mesh.indices);
+      it.indices_start_index = xx context.pie.indices.count;
+      it.indices_count += xx baker_mesh.indices.count;
+      array_add_from_another_array(*context.pie.indices, baker_mesh.indices);
     }
   }
 }

@@ -2,20 +2,6 @@
 // This file describes PIE file format - which is produced by "baker" asset preprocessor.
 // .pie files pack all the data needed by the game like models' meshes & animations, materials, textures.
 //
-PIE_ListUntyped :: struct
-{
-  count: s64;
-  offset: s64;
-}
-  PIE_List :: struct($TYPE: Type)
-{
-  #as using untyped: PIE_ListUntyped;
-  #overlay(untyped) array: [] TYPE;
-
-  #if size_of(TYPE) == 1 {
-    #overlay(untyped) str: string;
-  }
-}
 
 RD_WorldVertex :: struct
 {
@@ -51,15 +37,15 @@ PIE_AnimationChannelType :: enum u32
 PIE_AnimationChannel :: struct
 {
   joint_index30_type2: u32; // [u32 | (PIE_AnimationChannelType << 30)] // @todo this is silly, simplify
-  inputs: PIE_List(float);  // float * count
-  outputs: PIE_List(float); // float * (3 or 4 [V3 or Quat]) * count
+  inputs: [] float;  // float * count
+  outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
 }
 
 PIE_Animation :: struct
 {
-  name: PIE_List(u8);
+  name: string;
   t_min, t_max: float;
-  channels: PIE_List(PIE_AnimationChannel);
+  channels: [] PIE_AnimationChannel;
 }
 
 PIE_Skeleton :: struct
@@ -68,12 +54,12 @@ PIE_Skeleton :: struct
   inverse_matrices: [] Mat4;
   child_index_buffer: [] u32; // @todo use u16 here?
   child_index_ranges: [] Range(u32); // @todo use u16 here?
-  translations: PIE_List(V3);
-  rotations: PIE_List(Quat);
-  scales: PIE_List(V3);
-  name_ranges: PIE_List(Range(s64)); // offset of min & max char* - can be transformed to S8
+  translations: [] V3;
+  rotations: [] Quat;
+  scales: [] V3;
+  names: [] string; // offset of min & max char* - can be transformed to S8
 
-  anims: PIE_List(PIE_Animation);
+  anims: [] PIE_Animation;
   root_transform: Mat4;
 }
 
@@ -91,7 +77,7 @@ PIE_Model :: struct
   name: string;
   is_skinned: bool;
   skeleton_index: u32; // for skinned only
-  meshes: PIE_List(PIE_Mesh);
+  meshes: [] PIE_Mesh;
 }
 
 PIE_MaterialTexSection :: struct
@@ -127,7 +113,7 @@ PIE_MaterialParams :: struct
 
 PIE_Material :: struct
 {
-  name: PIE_List(u8);
+  name: string;
   params: PIE_MaterialParams;
 
   tex: struct {
@@ -136,40 +122,40 @@ PIE_Material :: struct
     height: s32;
     lods: s32;
     layers: s32;
-    full_data: PIE_List(u8);
-    sections: PIE_List(PIE_MaterialTexSection);
+    full_data: string;
+    sections: [] PIE_MaterialTexSection;
   }
 }
 
 PIE_Sound :: struct
 {
-  data: PIE_List(u8);
+  data: string;
   format: SDL_AudioSpec;
 }
 
 PIE_Blob :: struct
 {
-  data: PIE_List(u8);
-  info: PIE_List(u8);
+  data: string;
+  info: string;
 }
 
 PIE_Links :: struct
 {
-  vertices: PIE_List(RD_WorldVertex);
-  indices: PIE_List(u16);
-  models: PIE_List(PIE_Model);
+  vertices: [] RD_WorldVertex;
+  indices: [] u16;
+  models: [] PIE_Model;
 
   skeletons: [] PIE_Skeleton;
-  materials: PIE_List(PIE_Material);
+  materials: [] PIE_Material;
 
-  shaders: PIE_List(PIE_Blob);
-  fonts: PIE_List(PIE_Blob);
-  sounds: PIE_List(PIE_Sound);
+  shaders: [] PIE_Blob;
+  fonts: [] PIE_Blob;
+  sounds: [] PIE_Sound;
 }
 
 PIE_MAGIC_HASH_SEED :: (0xB5EADC0D + 0); // @todo use 64 bits
 PIE_Header :: struct
 {
   file_hash: u64; // of everything after itself (the first 8 bytes) - seeded with PIE_MAGIC_HASH_SEED
-  links: PIE_List(PIE_Links);
+  links: [] PIE_Links;
 }
