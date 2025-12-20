@@ -2,9 +2,15 @@
 using,only(AST,G) COMPS;
 #scope_export;
 
-ASSET_State :: struct
+AssetState :: struct
 {
-  pie: ASSET_PieFile;
+  error: bool;
+  error_message: string;
+
+  file_path: string;
+  file: string;
+  header: *PIE_Header;
+  links: *PIE_Links;
 
   // Materials
   // nil_material: Material;
@@ -92,21 +98,6 @@ Model :: struct
 IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
 IsNil :: (a: *Model) -> bool { return a == *AST.models[0]; }
 
-ASSET_PieFile :: struct
-{
-  file: string; // @todo remove?
-
-  header: *PIE_Header;
-  links: *PIE_Links;
-  vertices: [] RD_WorldVertex;
-  indices: [] u16;
-  models: [] PIE_Model;
-  materials: [] PIE_Material;
-  shaders: [] PIE_Blob;
-  fonts: [] PIE_Blob;
-  sounds: [] PIE_Sound;
-};
-
 MaterialFromSlot :: (idx: MaterialSlot) -> *Material
 {
   material := *AST.materials[idx];
@@ -124,8 +115,8 @@ ModelFromID :: (id: ModelID) -> *Model { return ModelFromSlot(ModelSlotFromID(id
 
 GetShader :: (type: ShaderType) -> string
 {
-  if type.(s64) >= AST.pie.shaders.count return "";
-  return AST.pie.shaders[type].buffer;
+  if type.(s64) >= AST.links.shaders.count return "";
+  return AST.links.shaders[type].buffer;
 }
 
 //

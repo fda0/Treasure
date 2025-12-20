@@ -2,18 +2,58 @@
 using,only(AST,G,GPU) COMPS;
 #scope_export;
 
-ASSET_InitPreGPU :: ()
+AST_LoadAssetFile :: ()
 {
   ASSET_LoadPieFile("assets.pie");
+  if !AST.error ASSET_InitSkeletons();
+  if !AST.error ASSET_InitMaterials();
+  if !AST.error ASSET_InitModels();
+  if !AST.error ASSET_InitSounds();
+
+  if AST.error
+  {
+    if AST.error_message
+    {
+      push_allocator(temp);
+      header := tprint("Treasure error - couldn't load %", AST.file_path);
+
+      MessageBoxW(null,
+        utf8_to_wide(AST.error_message),
+        utf8_to_wide(header),
+        MB_OK | MB_ICONERROR | MB_TOPMOST);
+      AST.error_message = "";
+    }
+    exit(100);
+  }
 }
 
-ASSET_InitPostGPU :: ()
+AST_LaunchTextureUploadThread :: ()
 {
   // Texture thread init
   init(*AST.tex_semaphore);
   AST.tex_thread.starting_context = context;
   thread_init(*AST.tex_thread, ASSET_TextureThreadEntry);
   thread_start(*AST.tex_thread);
+}
+
+AST_Error :: (message := "", args: .. Any, loc := #caller_location)
+{
+  push_allocator(temp);
+
+  b: String_Builder;
+  init_string_builder(*b);
+
+  print_to_builder(*b, "While loading % the game encountered following error:\n", AST.file_path);
+  print_to_builder(*b, message, ..args);
+  print_to_builder(*b, "\n\nCode location: %:%", String.path_filename(loc.fully_pathed_filename), loc.line_number);
+  msg := builder_to_string(*b);
+
+  log_error(msg);
+
+  AST.error = true;
+  if !AST.error_message {
+    AST.error_message = msg;
+  }
 }
 
 ASSET_PostFrame :: ()
@@ -38,13 +78,10 @@ ASSET_PostFrame :: ()
   }
 }
 
-// ASSET_Error :: log;
-ASSET_Error :: #bake_arguments assert(arg = false);
-
 ASSET_InitSounds :: ()
 {
-  AST.sounds = NewArray(AST.pie.sounds.count, AUDIO_Sound);
-  for AST.pie.sounds
+  AST.sounds = NewArray(AST.links.sounds.count, AUDIO_Sound);
+  for AST.links.sounds
   {
     // @todo reduce boilerplate on the whole [.pie -> in game memory] transformations
     AST.sounds[it_index].data = it.buffer;
@@ -85,7 +122,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
     return;
 
   // Material from .pie - it contains a big buffer that needs to uploaded to GPU
-  pie_material := *AST.pie.materials[material_index - 1];
+  pie_material := *AST.links.materials[material_index - 1];
   material_buffer := pie_material.tex.buffer;
 
   lods_count := pie_material.tex.lods;
@@ -169,24 +206,20 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
   material.stream.flags |= .LOADED;
 }
 
-file_:string;
-address_patch_: s64;
-
 // LOAD .PIE
 ASSET_LoadPieFile :: (file_path: string)
 {
-  desc := tprint("[Processing asset file %]", file_path);
-
+  AST.file_path = file_path;
   file, read_success := read_entire_file(file_path);
-  file_ = file;
+  AST.file = file;
 
   if !read_success {
-    ASSET_Error("% Failed to open file", desc);
+    AST_Error("Failed to open file.");
     return;
   }
 
   if file.count < size_of(PIE_Header) {
-    ASSET_Error("% Asset file can't fit header", desc);
+    AST_Error("Asset file is too small to fit the header.");
     return;
   }
 
@@ -195,131 +228,123 @@ ASSET_LoadPieFile :: (file_path: string)
   hashable := Skip(file, size_of(type_of(header.file_hash)));
   calculated_hash := Hash64Any(PIE_MAGIC_HASH_SEED, hashable);
   if calculated_hash != header.file_hash {
-    ASSET_Error("% Calculated (%) doesn't match file hash (%).", desc, calculated_hash, header.file_hash);
+    AST_Error("Computed hash (%) doesn't match file hash (%).", calculated_hash, header.file_hash);
     return;
   }
 
   if header.links.count != 1 {
-    ASSET_Error("% Expected a header with exactly one link, got: %", desc, header.links.count);
+    AST_Error("Expected a header with exactly one link, got: %", header.links.count);
     return;
   }
 
-  address_patch := file.data.(s64);
-  address_patch_ = address_patch;
-  Patch :: (list: *$T)
+  address_offset := file.data.(s64);
+  PatchOffset :: (target: *$T) #expand
   {
-    desc := "@todo";
-
-    data: *s64 = xx *list.data;
+    data: *s64 = xx *target.data;
     if (data.* == 0) return;
 
-    size_bytes := list.count;
+    // Collect target parameters
+    size_bytes := target.count;
     align := 1;
-    #if type_info(T).type == .ARRAY {
-      size_bytes = array_size_bytes(list.*);
-      align = array_align_of(list.*);
+    #if type_info(T).type == .ARRAY
+    {
+      size_bytes = array_size_bytes(target.*);
+      align = array_align_of(target.*);
     }
 
-    // Check list underflow / overflow
-    list_end := data.* + size_bytes;
-    if data.* < 0 {
-      ASSET_Error("% Found a list that underflows", desc);
-      return;
-    }
-    if list_end > file_.count {
-      ASSET_Error("% Found a list that overflows", desc);
-      return;
+    // Validate offset underflow / overflow.
+    if data.* < 0
+    {
+      AST_Error("Offset underflow found.");
+      `return;
     }
 
-    data.* += address_patch_;
-    if (data.* % align != 0) {
-      ASSET_Error("% Asset file contains unaligned data", desc);
-      return;
+    if (data.* + size_bytes) > file.count
+    {
+      AST_Error("Offset overflow found.");
+      `return;
+    }
+
+    // Patch offset
+    data.* += address_offset;
+
+    // Validate that patched address is aligned.
+    if (data.* % align != 0)
+    {
+      AST_Error("Asset file contains unaligned data.");
+      `return;
     }
   }
 
-  // Patch all lists
-  Patch(*header.links);
+  // Patch addresses
+  PatchOffset(*header.links);
   links := *header.links[0];
 
-  Patch(*links.vertices);
-  Patch(*links.indices);
-  Patch(*links.models);
-  Patch(*links.skeletons);
-  Patch(*links.materials);
-  Patch(*links.shaders);
-  Patch(*links.fonts);
-  Patch(*links.sounds);
+  PatchOffset(*links.vertices);
+  PatchOffset(*links.indices);
+  PatchOffset(*links.models);
+  PatchOffset(*links.skeletons);
+  PatchOffset(*links.materials);
+  PatchOffset(*links.shaders);
+  PatchOffset(*links.fonts);
+  PatchOffset(*links.sounds);
 
   for * links.models {
-    Patch(*it.name);
-    Patch(*it.meshes);
+    PatchOffset(*it.name);
+    PatchOffset(*it.meshes);
   }
 
   for * links.skeletons {
     skel := it;
 
-    Patch(*it.inverse_matrices);
-    Patch(*it.child_index_buffer);
-    Patch(*it.child_index_ranges);
-    Patch(*it.translations);
-    Patch(*it.rotations);
-    Patch(*it.scales);
-    Patch(*it.names);
-    Patch(*it.anims);
+    PatchOffset(*it.inverse_matrices);
+    PatchOffset(*it.child_index_buffer);
+    PatchOffset(*it.child_index_ranges);
+    PatchOffset(*it.translations);
+    PatchOffset(*it.rotations);
+    PatchOffset(*it.scales);
+    PatchOffset(*it.names);
+    PatchOffset(*it.anims);
 
     for * it.names {
-      Patch(it);
+      PatchOffset(it);
     }
 
     for * it.anims {
-      Patch(*it.name);
-      Patch(*it.channels);
+      PatchOffset(*it.name);
+      PatchOffset(*it.channels);
 
       for * it.channels {
-        Patch(*it.inputs);
-        Patch(*it.outputs);
+        PatchOffset(*it.inputs);
+        PatchOffset(*it.outputs);
       }
     }
   }
 
   for * links.materials {
-    Patch(*it.name);
-    Patch(*it.tex.buffer);
-    Patch(*it.tex.sections);
+    PatchOffset(*it.name);
+    PatchOffset(*it.tex.buffer);
+    PatchOffset(*it.tex.sections);
   }
 
   for * links.shaders {
-    Patch(*it.buffer);
-    Patch(*it.info);
+    PatchOffset(*it.buffer);
+    PatchOffset(*it.info);
   }
 
   for * links.fonts {
-    Patch(*it.buffer);
-    Patch(*it.info);
+    PatchOffset(*it.buffer);
+    PatchOffset(*it.info);
   }
 
   for * links.sounds {
-    Patch(*it.buffer);
+    PatchOffset(*it.buffer);
   }
 
   // set AST.pie members
-  AST.pie.file = file;
-  AST.pie.header = header;
-  AST.pie.links = links;
-
-  AST.pie.vertices = links.vertices;
-  AST.pie.indices = links.indices;
-  AST.pie.models = links.models;
-  AST.pie.materials = links.materials;
-  AST.pie.shaders = links.shaders;
-  AST.pie.fonts = links.fonts;
-  AST.pie.sounds = links.sounds;
-
-  ASSET_InitSkeletons();
-  ASSET_InitMaterials();
-  ASSET_InitModels();
-  ASSET_InitSounds();
+  AST.file = file;
+  AST.header = header;
+  AST.links = links;
 }
 
 // MATERIALS
@@ -404,7 +429,7 @@ ASSET_InitMaterials :: ()
   }
 
   // Init material array
-  for AST.pie.materials
+  for AST.links.materials
   {
     ast_mat := array_add(*AST.materials);
     ast_mat.name = it.name;
@@ -432,16 +457,16 @@ ASSET_InitMaterials :: ()
 }
 
 // MODELS
-ASSET_InitModels :: () #expand
+ASSET_InitModels :: ()
 {
   // Load meshes
   {
-    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.pie.vertices), "WORLD vertices");
-    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.pie.indices), "Model indices");
+    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.links.vertices), "WORLD vertices");
+    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.links.indices), "Model indices");
 
     cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
-    GPU_TransferBuffer(cmd, AST.model_vertices, AST.pie.vertices.data, xx array_size_bytes(AST.pie.vertices));
-    GPU_TransferBuffer(cmd, AST.model_indices, AST.pie.indices.data, xx array_size_bytes(AST.pie.indices));
+    GPU_TransferBuffer(cmd, AST.model_vertices, AST.links.vertices.data, xx array_size_bytes(AST.links.vertices));
+    GPU_TransferBuffer(cmd, AST.model_indices, AST.links.indices.data, xx array_size_bytes(AST.links.indices));
     SDL_SubmitGPUCommandBuffer(cmd);
   }
 
@@ -450,7 +475,7 @@ ASSET_InitModels :: () #expand
     nil_nodel := array_add(*AST.models);
   }
 
-  for pie_model: AST.pie.models
+  for pie_model: AST.links.models
   {
     model := array_add(*AST.models);
     model.name = pie_model.name;
@@ -459,9 +484,10 @@ ASSET_InitModels :: () #expand
 
     if pie_model.is_skinned
     {
-      if pie_model.skeleton_index >= AST.skeletons.count {
-        ASSET_Error("% Wkeleton index overflow", `desc);
-        `return;
+      if pie_model.skeleton_index >= AST.skeletons.count
+      {
+        AST_Error("Skeleton index overflow");
+        return;
       }
 
       model.skeleton = *AST.skeletons[pie_model.skeleton_index];
@@ -474,8 +500,8 @@ ASSET_InitModels :: () #expand
 
       if !is_index_in_bounds(AST.materials, pie_mesh.material_index)
       {
-        ASSET_Error("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count);
-        `return;
+        AST_Error("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count);
+        return;
       }
 
       mesh.material_slot = pie_mesh.material_index + 1;
@@ -512,12 +538,10 @@ ASSET_InitModels :: () #expand
 // SKELETONS
 ASSET_InitSkeletons :: ()
 {
-  desc := "@todo";
-
-  AST.skeletons = NewArray(AST.pie.links.skeletons.count, Skeleton);
+  AST.skeletons = NewArray(AST.links.skeletons.count, Skeleton);
   for * skel: AST.skeletons
   {
-    pie_skel := *AST.pie.links.skeletons[it_index];
+    pie_skel := *AST.links.skeletons[it_index];
     skel.root_transform = pie_skel.root_transform;
 
     skel.inverse_matrices   = pie_skel.inverse_matrices;
@@ -537,7 +561,7 @@ ASSET_InitSkeletons :: ()
         skel.joints_count != skel.bind_scales.count ||
         skel.joints_count != skel.joint_names.count)
     {
-      ASSET_Error("% joints count mismatch detected", desc);
+      AST_Error("Joints count mismatch detected");
       return;
     }
 
@@ -564,7 +588,7 @@ ASSET_InitSkeletons :: ()
 
         comp_count := ifx chan.type == .Rotation then 4 else 3;
         if !(comp_count * chan.inputs.count * size_of(float) == array_size_bytes(pie_chan.outputs)) {
-          ASSET_Error("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs));
+          AST_Error("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs));
           return;
         }
 

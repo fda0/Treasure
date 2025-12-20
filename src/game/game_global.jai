@@ -5,7 +5,7 @@ CACHELINE_SIZE :: 64;
 
 ComponentState :: struct
 {
-  AST: ASSET_State;
+  AST: AssetState;
   AUDIO: AUDIO_State;
   CL: ClientState;
   DEV: DEV_State;

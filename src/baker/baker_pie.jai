@@ -16,7 +16,7 @@ B_PieBuilder :: struct
 
 #add_context pie: *B_PieBuilder;
 
-B_OffsetAddress :: (target: *$T, offset: s64) #expand
+B_PatchAddress :: (target: *$T, offset: s64) #expand
 {
   data: *s64 = xx *target.data;
   if (data.* == 0) return;
@@ -30,63 +30,63 @@ B_OffsetAddress :: (target: *$T, offset: s64) #expand
   assert(data.* % align == 0);
 }
 
-B_OffsetAddresses :: (builder_or_links: *$T, offset: s64)
+B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
 {
   for * model: builder_or_links.models
   {
-    B_OffsetAddress(*model.name, offset);
-    B_OffsetAddress(*model.meshes, offset);
+    B_PatchAddress(*model.name, offset);
+    B_PatchAddress(*model.meshes, offset);
   }
 
   for * skeleton: builder_or_links.skeletons
   {
     for * skeleton.names {
-      B_OffsetAddress(it, offset);
+      B_PatchAddress(it, offset);
     }
 
     for * anim: skeleton.anims
     {
       for * channel: anim.channels
       {
-        B_OffsetAddress(*channel.inputs, offset);
-        B_OffsetAddress(*channel.outputs, offset);
+        B_PatchAddress(*channel.inputs, offset);
+        B_PatchAddress(*channel.outputs, offset);
       }
-      B_OffsetAddress(*anim.name, offset);
-      B_OffsetAddress(*anim.channels, offset);
+      B_PatchAddress(*anim.name, offset);
+      B_PatchAddress(*anim.channels, offset);
     }
 
-    B_OffsetAddress(*skeleton.inverse_matrices, offset);
-    B_OffsetAddress(*skeleton.child_index_buffer, offset);
-    B_OffsetAddress(*skeleton.child_index_ranges, offset);
-    B_OffsetAddress(*skeleton.translations, offset);
-    B_OffsetAddress(*skeleton.rotations, offset);
-    B_OffsetAddress(*skeleton.scales, offset);
-    B_OffsetAddress(*skeleton.names, offset);
-    B_OffsetAddress(*skeleton.anims, offset);
+    B_PatchAddress(*skeleton.inverse_matrices, offset);
+    B_PatchAddress(*skeleton.child_index_buffer, offset);
+    B_PatchAddress(*skeleton.child_index_ranges, offset);
+    B_PatchAddress(*skeleton.translations, offset);
+    B_PatchAddress(*skeleton.rotations, offset);
+    B_PatchAddress(*skeleton.scales, offset);
+    B_PatchAddress(*skeleton.names, offset);
+    B_PatchAddress(*skeleton.anims, offset);
   }
 
   for * material: builder_or_links.materials
   {
-    B_OffsetAddress(*material.name, offset);
-    B_OffsetAddress(*material.tex.buffer, offset);
-    B_OffsetAddress(*material.tex.sections, offset);
+    B_PatchAddress(*material.name, offset);
+    B_PatchAddress(*material.tex.buffer, offset);
+    B_PatchAddress(*material.tex.sections, offset);
   }
 
   for * shader: builder_or_links.shaders
   {
-    B_OffsetAddress(*shader.buffer, offset);
-    B_OffsetAddress(*shader.info, offset);
+    B_PatchAddress(*shader.buffer, offset);
+    B_PatchAddress(*shader.info, offset);
   }
 
   for * font: builder_or_links.fonts
   {
-    B_OffsetAddress(*font.buffer, offset);
-    B_OffsetAddress(*font.info, offset);
+    B_PatchAddress(*font.buffer, offset);
+    B_PatchAddress(*font.info, offset);
   }
 
   for * sound: builder_or_links.sounds
   {
-    B_OffsetAddress(*sound.buffer, offset);
+    B_PatchAddress(*sound.buffer, offset);
   }
 }
 
@@ -111,7 +111,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
 
   // Rebase source address offsets
   src_to_dst_offset: s64 = dst.file.current_point - src.file.memory_base;
-  B_OffsetAddresses(src, src_to_dst_offset);
+  B_PatchManyAddresses(src, src_to_dst_offset);
 
   // Copy pie file content
   src_file_size: s64 = src.file.current_point - src.file.memory_base;
@@ -174,16 +174,16 @@ B_FinalizePieBuilder :: ()
 
   // Rebase arrays/strings in pie builder to base address 0 before serialization.
   to_zero_offset := 0 - header.(s64);
-  B_OffsetAddresses(*header.links[0], to_zero_offset);
-  B_OffsetAddress(*header.links[0].vertices, to_zero_offset);
-  B_OffsetAddress(*header.links[0].indices, to_zero_offset);
-  B_OffsetAddress(*header.links[0].models, to_zero_offset);
-  B_OffsetAddress(*header.links[0].skeletons, to_zero_offset);
-  B_OffsetAddress(*header.links[0].materials, to_zero_offset);
-  B_OffsetAddress(*header.links[0].shaders, to_zero_offset);
-  B_OffsetAddress(*header.links[0].fonts, to_zero_offset);
-  B_OffsetAddress(*header.links[0].sounds, to_zero_offset);
-  B_OffsetAddress(*header.links, to_zero_offset);
+  B_PatchManyAddresses(*header.links[0], to_zero_offset);
+  B_PatchAddress(*header.links[0].vertices, to_zero_offset);
+  B_PatchAddress(*header.links[0].indices, to_zero_offset);
+  B_PatchAddress(*header.links[0].models, to_zero_offset);
+  B_PatchAddress(*header.links[0].skeletons, to_zero_offset);
+  B_PatchAddress(*header.links[0].materials, to_zero_offset);
+  B_PatchAddress(*header.links[0].shaders, to_zero_offset);
+  B_PatchAddress(*header.links[0].fonts, to_zero_offset);
+  B_PatchAddress(*header.links[0].sounds, to_zero_offset);
+  B_PatchAddress(*header.links, to_zero_offset);
 
   // Calculate hash
   hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), context.pie.file.current_point);

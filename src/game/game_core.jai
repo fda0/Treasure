@@ -94,9 +94,9 @@ G_Init :: ()
 {
   PerfFunc();
 
-  ASSET_InitPreGPU();
+  AST_LoadAssetFile();
   GPU_Init();
-  ASSET_InitPostGPU();
+  AST_LaunchTextureUploadThread();
   AN_InitSkeletons();
   FONT_Init();
   RD_UIClearRenderCounters();
