@@ -13,7 +13,7 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
   {
     B_MIPMAPS_MAX :: 16;
     surfs: [B_MIPMAPS_MAX] *SDL_Surface;
-  };
+  }
   files := NewArray(inputs.count, B_TexFile);
 
   errors := false;
@@ -110,6 +110,8 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
         // Iterate over lods
         for surf: file.surfs
         {
+          if !surf break;
+
           section := *material.tex.sections[pie_texture_index];
           pie_texture_index += 1;
 
@@ -206,6 +208,8 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
   //       }
   //     }
     }
+
+    material.tex.buffer = StrFirstLast(full_data_start, context.pie.file.current_point);
   }
 
   if errors

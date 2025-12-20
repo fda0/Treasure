@@ -73,25 +73,25 @@ B_OffsetPieBuilderAddresses :: (builder: *B_PieBuilder, address_offset: s64)
   for * material: builder.materials
   {
     ApplyOffset(*material.name);
-    ApplyOffset(*material.tex.full_data);
+    ApplyOffset(*material.tex.buffer);
     ApplyOffset(*material.tex.sections);
   }
 
   for * shader: builder.shaders
   {
-    ApplyOffset(*shader.data);
+    ApplyOffset(*shader.buffer);
     ApplyOffset(*shader.info);
   }
 
   for * font: builder.fonts
   {
-    ApplyOffset(*font.data);
+    ApplyOffset(*font.buffer);
     ApplyOffset(*font.info);
   }
 
   for * sound: builder.sounds
   {
-    ApplyOffset(*sound.data);
+    ApplyOffset(*sound.buffer);
   }
 }
 

@@ -69,7 +69,7 @@ FONT_Init :: ()
       break;
     }
 
-    font_data := AST.pie.fonts[it].data.str;
+    font_data := AST.pie.fonts[it].buffer;
     FONT.err = FT_New_Memory_Face(FONT.ft_library, font_data.data, xx font_data.count, 0, *FONT.ft_faces[it]);
   }
 

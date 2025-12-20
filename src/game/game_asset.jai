@@ -125,7 +125,7 @@ ModelFromID :: (id: ModelID) -> *Model { return ModelFromSlot(ModelSlotFromID(id
 GetShader :: (type: ShaderType) -> string
 {
   if type.(s64) >= AST.pie.shaders.count return "";
-  return AST.pie.shaders[type].data.str;
+  return AST.pie.shaders[type].buffer;
 }
 
 //

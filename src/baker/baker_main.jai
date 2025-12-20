@@ -127,10 +127,10 @@ B_ProcessAssets :: (thread: *Thread) -> s64
     ui_vs := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderVS", .Vertex));
     ui_ps := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderPS", .Fragment));
     // @todo Things like entrypoint name could be saved into .pie file too.
-    array_add(*context.pie.shaders).data = xx B_CopyArray(world_vs);
-    array_add(*context.pie.shaders).data = xx B_CopyArray(world_ps);
-    array_add(*context.pie.shaders).data = xx B_CopyArray(ui_vs);
-    array_add(*context.pie.shaders).data = xx B_CopyArray(ui_ps);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(world_vs);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(world_ps);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(ui_vs);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(ui_ps);
     Timer("Shaders compiled");
   }
 
@@ -151,7 +151,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       Check(success, "Failed to load font file %", path);
 
       blob := array_add(*context.pie.fonts);
-      blob.data = B_CopyString(data);
+      blob.buffer = B_CopyString(data);
       blob.info = B_CopyString(it);
     }
 
@@ -183,7 +183,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       defer SDL_free(data_ptr);
 
       sound := array_add(*context.pie.sounds);
-      sound.data = B_CopyString(.{count = xx data_size, data = data_ptr});
+      sound.buffer = B_CopyString(.{count = xx data_size, data = data_ptr});
       sound.format = audio_spec;
     }
 

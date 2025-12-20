@@ -116,26 +116,26 @@ PIE_Material :: struct
   name: string;
   params: PIE_MaterialParams;
 
-  tex: struct {
+  tex: struct { // @todo inline tex struct
     format: PIE_TexFormat;
     width: s32;
     height: s32;
     lods: s32;
     layers: s32;
-    full_data: string;
+    buffer: string;
     sections: [] PIE_MaterialTexSection;
   }
 }
 
 PIE_Sound :: struct
 {
-  data: string;
+  buffer: string;
   format: SDL_AudioSpec;
 }
 
 PIE_Blob :: struct
 {
-  data: string;
+  buffer: string;
   info: string;
 }
 
