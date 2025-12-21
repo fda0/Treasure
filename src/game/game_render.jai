@@ -263,9 +263,9 @@ RD_ResetWorldBatch :: (batch: *RD_WorldBatch)
 RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mode: GPU_RenderWorldMode)
 {
   uniform.material_loaded_t = material.stream.loaded_t;
-  uniform.material_diffuse = xx material.params.diffuse;
-  uniform.material_specular = xx material.params.specular;
-  uniform.material_roughness = xx material.params.roughness;
+  uniform.material_diffuse = xx material.diffuse;
+  uniform.material_specular = xx material.specular;
+  uniform.material_roughness = xx material.roughness;
 
   uniform.flags = .ApplyShadows;
 
@@ -279,11 +279,11 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
     uniform.flags |= .DiscardColorPickZero;
   }
 
-  if material.has_texture
+  if material.tex.format
   {
-    if material.texture_layers >= 1  uniform.flags |= .SampleTexDiffuse;
-    if material.texture_layers >= 2  uniform.flags |= .SampleTexNormal;
-    if material.texture_layers >= 3  uniform.flags |= .SampleTexRoughness;
+    if material.tex.layers >= 1  uniform.flags |= .SampleTexDiffuse;
+    if material.tex.layers >= 2  uniform.flags |= .SampleTexNormal;
+    if material.tex.layers >= 3  uniform.flags |= .SampleTexRoughness;
   }
 }
 

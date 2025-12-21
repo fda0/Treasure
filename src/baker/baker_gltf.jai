@@ -118,8 +118,8 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_metallic_roughness
       {
         metal := *gltf_material.pbr_metallic_roughness;
-        material.params.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
-        material.params.roughness = metal.roughness_factor;
+        material.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
+        material.roughness = metal.roughness_factor;
 
         if metal.base_color_texture.texture
           diffuse_tex = B_GLTF_ImageToTexInput(metal.base_color_texture.texture.image, dir_path);
@@ -128,9 +128,9 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_specular_glossiness
       {
         gloss := *gltf_material.pbr_specular_glossiness;
-        material.params.diffuse   = xx Color32_RGBAf(gloss.diffuse_factor);
-        material.params.specular  = xx Color32_RGBf(gloss.specular_factor);
-        material.params.roughness = 1.0 - gloss.glossiness_factor;
+        material.diffuse   = xx Color32_RGBAf(gloss.diffuse_factor);
+        material.specular  = xx Color32_RGBf(gloss.specular_factor);
+        material.roughness = 1.0 - gloss.glossiness_factor;
 
         if gloss.diffuse_texture.texture
           diffuse_tex = B_GLTF_ImageToTexInput(gloss.diffuse_texture.texture.image, dir_path);
@@ -140,7 +140,7 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       }
 
       if (gltf_material.alpha_mode != .cgltf_alpha_mode_opaque)
-        material.params.flags |= .HasAlpha;
+        material.flags |= .HasAlpha;
 
       // Prepare tex_paths array
       // These are expected to be in a fixed order for now
@@ -423,18 +423,18 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
     }
 
     // Rest pose transformations - translations, rotations, scales, names
-    skeleton.translations = B_NewArray(joints_count, V3);
-    for * skeleton.translations {
+    skeleton.bind_translations = B_NewArray(joints_count, V3);
+    for * skeleton.bind_translations {
       it.component = skin.joints[it_index].translation;
     }
 
-    skeleton.rotations = B_NewArray(joints_count, Quat);
-    for * skeleton.rotations {
+    skeleton.bind_rotations = B_NewArray(joints_count, Quat);
+    for * skeleton.bind_rotations {
       it.component = skin.joints[it_index].rotation;
     }
 
-    skeleton.scales = B_NewArray(joints_count, V3);
-    for * skeleton.scales {
+    skeleton.bind_scales = B_NewArray(joints_count, V3);
+    for * skeleton.bind_scales {
       it.component = skin.joints[it_index].scale;
     }
 
@@ -447,7 +447,7 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
   // Animations
   if data.animations_count
   {
-    skeleton.animations = B_NewArray(xx data.animations_count, PIE_Animation);
+    skeleton.animations = B_NewArray(xx data.animations_count, Animation);
     for * skeleton.animations
     {
       gltf_anim := *data.animations[it_index];
@@ -458,7 +458,7 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
       it.name = B_CopyString(to_string(gltf_anim.name));
 
       // Channels
-      it.channels = B_NewArray(xx gltf_anim.channels_count, PIE_AnimationChannel);
+      it.channels = B_NewArray(xx gltf_anim.channels_count, AnimationChannel);
       for * it.channels
       {
         gltf_channel := *gltf_anim.channels[it_index];
@@ -507,9 +507,9 @@ B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
   model.name = B_CopyString(baker_model.name);
 
   model.is_skinned = baker_model.is_skinned;
-  model.skeleton_index = baker_model.skeleton_index;
+  model.skeleton_slot = xx baker_model.skeleton_index;
 
-  model.meshes = B_NewArray(baker_model.meshes.count, PIE_Mesh);
+  model.meshes = B_NewArray(baker_model.meshes.count, Mesh);
 
   for * model.meshes
   {

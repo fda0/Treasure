@@ -227,7 +227,7 @@ B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
   B_SetDefaultsPIEMaterial(material);
 
   material.name = B_CopyString(tex_name);
-  material.params.specular = xx specular_color;
+  material.specular = xx specular_color;
 
   {
     auto_release_temp();

@@ -199,7 +199,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
 B_State :: struct
 {
   // global settings
-  tex_format: PIE_TexFormat;
+  tex_format: PIE_Material.TexFormat;
 
   // threading
   core_count: s64;
@@ -211,11 +211,11 @@ B_State :: struct
 }
 B: B_State;
 
-B_SetDefaultsPIEMaterial :: (pie_material: *PIE_Material)
+B_SetDefaultsPIEMaterial :: (material: *PIE_Material)
 {
-  pie_material.params.diffuse = xx Color32_RGBi(128,128,128);
-  pie_material.params.specular = xx Color32_RGBf(0.05, 0.02, 0.01);
-  pie_material.params.roughness = 0.5;
+  material.diffuse = xx Color32_RGBi(128,128,128);
+  material.specular = xx Color32_RGBf(0.05, 0.02, 0.01);
+  material.roughness = 0.5;
 }
 
 Check :: (arg: bool, message := "", args: .. Any, loc := #caller_location) #no_debug #expand {

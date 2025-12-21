@@ -204,7 +204,7 @@ ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
     SDL_ReleaseGPUTransferBuffer(GPU.device, transfer);
   }
 
-  material.tex = texture;
+  material.texture_handle = texture;
   material.stream.flags |= .LOADED;
 }
 
@@ -302,9 +302,9 @@ ASSET_LoadPieFile :: (file_path: string)
     PatchOffset(*it.inverse_matrices);
     PatchOffset(*it.child_index_buffer);
     PatchOffset(*it.child_index_ranges);
-    PatchOffset(*it.translations);
-    PatchOffset(*it.rotations);
-    PatchOffset(*it.scales);
+    PatchOffset(*it.bind_translations);
+    PatchOffset(*it.bind_rotations);
+    PatchOffset(*it.bind_scales);
     PatchOffset(*it.names);
     PatchOffset(*it.animations);
 
@@ -352,6 +352,8 @@ ASSET_LoadPieFile :: (file_path: string)
 // MATERIALS
 ASSET_InitMaterials :: ()
 {
+  AST.materials = NewArray(AST.links.materials.count + 1, Material); // +1 for nil
+
   // Init nil material
   {
     dim: u32 = 512;
@@ -422,32 +424,32 @@ ASSET_InitMaterials :: ()
     }
 
     // Fill nil_material data
-    nil_material := array_add(*AST.materials);
+    nil_material := *AST.materials[0];
     nil_material.stream.flags |= .LOADED;
     nil_material.stream.loaded_t = 1;
-    nil_material.has_texture = true;
-    nil_material.texture_layers = 1;
-    nil_material.tex = texture;
+    nil_material.tex.format = .R8G8B8A8;
+    nil_material.tex.layers = 1;
+    nil_material.texture_handle = texture;
   }
 
   // Init material array
   for AST.links.materials
   {
-    ast_mat := array_add(*AST.materials);
-    ast_mat.name = it.name;
-    ast_mat.params = it.params;
-    ast_mat.has_texture = it.tex.format != .Empty;
-    ast_mat.texture_layers = it.tex.layers;
-    if !ast_mat.has_texture
+    material := *AST.materials[it_index + 1];
+    material.pie = it;
+
+    if !material.tex.format
     {
       // no texture = it is already fully loaded
-      ast_mat.stream.flags |= .LOADED;
-      ast_mat.stream.loaded_t = 1;
+      material.stream.flags |= .LOADED;
+      material.stream.loaded_t = 1;
     }
-    ast_mat.tex = AST.materials[0].tex; // fallback texture as default in case anybody tries to use it
+
+    // Set fallback texture as default in case anybody tries to use it.
+    material.texture_handle = AST.materials[0].texture_handle;
   }
 
-  // fill material_alias_to_idx
+  // Fill alias -> slot mapping
   for material, material_slot: AST.materials
   {
     material_alias := AliasFromName(MaterialAlias, material.name);
@@ -475,7 +477,7 @@ ASSET_InitModels :: ()
   {
     if model.is_skinned
     {
-      if model.skeleton_slot >= AST.skeletons.count
+      if xx model.skeleton_slot >= AST.skeletons.count
       {
         AST_Error("Skeleton index overflow");
         return;
@@ -484,7 +486,7 @@ ASSET_InitModels :: ()
 
     for * mesh: model.meshes
     {
-      if !is_index_in_bounds(AST.links.materials, mesh.material_slot)
+      if !is_index_in_bounds(AST.links.materials, xx mesh.material_slot)
       {
         AST_Error("Pie mesh material index (%) is out of bounds (count=%).", mesh.material_slot, AST.materials.count);
         return;
@@ -526,58 +528,32 @@ ASSET_InitModels :: ()
 ASSET_InitSkeletons :: ()
 {
   AST.skeletons = NewArray(AST.links.skeletons.count, Skeleton);
-  for * skel: AST.skeletons
+  for * skeleton: AST.skeletons
   {
-    pie_skel := *AST.links.skeletons[it_index];
-    skel.root_transform = pie_skel.root_transform;
+    skeleton.pie = AST.links.skeletons[it_index];
+    skeleton.joints_count = skeleton.inverse_matrices.count;
 
-    skel.inverse_matrices   = pie_skel.inverse_matrices;
-    skel.child_index_buffer = pie_skel.child_index_buffer;
-    skel.child_index_ranges = pie_skel.child_index_ranges;
-    skel.bind_translations  = pie_skel.translations;
-    skel.bind_rotations     = pie_skel.rotations;
-    skel.bind_scales        = pie_skel.scales;
-    skel.joint_names        = pie_skel.names;
-    skel.joints_count       = xx skel.inverse_matrices.count;
-
-    if (skel.joints_count != skel.inverse_matrices.count ||
-        skel.joints_count != skel.child_index_buffer.count ||
-        skel.joints_count != skel.child_index_ranges.count ||
-        skel.joints_count != skel.bind_translations.count ||
-        skel.joints_count != skel.bind_rotations.count ||
-        skel.joints_count != skel.bind_scales.count ||
-        skel.joints_count != skel.joint_names.count)
+    if (skeleton.joints_count != skeleton.names.count ||
+        skeleton.joints_count != skeleton.inverse_matrices.count ||
+        skeleton.joints_count != skeleton.child_index_buffer.count ||
+        skeleton.joints_count != skeleton.child_index_ranges.count ||
+        skeleton.joints_count != skeleton.bind_translations.count ||
+        skeleton.joints_count != skeleton.bind_rotations.count ||
+        skeleton.joints_count != skeleton.bind_scales.count)
     {
       AST_Error("Joints count mismatch detected");
       return;
     }
 
-    // Animations
-    skel.animations = NewArray(pie_skel.animations.count, Animation);
-    for * anim: skel.animations
+    for skeleton.animations
     {
-      pie_anim := *pie_skel.animations[it_index];
-
-      anim.name = pie_anim.name;
-      anim.t_min = pie_anim.t_min;
-      anim.t_max = pie_anim.t_max;
-
-      anim.channels = NewArray(pie_anim.channels.count, AnimationChannel);
-      for *chan: anim.channels
+      for it.channels
       {
-        pie_chan := *pie_anim.channels[it_index];
-
-        chan.joint_index = pie_chan.joint_index;
-        chan.type = pie_chan.type;
-        chan.inputs = pie_chan.inputs;
-
-        comp_count := ifx chan.type == .Rotation then 4 else 3;
-        if !(comp_count * chan.inputs.count * size_of(float) == array_size_bytes(pie_chan.outputs)) {
-          AST_Error("Animation channel %*%*% != %", comp_count, chan.inputs.count, size_of(float), array_size_bytes(pie_chan.outputs));
+        comp_count := ifx it.type == .Rotation then 4 else 3;
+        if !(comp_count * it.inputs.count * size_of(float) == array_size_bytes(it.outputs)) {
+          AST_Error("Animation channel %*%*% != %", comp_count, it.inputs.count, size_of(float), array_size_bytes(it.outputs));
           return;
         }
-
-        chan.outputs = pie_chan.outputs;
       }
     }
   }

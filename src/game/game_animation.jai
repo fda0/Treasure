@@ -4,35 +4,10 @@ using,only(AST,G) COMPS;
 
 Skeleton :: struct
 {
-  root_transform: Mat4;
-  animations: [] Animation;
+  using pie: PIE_Skeleton;
+  joints_count: s64;
   animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
-
-  joints_count: u32; // all arrays below have count equal to joints_count
-  joint_names: [] string;
-  inverse_matrices: [] Mat4; // inverse bind matrices
-  child_index_buffer: [] u32;
-  child_index_ranges: [] Range(u32);
-
-  bind_translations: [] V3;
-  bind_rotations: [] Quat;
-  bind_scales: [] V3;
-};
-
-Animation :: struct
-{
-  name: string;
-  t_min, t_max: float;
-  channels: [] AnimationChannel;
-};
-
-AnimationChannel :: struct
-{
-  type: PIE_AnimationChannelType;
-  joint_index: u32;
-  inputs: [] float;
-  outputs: [] float; // .count = inputs.count * (ifx type == .Rotation then 4 else 3);
-};
+}
 
 //
 //
@@ -567,10 +542,11 @@ AN_AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, fou
 
 AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32, found: bool
 {
-  for skeleton.joint_names
+  for skeleton.names
   {
-    if name == it
+    if name == it {
       return xx it_index, true;
+    }
   }
   log("Joint name not found: %", name, flags=.WARNING);
   return 0, false;

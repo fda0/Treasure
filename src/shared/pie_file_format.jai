@@ -3,9 +3,9 @@
 // .pie files pack all the data needed by the game like models' meshes & animations, materials, textures.
 //
 
-ModelSlot :: u32;
-MaterialSlot :: u32;
-SkeletonSlot :: u32;
+ModelSlot :: #type,distinct u32;
+MaterialSlot :: #type,distinct u32;
+SkeletonSlot :: #type,distinct u32;
 
 RD_WorldVertex :: struct
 {
@@ -31,32 +31,30 @@ RD_WorldFlags :: enum_flags u32
   PixelEarlyExit;
 }
 
-PIE_AnimationChannelType :: enum u32
+AnimationChannel :: struct
 {
-  Translation;
-  Rotation;
-  Scale;
-}
-
-PIE_AnimationChannel :: struct
-{
-  type: PIE_AnimationChannelType;
+  type: enum u8
+  {
+    Translation;
+    Rotation;
+    Scale;
+  };
   joint_index: u32;
   inputs: [] float;  // float * count
   outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
 }
 
-PIE_Animation :: struct
+Animation :: struct
 {
   name: string;
   t_min, t_max: float;
-  channels: [] PIE_AnimationChannel;
+  channels: [] AnimationChannel;
 }
 
 PIE_Skeleton :: struct
 {
   root_transform: Mat4;
-  animations: [] PIE_Animation;
+  animations: [] Animation;
 
   // each of these has the same count of elements (joints_count)
   names: [] string;
@@ -65,12 +63,12 @@ PIE_Skeleton :: struct
   child_index_ranges: [] Range(u32); // @todo use u16 here?
 
   // bind translations, rotations, scales
-  translations: [] V3;
-  rotations: [] Quat;
-  scales: [] V3;
+  bind_translations: [] V3;
+  bind_rotations: [] Quat;
+  bind_scales: [] V3;
 }
 
-PIE_Mesh :: struct
+Mesh :: struct
 {
   material_slot: MaterialSlot;
   vertices_start_index: u32;
@@ -83,7 +81,7 @@ Model :: struct
   name: string;
   is_skinned: bool;
   skeleton_slot: SkeletonSlot; // for skinned only
-  meshes: [] PIE_Mesh;
+  meshes: [] Mesh;
 }
 
 PIE_MaterialTexSection :: struct
@@ -97,39 +95,32 @@ PIE_MaterialTexSection :: struct
   data_size: s64;
 }
 
-PIE_TexFormat :: enum u32
-{
-  Empty;
-  R8G8B8A8;
-  BC7_RGBA;
-}
-
-PIE_MaterialFlags :: enum_flags u32
-{
-  HasAlpha;
-}
-
-PIE_MaterialParams :: struct
-{
-  flags: PIE_MaterialFlags;
-  diffuse: u32;
-  specular: u32;
-  roughness: float; // [0:1]
-}
-
 PIE_Material :: struct
 {
   name: string;
-  params: PIE_MaterialParams;
 
-  tex: struct { // @todo inline tex struct
-    format: PIE_TexFormat;
+  // params
+  flags: enum_flags u8 { HasAlpha; };
+  diffuse: u32;
+  specular: u32;
+  roughness: float; // [0:1]
+
+  // texture
+  tex: struct {
+    format: TexFormat;
     width: s32;
     height: s32;
     lods: s32;
     layers: s32;
     buffer: string;
     sections: [] PIE_MaterialTexSection;
+  }
+
+  TexFormat :: enum u8
+  {
+    Empty;
+    R8G8B8A8;
+    BC7_RGBA;
   }
 }
 

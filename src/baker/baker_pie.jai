@@ -5,7 +5,7 @@ B_PieBuilder :: struct
   vertices: [..] RD_WorldVertex;
   indices: [..] u16;
 
-  models: [..] PIE_Model;
+  models: [..] Model;
   skeletons: [..] PIE_Skeleton;
   materials: [..] PIE_Material;
 
@@ -60,9 +60,9 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
     B_PatchAddress(*skeleton.inverse_matrices, offset);
     B_PatchAddress(*skeleton.child_index_buffer, offset);
     B_PatchAddress(*skeleton.child_index_ranges, offset);
-    B_PatchAddress(*skeleton.translations, offset);
-    B_PatchAddress(*skeleton.rotations, offset);
-    B_PatchAddress(*skeleton.scales, offset);
+    B_PatchAddress(*skeleton.bind_translations, offset);
+    B_PatchAddress(*skeleton.bind_rotations, offset);
+    B_PatchAddress(*skeleton.bind_scales, offset);
   }
 
   for * material: builder_or_links.materials
@@ -95,7 +95,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   // Rebase source indices
   for * model: src.models {
     if model.is_skinned {
-      model.skeleton_index += xx dst.skeletons.count;
+      model.skeleton_slot += xx dst.skeletons.count;
     }
   }
 

@@ -13,7 +13,7 @@ AssetState :: struct
   using,only(models) links: *PIE_Links;
 
   // Materials
-  materials: [..] Material; // reserve 0 for nil
+  materials: [] Material; // reserve 0 for nil
 
   // Texture loading thread
   tex_load_needed: bool;
@@ -21,7 +21,6 @@ AssetState :: struct
   tex_thread: Thread;
 
   // Models
-  // models: [..] Model; // reserve 0 for nil
   model_vertices: *SDL_GPUBuffer;
   model_indices: *SDL_GPUBuffer;
   skeletons: [] Skeleton;
@@ -53,26 +52,23 @@ AssetStream :: struct
   loaded_t: float;
   flags: Flags;
 
-  Flags :: enum_flags
+  Flags :: enum_flags u8
   {
     ERROR;
     LOADED;
-  };
+  }
 }
 
 Material :: struct
 {
-  name: string;
+  using pie: PIE_Material;
   stream: AssetStream;
-  params: PIE_MaterialParams;
-  has_texture: bool;
-  texture_layers: s32;
-  tex: *SDL_GPUTexture;
-};
+  texture_handle: *SDL_GPUTexture;
+}
 
 IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
 
-MaterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
+aterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
 ModelFromAlias :: (alias: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(alias)); }
 
 MaterialFromSlot :: (slot: MaterialSlot) -> *Material

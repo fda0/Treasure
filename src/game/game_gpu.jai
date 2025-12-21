@@ -398,7 +398,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
 
     // Bind texture
     binding_sampl := SDL_GPUTextureSamplerBinding.{
-      texture = material.tex,
+      texture = material.texture_handle,
       sampler = GPU.mesh_tex_sampler,
     };
     SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
@@ -445,10 +445,10 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
       GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
 
       // Bind texture
-      if material.has_texture
+      if material.tex.format
       {
         binding_sampl := SDL_GPUTextureSamplerBinding.{
-          texture = material.tex,
+          texture = material.texture_handle,
           sampler = GPU.mesh_tex_sampler,
         };
         SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
