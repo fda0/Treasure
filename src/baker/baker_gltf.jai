@@ -100,9 +100,9 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
     gltf_material := data.materials[mesh_index];
 
     // Create material
-    bk_mesh.material_index = context.pie.materials.count;
+    bk_mesh.material_index = context.pie.base_materials.count;
     {
-      material := array_add(*context.pie.materials);
+      material := array_add(*context.pie.base_materials);
       B_SetDefaultsPIEMaterial(material);
 
       // Fill material name
@@ -366,8 +366,8 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
 B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
 {
   model.has_skeleton = true;
-  model.skeleton_index = xx context.pie.skeletons.count;
-  skeleton := array_add(*context.pie.skeletons);
+  model.skeleton_index = xx context.pie.base_skeletons.count;
+  skeleton := array_add(*context.pie.base_skeletons);
 
   // Root transform
   skeleton.root_transform = model.spec_transform;

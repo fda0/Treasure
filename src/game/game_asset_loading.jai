@@ -106,12 +106,12 @@ AST_LoadPieFile :: (file_path: string)
     return;
   }
 
-  if file.count < size_of(PIE_Header) {
+  if file.count < size_of(PieHeader) {
     AST_Error("Asset file is too small to fit the header.");
     return;
   }
 
-  header := file.data.(*PIE_Header);
+  header := file.data.(*PieHeader);
   hashable := Skip(file, size_of(type_of(header.file_hash)));
   calculated_hash := Hash64Any(PIE_MAGIC_HASH_SEED, hashable);
   if calculated_hash != header.file_hash {
@@ -170,8 +170,8 @@ AST_LoadPieFile :: (file_path: string)
   PatchOffset(*links.vertices);
   PatchOffset(*links.indices);
   PatchOffset(*links.models);
-  PatchOffset(*links.skeletons);
-  PatchOffset(*links.materials);
+  PatchOffset(*links.base_skeletons);
+  PatchOffset(*links.base_materials);
   PatchOffset(*links.shaders);
   PatchOffset(*links.fonts);
   PatchOffset(*links.sounds);
@@ -181,7 +181,7 @@ AST_LoadPieFile :: (file_path: string)
     PatchOffset(*it.meshes);
   }
 
-  for * links.skeletons {
+  for * links.base_skeletons {
     PatchOffset(*it.inverse_matrices);
     PatchOffset(*it.child_index_buffer);
     PatchOffset(*it.child_index_ranges);
@@ -206,7 +206,7 @@ AST_LoadPieFile :: (file_path: string)
     }
   }
 
-  for * links.materials {
+  for * links.base_materials {
     PatchOffset(*it.name);
     PatchOffset(*it.tex.buffer);
     PatchOffset(*it.tex.sections);
@@ -345,7 +345,7 @@ AST_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
 
 AST_LoadMaterials :: ()
 {
-  AST.materials = NewArray(AST.links.materials.count + 1, Material); // +1 for nil
+  AST.materials = NewArray(AST.base_materials.count + 1, Material); // +1 for nil
 
   // Init nil material
   {
@@ -426,10 +426,10 @@ AST_LoadMaterials :: ()
   }
 
   // Init material array
-  for AST.links.materials
+  for AST.base_materials
   {
     material := *AST.materials[it_index + 1];
-    material.pie = it;
+    material.base = it;
 
     if !material.tex.format
     {
@@ -470,7 +470,7 @@ AST_LoadModelsAndUploadToGPU :: ()
 
     for * mesh: model.meshes
     {
-      if !is_index_in_bounds(AST.links.materials, xx mesh.material_slot)
+      if !is_index_in_bounds(AST.base_materials, xx mesh.material_slot)
       {
         AST_Error("Pie mesh material index (%) is out of bounds (count=%).", mesh.material_slot, AST.materials.count);
         return;
@@ -517,10 +517,10 @@ AST_UploadVerticesAndIndices :: ()
 
 AST_LoadSkeletons :: ()
 {
-  AST.skeletons = NewArray(AST.links.skeletons.count, Skeleton);
+  AST.skeletons = NewArray(AST.base_skeletons.count, Skeleton);
   for * skeleton: AST.skeletons
   {
-    skeleton.pie = AST.links.skeletons[it_index];
+    skeleton.base = AST.base_skeletons[it_index];
     skeleton.joints_count = skeleton.inverse_matrices.count;
 
     if (skeleton.joints_count != skeleton.names.count ||

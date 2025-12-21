@@ -6,8 +6,8 @@ B_PieBuilder :: struct
   indices: [..] u16;
 
   models: [..] Model;
-  skeletons: [..] PIE_Skeleton;
-  materials: [..] PIE_Material;
+  base_skeletons: [..] BaseSkeleton;
+  base_materials: [..] BaseMaterial;
 
   shaders: [..] BinaryBlob;
   fonts: [..] BinaryBlob;
@@ -38,7 +38,7 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
     B_PatchAddress(*model.meshes, offset);
   }
 
-  for * skeleton: builder_or_links.skeletons
+  for * skeleton: builder_or_links.base_skeletons
   {
     for * skeleton.names {
       B_PatchAddress(it, offset);
@@ -65,7 +65,7 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
     B_PatchAddress(*skeleton.bind_scales, offset);
   }
 
-  for * material: builder_or_links.materials
+  for * material: builder_or_links.base_materials
   {
     B_PatchAddress(*material.name, offset);
     B_PatchAddress(*material.tex.buffer, offset);
@@ -95,7 +95,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   // Rebase source indices
   for * model: src.models {
     if model.is_skinned {
-      model.skeleton_slot += xx dst.skeletons.count;
+      model.skeleton_slot += xx dst.base_skeletons.count;
     }
   }
 
@@ -103,7 +103,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   {
     for * it.meshes
     {
-      it.material_slot += xx dst.materials.count;
+      it.material_slot += xx dst.base_materials.count;
       it.vertices_start_index += xx dst.vertices.count;
       it.indices_start_index += xx dst.indices.count;
     }
@@ -122,8 +122,8 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   array_add_from_another_array(*dst.vertices, src.vertices);
   array_add_from_another_array(*dst.indices, src.indices);
   array_add_from_another_array(*dst.models, src.models);
-  array_add_from_another_array(*dst.skeletons, src.skeletons);
-  array_add_from_another_array(*dst.materials, src.materials);
+  array_add_from_another_array(*dst.base_skeletons, src.base_skeletons);
+  array_add_from_another_array(*dst.base_materials, src.base_materials);
   array_add_from_another_array(*dst.shaders, src.shaders);
   array_add_from_another_array(*dst.fonts, src.fonts);
   array_add_from_another_array(*dst.sounds, src.sounds);
@@ -132,8 +132,8 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   array_reset(*src.vertices);
   array_reset(*src.indices);
   array_reset(*src.models);
-  array_reset(*src.skeletons);
-  array_reset(*src.materials);
+  array_reset(*src.base_skeletons);
+  array_reset(*src.base_materials);
   array_reset(*src.shaders);
   array_reset(*src.fonts);
   array_reset(*src.sounds);
@@ -148,26 +148,26 @@ B_InitPieBuilder :: ()
   remember_allocators(*context.pie.vertices);
   remember_allocators(*context.pie.indices);
   remember_allocators(*context.pie.models);
-  remember_allocators(*context.pie.skeletons);
-  remember_allocators(*context.pie.materials);
+  remember_allocators(*context.pie.base_skeletons);
+  remember_allocators(*context.pie.base_materials);
   remember_allocators(*context.pie.shaders);
   remember_allocators(*context.pie.fonts);
   remember_allocators(*context.pie.sounds);
 
-  B_NewArray(1, PIE_Header);
+  B_NewArray(1, PieHeader);
 }
 
 B_FinalizePieBuilder :: ()
 {
-  header := context.pie.file.memory_base.(*PIE_Header);
+  header := context.pie.file.memory_base.(*PieHeader);
 
   // Fill links
-  header.links = B_NewArray(1, PIE_Links);
+  header.links = B_NewArray(1, PieLinks);
   header.links[0].vertices = B_CopyArray(context.pie.vertices);
   header.links[0].indices = B_CopyArray(context.pie.indices);
   header.links[0].models = B_CopyArray(context.pie.models);
-  header.links[0].skeletons = B_CopyArray(context.pie.skeletons);
-  header.links[0].materials = B_CopyArray(context.pie.materials);
+  header.links[0].base_skeletons = B_CopyArray(context.pie.base_skeletons);
+  header.links[0].base_materials = B_CopyArray(context.pie.base_materials);
   header.links[0].shaders = B_CopyArray(context.pie.shaders);
   header.links[0].fonts = B_CopyArray(context.pie.fonts);
   header.links[0].sounds = B_CopyArray(context.pie.sounds);
@@ -178,15 +178,15 @@ B_FinalizePieBuilder :: ()
   B_PatchAddress(*header.links[0].vertices, to_zero_offset);
   B_PatchAddress(*header.links[0].indices, to_zero_offset);
   B_PatchAddress(*header.links[0].models, to_zero_offset);
-  B_PatchAddress(*header.links[0].skeletons, to_zero_offset);
-  B_PatchAddress(*header.links[0].materials, to_zero_offset);
+  B_PatchAddress(*header.links[0].base_skeletons, to_zero_offset);
+  B_PatchAddress(*header.links[0].base_materials, to_zero_offset);
   B_PatchAddress(*header.links[0].shaders, to_zero_offset);
   B_PatchAddress(*header.links[0].fonts, to_zero_offset);
   B_PatchAddress(*header.links[0].sounds, to_zero_offset);
   B_PatchAddress(*header.links, to_zero_offset);
 
   // Calculate hash
-  hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PIE_Header.file_hash)), context.pie.file.current_point);
+  hashable_file := StrFirstLast(header.(*u8) + size_of(type_of(PieHeader.file_hash)), context.pie.file.current_point);
   header.file_hash = Hash64Any(PIE_MAGIC_HASH_SEED, hashable_file);
 }
 

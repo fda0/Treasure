@@ -11,7 +11,7 @@ AssetState :: struct
   // Asset file
   file_path: string;
   file: string;
-  using,except(materials,skeletons) links: *PIE_Links;
+  using links: *PieLinks;
 
   // Materials
   materials: [] Material; // reserve 0 for nil
@@ -46,14 +46,14 @@ AssetStream :: struct
 
 Material :: struct
 {
-  using pie: PIE_Material;
+  using base: BaseMaterial;
   stream: AssetStream;
   texture_handle: *SDL_GPUTexture;
 }
 
 Skeleton :: struct
 {
-  using pie: PIE_Skeleton;
+  using base: BaseSkeleton;
   joints_count: s64;
   animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
 }

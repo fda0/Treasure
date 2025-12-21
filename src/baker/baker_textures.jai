@@ -4,7 +4,7 @@ B_TEX_Input :: struct
   type: enum {PATH; DATA;};
 }
 
-B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
+B_TEX_LoadPaths :: (material: *BaseMaterial, inputs: [] B_TEX_Input)
 {
   auto_release_temp();
   push_allocator(temp);
@@ -97,7 +97,7 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
     material.tex.lods = lods_count;
     material.tex.layers = xx inputs.count;
 
-    material.tex.sections = B_NewArray(material.tex.lods * material.tex.layers, PIE_Material.TexSection);
+    material.tex.sections = B_NewArray(material.tex.lods * material.tex.layers, BaseMaterial.TexSection);
 
     full_data_start := context.pie.file.current_point;
 
@@ -223,7 +223,7 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
 B_TEX_LoadPBRs :: (tex_name: string, specular_color: Color32)
 {
   // Allocate and prepare PIE_Material & array of B_Texture
-  material := array_add(*context.pie.materials);
+  material := array_add(*context.pie.base_materials);
   B_SetDefaultsPIEMaterial(material);
 
   material.name = B_CopyString(tex_name);

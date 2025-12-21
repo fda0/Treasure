@@ -46,7 +46,7 @@ Animation :: struct
   channels: [] AnimationChannel;
 }
 
-PIE_Skeleton :: struct
+BaseSkeleton :: struct
 {
   root_transform: Mat4;
   animations: [] Animation;
@@ -79,7 +79,7 @@ Model :: struct
   meshes: [] Mesh;
 }
 
-PIE_Material :: struct
+BaseMaterial :: struct
 {
   name: string;
 
@@ -131,14 +131,14 @@ BinaryBlob :: struct
   info: string;
 }
 
-PIE_Links :: struct
+PieLinks :: struct
 {
   vertices: [] RD_WorldVertex;
   indices: [] u16;
   models: [] Model;
 
-  skeletons: [] PIE_Skeleton;
-  materials: [] PIE_Material;
+  base_skeletons: [] BaseSkeleton;
+  base_materials: [] BaseMaterial;
 
   shaders: [] BinaryBlob;
   fonts: [] BinaryBlob;
@@ -146,8 +146,8 @@ PIE_Links :: struct
 }
 
 PIE_MAGIC_HASH_SEED :: (0xB5EADC0D + 0); // @todo use 64 bits
-PIE_Header :: struct
+PieHeader :: struct
 {
   file_hash: u64; // of everything after itself (the first 8 bytes) - seeded with PIE_MAGIC_HASH_SEED
-  links: [] PIE_Links;
+  links: [] PieLinks;
 }
