@@ -391,9 +391,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
 
     // Uniforms
     RD_WorldMaterialToUniform(*GPU.world_uniform, material, mode);
-    if material_slot == MaterialSlotFromID(.Clay002) ||
-    material_slot == MaterialSlotFromID(.Grass004)
-    {
+    if material_slot == MaterialSlotFromAlias(.Clay002) || material_slot == MaterialSlotFromAlias(.Grass004) {
       GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
     }
     GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
@@ -441,7 +439,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
       GPU.world_uniform.flags |= .UseInstanceBuffer;
       GPU.world_uniform.flags |= .EnableHueShift;
       if (model.is_skinned) GPU.world_uniform.flags |= .DoMeshSkinning;
-      if model_slot == ModelSlotFromID(.Tree) {
+      if model_slot == ModelSlotFromAlias(.Tree) {
         //GPU.world_uniform.flags |= .LessShadows;
       }
       GPU_UpdateWorldUniform(cmd, GPU.world_uniform);

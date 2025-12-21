@@ -121,7 +121,7 @@ SV_CreateMinion :: (team: OBJ_Team) -> *Object
   return obj;
 }
 
-SV_CreateHero :: (model: ModelID, team: OBJ_Team) -> *Object
+SV_CreateHero :: (model: ModelAlias, team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(
     .MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
@@ -229,7 +229,7 @@ SV_IterateSend :: ()
     {
       if OBJ_KeyIsZero(user.key)
       {
-        model_ids := ModelID.[
+        models := ModelAlias.[
           .Dude,
           .Zombie,
           // .Worker,
@@ -237,7 +237,7 @@ SV_IterateSend :: ()
           // .Casual,
         ];
 
-        model := model_ids[user_index % model_ids.count];
+        model := models[user_index % models.count];
         team := (user_index % 2 + 1).(OBJ_Team);
         player := SV_CreateHero(model, team);
         if !OBJ_IsNil(player)

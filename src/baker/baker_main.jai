@@ -89,7 +89,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
 
     source_flags :: #run -> string {
       b: String_Builder;
-      for enum_names(RD_WorldShaderFlags)
+      for enum_names(RD_WorldFlags)
         print_to_builder(*b, "#define WORLD_FLAG_% (1u << %u)\n", it, it_index);
       return builder_to_string(*b);
     };

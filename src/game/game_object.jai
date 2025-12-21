@@ -187,8 +187,8 @@ Object :: struct
   color: Color32 = 0xffff_ffff; @lerp // unused?
   hue_shift: float; @lerp
   rotation: Quat; @Slerp
-  model: ModelID; // used by DrawModel
-  material: MaterialID; // used by DrawCollision
+  model: ModelAlias; // used by DrawModel
+  material: MaterialAlias; // used by DrawCollision
   height: float; @lerp // used by DrawCollision
   texture_texels_per_m: float; @lerp // used by DrawCollision
 

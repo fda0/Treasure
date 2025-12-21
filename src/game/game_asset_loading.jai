@@ -446,12 +446,12 @@ ASSET_InitMaterials :: ()
     ast_mat.tex = AST.materials[0].tex; // fallback texture as default in case anybody tries to use it
   }
 
-  // fill material_id_to_idx
+  // fill material_alias_to_idx
   for material, material_slot: AST.materials
   {
-    material_id := AssetIDFromAssetHash(MaterialID, material.hash);
-    if material_id > 0 {
-      AST.material_id_to_slot[material_id] = xx material_slot;
+    material_alias := AssetAliasFromAssetHash(MaterialAlias, material.hash);
+    if material_alias > 0 {
+      AST.material_alias_to_slot[material_alias] = xx material_slot;
     }
   }
 }
@@ -520,7 +520,7 @@ ASSET_InitModels :: ()
       }
     }
 
-    for * AST.model_id_to_slot {
+    for * AST.model_alias_to_slot {
       it.* = bed_slot;
     }
   }
@@ -528,9 +528,9 @@ ASSET_InitModels :: ()
   // fill model_id_to_idx
   for model, model_slot: AST.models
   {
-    model_id := AssetIDFromAssetHash(ModelID, model.hash);
-    if model_id > 0 {
-      AST.model_id_to_slot[model_id] = xx model_slot;
+    model_alias := AssetAliasFromAssetHash(ModelAlias, model.hash);
+    if model_alias > 0 {
+      AST.model_alias_to_slot[model_alias] = xx model_slot;
     }
   }
 }

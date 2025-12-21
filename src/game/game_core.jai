@@ -818,8 +818,8 @@ G_InitLocalObjects :: ()
   {
     r := 32;
     d := 1.0;
-    grass := MaterialID.Grass004;
-    ground1 := MaterialID.Ground075;
+    grass := MaterialAlias.Grass004;
+    ground1 := MaterialAlias.Ground075;
 
     for y: MakeRange(-r, r)
     {

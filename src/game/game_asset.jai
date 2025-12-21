@@ -31,8 +31,8 @@ AssetState :: struct
   // Blobs
   sounds: [] AUDIO_Sound;
 
-  model_id_to_slot: [ModelID_Count] ModelSlot;
-  material_id_to_slot: [MaterialID_Count] MaterialSlot;
+  model_alias_to_slot: [ModelAlias_Count] ModelSlot;
+  material_alias_to_slot: [MaterialAlias_Count] MaterialSlot;
 };
 
 ShaderType :: enum
@@ -109,9 +109,9 @@ MaterialFromSlot :: (idx: MaterialSlot) -> *Material
   return material;
 }
 
-MaterialFromID :: (id: MaterialID) -> *Material { return MaterialFromSlot(MaterialSlotFromID(id)); }
+MaterialFromAlias :: (id: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(id)); }
 ModelFromSlot :: (idx: ModelSlot) -> *Model { return *AST.models[idx]; }
-ModelFromID :: (id: ModelID) -> *Model { return ModelFromSlot(ModelSlotFromID(id)); }
+ModelFromAlias :: (id: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(id)); }
 
 GetShader :: (type: ShaderType) -> string
 {
@@ -122,7 +122,7 @@ GetShader :: (type: ShaderType) -> string
 //
 // User facing enum API
 //
-ModelID :: enum u16
+ModelAlias :: enum u16
 {
   None;
   Bed; // used as "missing model" for now
@@ -137,7 +137,7 @@ ModelID :: enum u16
   Carrot;
 }
 
-MaterialID :: enum u16
+MaterialAlias :: enum u16
 {
   None;
   Leather011;
@@ -146,11 +146,11 @@ MaterialID :: enum u16
   Clay002;
 }
 
-ModelID_Count :: #run EnumCount(ModelID);
-MaterialID_Count :: #run EnumCount(MaterialID);
+ModelAlias_Count :: #run EnumCount(ModelAlias);
+MaterialAlias_Count :: #run EnumCount(MaterialAlias);
 
-ModelSlotFromID :: (id: ModelID) -> ModelSlot { return AST.model_id_to_slot[id]; }
-MaterialSlotFromID :: (id: MaterialID) -> MaterialSlot { return AST.material_id_to_slot[id]; }
+ModelSlotFromAlias :: (alias: ModelAlias) -> ModelSlot { return AST.model_alias_to_slot[alias]; }
+MaterialSlotFromAlias :: (alias: MaterialAlias) -> MaterialSlot { return AST.material_alias_to_slot[alias]; }
 
 //
 // Currently loaded memory asset offsets
@@ -174,13 +174,13 @@ AssetHashFromName :: (kind: AssetKind, name: string) -> AssetHash
 AssetKindFromType :: (T: Type) -> AssetKind, bool
 {
   if T == {
-    case MaterialID; return .Material, true;
-    case ModelID; return .Model, true;
+    case MaterialAlias; return .Material, true;
+    case ModelAlias; return .Model, true;
   }
   return .Material, false;
 }
 
-AssetIDFromAssetHash :: ($T: Type, hash: AssetHash) -> T
+AssetAliasFromAssetHash :: ($T: Type, hash: AssetHash) -> T
 {
   #insert -> string {
     b: String_Builder;

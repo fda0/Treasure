@@ -32,7 +32,7 @@ RD_WorldUniform :: struct
   shadow_transform: Mat4;
   camera_position: V3 #align 16;
   sun_dir: V3 #align 16;
-  flags: RD_WorldShaderFlags;
+  flags: RD_WorldFlags;
 
   fog_color: Color32; // RGBA
   sky_ambient: Color32; // RGBA
@@ -45,7 +45,7 @@ RD_WorldUniform :: struct
   material_loaded_t: float;
 };
 
-RD_WorldModel :: struct
+RD_WorldInstance :: struct
 {
   transform: Mat4;
   color_mask: Color32;
@@ -60,7 +60,7 @@ RD_WorldBatch :: struct
   meshes: [] MeshBatch; // indexed with MeshSlot
   transforms: [..] Mat4;
 
-  ModelBatch :: struct { buf: [..] RD_WorldModel; }
+  ModelBatch :: struct { buf: [..] RD_WorldInstance; }
   MeshBatch :: struct { buf: [..] RD_WorldVertex; }
 }
 
@@ -156,7 +156,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
   {
     staging := *RD.models_stagings[slot];
     staging.element_count = sum;
-    staging.bytes = staging.element_count * size_of(RD_WorldModel);
+    staging.bytes = staging.element_count * size_of(RD_WorldInstance);
     if staging.bytes == 0 continue;
 
     transfer_desc := SDL_GPUTransferBufferCreateInfo.{
@@ -303,14 +303,14 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
     if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
-    instance := RD_WorldModel.{
+    instance := RD_WorldInstance.{
       transform = transform,
       hue_shift = ghost.hue_shift,
       color_mask = C32_from_C4(hover_color),
       picking_color = ifx ghost.flags & .DISABLE_MOUSE then (0).(Color32) else OBJ_KeyToColor(ghost.key),
     };
 
-    model := ModelFromID(ghost.model);
+    model := ModelFromAlias(ghost.model);
     if model.is_skinned
     {
       instance.pose_offset = xx batch.transforms.count;
@@ -319,7 +319,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
       array_add_from_another_array(*batch.transforms, transforms);
     }
 
-    model_slot := ModelSlotFromID(ghost.model);
+    model_slot := ModelSlotFromAlias(ghost.model);
     array_add(*batch.models[model_slot].buf, instance);
   }
 
@@ -483,7 +483,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     }
 
     // Transfer verts to GPU
-    material_slot := MaterialSlotFromID(material);
+    material_slot := MaterialSlotFromAlias(material);
     array_add_many(*batch.meshes[material_slot].buf, mesh_verts.data, mesh_verts_count);
   }
 }

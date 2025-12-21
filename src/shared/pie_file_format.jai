@@ -13,7 +13,7 @@ RD_WorldVertex :: struct
   joint_weights: V4;
 }
 
-RD_WorldShaderFlags :: enum_flags u32
+RD_WorldFlags :: enum_flags u32
 {
   DoMeshSkinning;
   UseInstanceBuffer;

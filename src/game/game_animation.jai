@@ -80,7 +80,7 @@ AN_InitSkeletons :: ()
     AN_WaterfallToChildren(.ASSIGN, `skeleton, AN_JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
-  skeleton := ModelFromID(.Dude).skeleton;
+  skeleton := ModelFromAlias(.Dude).skeleton;
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -132,7 +132,7 @@ AN_InitSkeletons :: ()
     }
   }
 
-  skeleton = ModelFromID(.Zombie).skeleton;
+  skeleton = ModelFromAlias(.Zombie).skeleton;
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -256,7 +256,7 @@ AN_UpdateGhostTimers :: (ghost: *Ghost)
   if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
   {
     an := *ghost.anim;
-    model := ModelFromID(ghost.model);
+    model := ModelFromAlias(ghost.model);
     if model.is_skinned
     {
       DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
@@ -303,7 +303,7 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 {
   result: [] AnimationTrack;
 
-  model := ModelFromID(ghost.model);
+  model := ModelFromAlias(ghost.model);
   if model.is_skinned
   {
     WALK_TO_RUN_COEFFICIENT :: 0.2;
