@@ -96,7 +96,8 @@ G_Init :: ()
 
   AST_LoadAssetFile();
   GPU_Init();
-  AST_LaunchTextureUploadThread();
+  AST_ContinueLoadAssetFileWithGPU();
+  
   AN_InitSkeletons();
   FONT_Init();
   RD_UIClearRenderCounters();
@@ -280,7 +281,7 @@ G_Iterate :: ()
 
     // Post frame calls
     RD_UIClearRenderCounters();
-    ASSET_PostFrame();
+    AST_PostFrame();
 
     HR_Iterate();
   }

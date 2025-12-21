@@ -9,9 +9,9 @@ B_PieBuilder :: struct
   skeletons: [..] PIE_Skeleton;
   materials: [..] PIE_Material;
 
-  shaders: [..] PIE_Blob;
-  fonts: [..] PIE_Blob;
-  sounds: [..] PIE_Sound;
+  shaders: [..] BinaryBlob;
+  fonts: [..] BinaryBlob;
+  sounds: [..] Sound;
 }
 
 #add_context pie: *B_PieBuilder;

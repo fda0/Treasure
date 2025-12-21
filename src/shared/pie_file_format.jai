@@ -33,12 +33,7 @@ RD_WorldFlags :: enum_flags u32
 
 AnimationChannel :: struct
 {
-  type: enum u8
-  {
-    Translation;
-    Rotation;
-    Scale;
-  };
+  type: enum u8 { Translation; Rotation; Scale; };
   joint_index: u32;
   inputs: [] float;  // float * count
   outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
@@ -84,17 +79,6 @@ Model :: struct
   meshes: [] Mesh;
 }
 
-PIE_MaterialTexSection :: struct
-{
-  width: u32;
-  height: u32;
-  lod: u32;
-  layer: u32;
-  // relative to full_data of Material
-  data_offset: s64;
-  data_size: s64;
-}
-
 PIE_Material :: struct
 {
   name: string;
@@ -113,7 +97,7 @@ PIE_Material :: struct
     lods: s32;
     layers: s32;
     buffer: string;
-    sections: [] PIE_MaterialTexSection;
+    sections: [] TexSection;
   }
 
   TexFormat :: enum u8
@@ -122,15 +106,26 @@ PIE_Material :: struct
     R8G8B8A8;
     BC7_RGBA;
   }
+
+  TexSection :: struct
+  {
+    width: u32;
+    height: u32;
+    lod: u32;
+    layer: u32;
+    // relative to full_data of Material
+    data_offset: s64;
+    data_size: s64;
+  }
 }
 
-PIE_Sound :: struct
+Sound :: struct
 {
   buffer: string;
   format: SDL_AudioSpec;
 }
 
-PIE_Blob :: struct
+BinaryBlob :: struct
 {
   buffer: string;
   info: string;
@@ -145,9 +140,9 @@ PIE_Links :: struct
   skeletons: [] PIE_Skeleton;
   materials: [] PIE_Material;
 
-  shaders: [] PIE_Blob;
-  fonts: [] PIE_Blob;
-  sounds: [] PIE_Sound;
+  shaders: [] BinaryBlob;
+  fonts: [] BinaryBlob;
+  sounds: [] Sound;
 }
 
 PIE_MAGIC_HASH_SEED :: (0xB5EADC0D + 0); // @todo use 64 bits

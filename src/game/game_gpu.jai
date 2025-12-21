@@ -167,8 +167,8 @@ GPU_InitPipelines :: ()
 
   // WORLD pipeline
   {
-    binary_vs := GetShader(.WORLD_VS);
-    binary_ps := GetShader(.WORLD_PS);
+    binary_vs := AST.shaders[ShaderType.WORLD_VS].buffer;
+    binary_ps := AST.shaders[ShaderType.WORLD_PS].buffer;
 
     vertex_shader: *SDL_GPUShader;
     {
@@ -285,8 +285,8 @@ GPU_InitPipelines :: ()
 
   // UI pipeline
   {
-    binary_vs := GetShader(.UI_VS);
-    binary_ps := GetShader(.UI_PS);
+    binary_vs := AST.shaders[ShaderType.UI_VS].buffer;
+    binary_ps := AST.shaders[ShaderType.UI_PS].buffer;
 
     vertex_shader: *SDL_GPUShader;
     {

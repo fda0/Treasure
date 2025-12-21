@@ -18,12 +18,6 @@ AUDIO_SoundType :: enum u32
   SWISH05;
 }
 
-AUDIO_Sound :: struct
-{
-  data: string;
-  format: SDL_AudioSpec;
-}
-
 AUDIO_ActiveSound :: struct
 {
   type: AUDIO_SoundType;
@@ -74,7 +68,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   }
 
   SDL_BindAudioStream(AUDIO.device, stream);
-  SDL_PutAudioStreamData(stream, sound.data.data, xx sound.data.count);
+  SDL_PutAudioStreamData(stream, sound.buffer.data, xx sound.buffer.count);
   SDL_ResumeAudioStreamDevice(stream);
   SDL_FlushAudioStream(stream);
 
@@ -84,7 +78,7 @@ AUDIO_PlaySound :: (sound_type: AUDIO_SoundType)
   active := AUDIO_ActiveSound.{
     type = sound_type,
     start_time = TimeNow(),
-    duration = xx (sound.data.count*1000 / duration_divisor),
+    duration = xx (sound.buffer.count*1000 / duration_divisor),
     stream = stream,
   };
   array_add(*AUDIO.actives, active);

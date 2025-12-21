@@ -4,18 +4,17 @@ using,only(AST,G) COMPS;
 
 AssetState :: struct
 {
+  // Errors
   error: bool;
   error_message: string;
 
+  // Asset file
   file_path: string;
   file: string;
-  header: *PIE_Header;
-  using,only(models) links: *PIE_Links;
+  using,except(materials,skeletons) links: *PIE_Links;
 
   // Materials
   materials: [] Material; // reserve 0 for nil
-
-  // Texture loading thread
   tex_load_needed: bool;
   tex_semaphore: Semaphore;
   tex_thread: Thread;
@@ -25,9 +24,7 @@ AssetState :: struct
   model_indices: *SDL_GPUBuffer;
   skeletons: [] Skeleton;
 
-  // Blobs
-  sounds: [] AUDIO_Sound;
-
+  // Aliases
   model_alias_to_slot: [ModelAlias_Count] ModelSlot;
   material_alias_to_slot: [MaterialAlias_Count] MaterialSlot;
 };
@@ -39,12 +36,6 @@ ShaderType :: enum
   UI_VS;
   UI_PS;
 };
-
-AssetKind :: enum u8
-{
-  Material;
-  Model;
-}
 
 AssetStream :: struct
 {
@@ -66,9 +57,11 @@ Material :: struct
   texture_handle: *SDL_GPUTexture;
 }
 
+//
+// User friendly alias enum for getting common models/materials
+//
 IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
-
-aterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
+MaterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
 ModelFromAlias :: (alias: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(alias)); }
 
 MaterialFromSlot :: (slot: MaterialSlot) -> *Material
@@ -85,15 +78,6 @@ MaterialFromSlot :: (slot: MaterialSlot) -> *Material
 ModelFromSlot :: (slot: ModelSlot) -> *Model { return *AST.models[slot]; }
 SkeletonFromSlot :: (slot: SkeletonSlot) -> *Skeleton { return *AST.skeletons[slot]; }
 
-GetShader :: (type: ShaderType) -> string
-{
-  if type.(s64) >= AST.links.shaders.count return "";
-  return AST.links.shaders[type].buffer;
-}
-
-//
-// User facing enum API
-//
 ModelAlias :: enum u16
 {
   None;
@@ -129,13 +113,6 @@ AliasFromName :: ($T: Type, name: string) -> T
   #insert -> string {
     b: String_Builder;
     append(*b, "if name == {\n");
-
-    kind: AssetKind;
-    #if T == {
-      case MaterialAlias; kind = .Material;
-      case ModelAlias; kind = .Model;
-      case; assert(false, "Unexpected Type % in AssetAliasFromName", T);
-    }
 
     info := type_info(T);
     for info.names {

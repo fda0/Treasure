@@ -97,7 +97,7 @@ B_TEX_LoadPaths :: (material: *PIE_Material, inputs: [] B_TEX_Input)
     material.tex.lods = lods_count;
     material.tex.layers = xx inputs.count;
 
-    material.tex.sections = B_NewArray(material.tex.lods * material.tex.layers, PIE_MaterialTexSection);
+    material.tex.sections = B_NewArray(material.tex.lods * material.tex.layers, PIE_Material.TexSection);
 
     full_data_start := context.pie.file.current_point;
 

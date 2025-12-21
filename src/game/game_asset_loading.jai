@@ -4,12 +4,38 @@ using,only(AST,G,GPU) COMPS;
 
 AST_LoadAssetFile :: ()
 {
-  ASSET_LoadPieFile("assets.pie");
-  if !AST.error ASSET_InitSkeletons();
-  if !AST.error ASSET_InitMaterials();
-  if !AST.error ASSET_InitModels();
-  if !AST.error ASSET_InitSounds();
+  AST_LoadPieFile("assets.pie");
+  if !AST.error {
+    expected := EnumCount(ShaderType);
+    if AST.shaders.count != expected {
+      AST_Error("Expected % shaders, found %.", AST.shaders.count, expected);
+    }
+  }
+  if !AST.error AST_LoadSkeletons();
+  if !AST.error AST_LoadMaterials();
+  if !AST.error AST_LoadModelsAndUploadToGPU();
 
+  AST_ShowErrorsToUser();
+}
+
+AST_ContinueLoadAssetFileWithGPU :: ()
+{
+  if !AST.error AST_UploadVerticesAndIndices();
+
+  if !AST.error
+  {
+    // Texture thread init
+    init(*AST.tex_semaphore);
+    AST.tex_thread.starting_context = context;
+    thread_init(*AST.tex_thread, AST_TextureThreadEntry);
+    thread_start(*AST.tex_thread);
+  }
+
+  AST_ShowErrorsToUser();
+}
+
+AST_ShowErrorsToUser :: ()
+{
   if AST.error
   {
     if AST.error_message
@@ -25,15 +51,6 @@ AST_LoadAssetFile :: ()
     }
     exit(100);
   }
-}
-
-AST_LaunchTextureUploadThread :: ()
-{
-  // Texture thread init
-  init(*AST.tex_semaphore);
-  AST.tex_thread.starting_context = context;
-  thread_init(*AST.tex_thread, ASSET_TextureThreadEntry);
-  thread_start(*AST.tex_thread);
 }
 
 AST_Error :: (message := "", args: .. Any, loc := #caller_location)
@@ -56,10 +73,8 @@ AST_Error :: (message := "", args: .. Any, loc := #caller_location)
   }
 }
 
-ASSET_PostFrame :: ()
+AST_PostFrame :: ()
 {
-  PerfFunc();
-
   // Wake up texture asset loading thread
   if AST.tex_load_needed
   {
@@ -71,145 +86,16 @@ ASSET_PostFrame :: ()
   for *AST.materials
   {
     LOAD_T_SPEED :: 10.0;
-    using it.stream;
-    if flags & .LOADED {
-      loaded_t = min(1.0, loaded_t + G.dt * LOAD_T_SPEED);
+    if it.stream.flags & .LOADED {
+      it.stream.loaded_t = min(1.0, it.stream.loaded_t + G.dt * LOAD_T_SPEED);
     }
   }
 }
 
-ASSET_InitSounds :: ()
-{
-  AST.sounds = NewArray(AST.links.sounds.count, AUDIO_Sound);
-  for AST.links.sounds
-  {
-    // @todo reduce boilerplate on the whole [.pie -> in game memory] transformations
-    AST.sounds[it_index].data = it.buffer;
-    AST.sounds[it_index].format = it.format;
-  }
-}
-
-// TEXTURE THREAD
-ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
-{
-  PerfThreadName("TR texture loading");
-
-  // This thread just touched the same global data as the main thread.
-  // Any false-sharing etc wasn't a concern when making this and it could be improved.
-  while true
-  {
-    wait_for(*AST.tex_semaphore);
-
-    // Just load any texture that was used in the last 2 frames.
-    // Do something smarter when texture eviction is added.
-    min_load_frame := max(1, G.frame_number - 2);
-    log("Attempting to load an asset with min_load_frame: %", min_load_frame);
-
-    for *AST.materials
-    {
-      if it.stream.last_touched_frame >= min_load_frame {
-        ASSET_LoadTextureFromPieToGPU(it, it_index);
-      }
-    }
-
-    reset_temporary_storage();
-  }
-  return 0;
-}
-
-ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
-{
-  if material.stream.flags & (.LOADED | .ERROR) {
-    return;
-  }
-
-  // Material from .pie - it contains a big buffer that needs to uploaded to GPU
-  pie_material := *AST.links.materials[material_index - 1];
-  material_buffer := pie_material.tex.buffer;
-
-  lods_count := pie_material.tex.lods;
-  generate_lods := false;
-  if (lods_count == 1 && pie_material.tex.format != .BC7_RGBA)
-  {
-    lods_count = CalculateMipMapCount(pie_material.tex.width, pie_material.tex.height);
-    generate_lods = true;
-  }
-
-  // Create texture and transfer CPU memory -> GPU memory -> GPU texture
-  texture: *SDL_GPUTexture;
-  {
-    transfer_create_info := SDL_GPUTransferBufferCreateInfo.{
-      usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-      size = xx (material_buffer.count * 4) // @todo why *4?
-    };
-    transfer := SDL_CreateGPUTransferBuffer(GPU.device, *transfer_create_info);
-
-    // CPU -> GPU
-    {
-      gpu_mapped := SDL_MapGPUTransferBuffer(GPU.device, transfer, false);
-      memcpy(gpu_mapped, material_buffer.data, material_buffer.count);
-      SDL_UnmapGPUTransferBuffer(GPU.device, transfer);
-    }
-
-    // Create texture
-    {
-      sdl_format: SDL_GPUTextureFormat = ifx pie_material.tex.format == .R8G8B8A8 then .R8G8B8A8_UNORM else .BC7_RGBA_UNORM;
-
-      texture_info := SDL_GPUTextureCreateInfo.{
-        type = .SDL_GPU_TEXTURETYPE_2D_ARRAY,
-        format = sdl_format,
-        width = xx pie_material.tex.width,
-        height = xx pie_material.tex.height,
-        layer_count_or_depth = xx pie_material.tex.layers,
-        num_levels = xx lods_count,
-        usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
-      };
-
-      if (generate_lods)
-        texture_info.usage |= SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
-
-      texture = SDL_CreateGPUTexture(GPU.device, *texture_info);
-      debug_texture_name := tprint("tex.pie: %", pie_material.name);
-      SDL_SetGPUTextureName(GPU.device, texture, temp_c_string(debug_texture_name));
-    }
-
-    // GPU memory -> GPU texture
-    {
-      cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
-      copy_pass := SDL_BeginGPUCopyPass(cmd);
-
-      for pie_material.tex.sections
-      {
-        source := SDL_GPUTextureTransferInfo.{
-          transfer_buffer = transfer,
-          offset = xx it.data_offset,
-          pixels_per_row = it.width,
-        };
-        destination := SDL_GPUTextureRegion.{
-          texture = texture,
-          mip_level = it.lod,
-          layer = it.layer,
-          w = it.width,
-          h = it.height,
-          d = 1,
-        };
-        SDL_UploadToGPUTexture(copy_pass, *source, *destination, false);
-      }
-
-      SDL_EndGPUCopyPass(copy_pass);
-      if (generate_lods) SDL_GenerateMipmapsForGPUTexture(cmd, texture);
-      SDL_SubmitGPUCommandBuffer(cmd);
-    }
-
-    SDL_ReleaseGPUTransferBuffer(GPU.device, transfer);
-  }
-
-  material.texture_handle = texture;
-  material.stream.flags |= .LOADED;
-}
-
-// LOAD .PIE
-ASSET_LoadPieFile :: (file_path: string)
+//
+// Load file
+//
+AST_LoadPieFile :: (file_path: string)
 {
   AST.file_path = file_path;
   file, read_success := read_entire_file(file_path);
@@ -226,7 +112,6 @@ ASSET_LoadPieFile :: (file_path: string)
   }
 
   header := file.data.(*PIE_Header);
-
   hashable := Skip(file, size_of(type_of(header.file_hash)));
   calculated_hash := Hash64Any(PIE_MAGIC_HASH_SEED, hashable);
   if calculated_hash != header.file_hash {
@@ -297,8 +182,6 @@ ASSET_LoadPieFile :: (file_path: string)
   }
 
   for * links.skeletons {
-    skel := it;
-
     PatchOffset(*it.inverse_matrices);
     PatchOffset(*it.child_index_buffer);
     PatchOffset(*it.child_index_ranges);
@@ -345,12 +228,127 @@ ASSET_LoadPieFile :: (file_path: string)
 
   // set AST.pie members
   AST.file = file;
-  AST.header = header;
   AST.links = links;
 }
 
-// MATERIALS
-ASSET_InitMaterials :: ()
+//
+// Materials thread
+//
+AST_TextureThreadEntry :: (thread: *Thread) -> s64
+{
+  PerfThreadName("TR texture loading");
+
+  // This thread just touched the same global data as the main thread.
+  // Any false-sharing etc wasn't a concern when making this and it could be improved.
+  while true
+  {
+    wait_for(*AST.tex_semaphore);
+
+    // Just load any texture that was used in the last 2 frames.
+    // Do something smarter when texture eviction is added.
+    min_load_frame := max(1, G.frame_number - 2);
+    log("Attempting to load an asset with min_load_frame: %", min_load_frame);
+
+    for *AST.materials
+    {
+      if it.stream.last_touched_frame >= min_load_frame {
+        AST_LoadTextureFromPieToGPU(it, it_index);
+      }
+    }
+
+    reset_temporary_storage();
+  }
+  return 0;
+}
+
+AST_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
+{
+  if material.stream.flags & (.LOADED | .ERROR) {
+    return;
+  }
+
+  lods_count := material.tex.lods;
+  generate_lods := false;
+  if (lods_count == 1 && material.tex.format != .BC7_RGBA)
+  {
+    lods_count = CalculateMipMapCount(material.tex.width, material.tex.height);
+    generate_lods = true;
+  }
+
+  // Create texture and transfer CPU memory -> GPU memory -> GPU texture
+  texture: *SDL_GPUTexture;
+  {
+    transfer_create_info := SDL_GPUTransferBufferCreateInfo.{
+      usage = .SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+      size = xx (material.tex.buffer.count * 4) // @todo why *4?
+    };
+    transfer := SDL_CreateGPUTransferBuffer(GPU.device, *transfer_create_info);
+
+    // CPU -> GPU
+    {
+      gpu_mapped := SDL_MapGPUTransferBuffer(GPU.device, transfer, false);
+      memcpy(gpu_mapped, material.tex.buffer.data, material.tex.buffer.count);
+      SDL_UnmapGPUTransferBuffer(GPU.device, transfer);
+    }
+
+    // Create texture
+    {
+      sdl_format: SDL_GPUTextureFormat = ifx material.tex.format == .R8G8B8A8 then .R8G8B8A8_UNORM else .BC7_RGBA_UNORM;
+
+      texture_info := SDL_GPUTextureCreateInfo.{
+        type = .SDL_GPU_TEXTURETYPE_2D_ARRAY,
+        format = sdl_format,
+        width = xx material.tex.width,
+        height = xx material.tex.height,
+        layer_count_or_depth = xx material.tex.layers,
+        num_levels = xx lods_count,
+        usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
+      };
+
+      if (generate_lods)
+        texture_info.usage |= SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+
+      texture = SDL_CreateGPUTexture(GPU.device, *texture_info);
+      debug_texture_name := tprint("tex.pie: %", material.name);
+      SDL_SetGPUTextureName(GPU.device, texture, temp_c_string(debug_texture_name));
+    }
+
+    // GPU memory -> GPU texture
+    {
+      cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
+      copy_pass := SDL_BeginGPUCopyPass(cmd);
+
+      for material.tex.sections
+      {
+        source := SDL_GPUTextureTransferInfo.{
+          transfer_buffer = transfer,
+          offset = xx it.data_offset,
+          pixels_per_row = it.width,
+        };
+        destination := SDL_GPUTextureRegion.{
+          texture = texture,
+          mip_level = it.lod,
+          layer = it.layer,
+          w = it.width,
+          h = it.height,
+          d = 1,
+        };
+        SDL_UploadToGPUTexture(copy_pass, *source, *destination, false);
+      }
+
+      SDL_EndGPUCopyPass(copy_pass);
+      if (generate_lods) SDL_GenerateMipmapsForGPUTexture(cmd, texture);
+      SDL_SubmitGPUCommandBuffer(cmd);
+    }
+
+    SDL_ReleaseGPUTransferBuffer(GPU.device, transfer);
+  }
+
+  material.texture_handle = texture;
+  material.stream.flags |= .LOADED;
+}
+
+AST_LoadMaterials :: ()
 {
   AST.materials = NewArray(AST.links.materials.count + 1, Material); // +1 for nil
 
@@ -459,21 +457,12 @@ ASSET_InitMaterials :: ()
   }
 }
 
-// MODELS
-ASSET_InitModels :: ()
+//
+// Models
+//
+AST_LoadModelsAndUploadToGPU :: ()
 {
-  // Load meshes
-  {
-    AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.links.vertices), "WORLD vertices");
-    AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.links.indices), "Model indices");
-
-    cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
-    GPU_TransferBuffer(cmd, AST.model_vertices, AST.links.vertices.data, xx array_size_bytes(AST.links.vertices));
-    GPU_TransferBuffer(cmd, AST.model_indices, AST.links.indices.data, xx array_size_bytes(AST.links.indices));
-    SDL_SubmitGPUCommandBuffer(cmd);
-  }
-
-  for * model: AST.links.models
+  for * model: AST.models
   {
     if model.is_skinned
     {
@@ -495,10 +484,6 @@ ASSET_InitModels :: ()
       mesh.material_slot += 1; // correct for additional nil material
     }
   }
-
-
-
-
 
   // Set default alias -> slot mapping to Bed model
   {
@@ -524,8 +509,18 @@ ASSET_InitModels :: ()
   }
 }
 
-// SKELETONS
-ASSET_InitSkeletons :: ()
+AST_UploadVerticesAndIndices :: ()
+{
+  AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.vertices), "WORLD vertices");
+  AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.indices), "Model indices");
+
+  cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
+  GPU_TransferBuffer(cmd, AST.model_vertices, AST.vertices.data, xx array_size_bytes(AST.vertices));
+  GPU_TransferBuffer(cmd, AST.model_indices, AST.indices.data, xx array_size_bytes(AST.indices));
+  SDL_SubmitGPUCommandBuffer(cmd);
+}
+
+AST_LoadSkeletons :: ()
 {
   AST.skeletons = NewArray(AST.links.skeletons.count, Skeleton);
   for * skeleton: AST.skeletons
