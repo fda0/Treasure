@@ -2,17 +2,6 @@
 using,only(AST,G) COMPS;
 #scope_export;
 
-Skeleton :: struct
-{
-  using pie: PIE_Skeleton;
-  joints_count: s64;
-  animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
-}
-
-//
-//
-//
-
 AnimationRecord :: struct
 {
   animation_index: s32;

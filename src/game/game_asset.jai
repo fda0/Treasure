@@ -27,7 +27,7 @@ AssetState :: struct
   // Aliases
   model_alias_to_slot: [ModelAlias_Count] ModelSlot;
   material_alias_to_slot: [MaterialAlias_Count] MaterialSlot;
-};
+}
 
 ShaderType :: enum
 {
@@ -35,19 +35,13 @@ ShaderType :: enum
   WORLD_PS;
   UI_VS;
   UI_PS;
-};
+}
 
 AssetStream :: struct
 {
-  last_touched_frame: s64;
+  last_touched: Timestamp;
   loaded_t: float;
-  flags: Flags;
-
-  Flags :: enum_flags u8
-  {
-    ERROR;
-    LOADED;
-  }
+  flags: enum_flags u8 { ERROR; LOADED; };
 }
 
 Material :: struct
@@ -55,6 +49,13 @@ Material :: struct
   using pie: PIE_Material;
   stream: AssetStream;
   texture_handle: *SDL_GPUTexture;
+}
+
+Skeleton :: struct
+{
+  using pie: PIE_Skeleton;
+  joints_count: s64;
+  animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
 }
 
 //
@@ -69,7 +70,7 @@ MaterialFromSlot :: (slot: MaterialSlot) -> *Material
   material := *AST.materials[slot];
   if slot > 0
   {
-    material.stream.last_touched_frame = G.frame_number;
+    material.stream.last_touched = G.frame_timestamp;
     if !(material.stream.flags & .LOADED) AST.tex_load_needed = true;
   }
   return material;

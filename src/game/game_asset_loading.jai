@@ -27,7 +27,7 @@ AST_ContinueLoadAssetFileWithGPU :: ()
     // Texture thread init
     init(*AST.tex_semaphore);
     AST.tex_thread.starting_context = context;
-    thread_init(*AST.tex_thread, AST_TextureThreadEntry);
+    thread_init(*AST.tex_thread, AST_TextureUploadThread);
     thread_start(*AST.tex_thread);
   }
 
@@ -234,24 +234,19 @@ AST_LoadPieFile :: (file_path: string)
 //
 // Materials thread
 //
-AST_TextureThreadEntry :: (thread: *Thread) -> s64
+AST_TextureUploadThread :: (thread: *Thread) -> s64
 {
-  PerfThreadName("TR texture loading");
+  PerfThreadName("Texture upload thread");
 
   // This thread just touched the same global data as the main thread.
   // Any false-sharing etc wasn't a concern when making this and it could be improved.
   while true
   {
     wait_for(*AST.tex_semaphore);
+    now := TimeNow();
 
-    // Just load any texture that was used in the last 2 frames.
-    // Do something smarter when texture eviction is added.
-    min_load_frame := max(1, G.frame_number - 2);
-    log("Attempting to load an asset with min_load_frame: %", min_load_frame);
-
-    for *AST.materials
-    {
-      if it.stream.last_touched_frame >= min_load_frame {
+    for *AST.materials {
+      if Elapsed(now, it.stream.last_touched) < 0.5 {
         AST_LoadTextureFromPieToGPU(it, it_index);
       }
     }
