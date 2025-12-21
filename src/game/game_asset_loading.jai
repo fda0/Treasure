@@ -107,8 +107,9 @@ ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
 
     for *AST.materials
     {
-      if it.stream.last_touched_frame >= min_load_frame
+      if it.stream.last_touched_frame >= min_load_frame {
         ASSET_LoadTextureFromPieToGPU(it, it_index);
+      }
     }
 
     reset_temporary_storage();
@@ -118,8 +119,9 @@ ASSET_TextureThreadEntry :: (thread: *Thread) -> s64
 
 ASSET_LoadTextureFromPieToGPU :: (material: *Material, material_index: s64)
 {
-  if material.stream.flags & (.LOADED | .ERROR)
+  if material.stream.flags & (.LOADED | .ERROR) {
     return;
+  }
 
   // Material from .pie - it contains a big buffer that needs to uploaded to GPU
   pie_material := *AST.links.materials[material_index - 1];
@@ -304,13 +306,13 @@ ASSET_LoadPieFile :: (file_path: string)
     PatchOffset(*it.rotations);
     PatchOffset(*it.scales);
     PatchOffset(*it.names);
-    PatchOffset(*it.anims);
+    PatchOffset(*it.animations);
 
     for * it.names {
       PatchOffset(it);
     }
 
-    for * it.anims {
+    for * it.animations {
       PatchOffset(*it.name);
       PatchOffset(*it.channels);
 
@@ -433,7 +435,6 @@ ASSET_InitMaterials :: ()
   {
     ast_mat := array_add(*AST.materials);
     ast_mat.name = it.name;
-    ast_mat.hash = AssetHashFromName(.Material, ast_mat.name);
     ast_mat.params = it.params;
     ast_mat.has_texture = it.tex.format != .Empty;
     ast_mat.texture_layers = it.tex.layers;
@@ -449,7 +450,7 @@ ASSET_InitMaterials :: ()
   // fill material_alias_to_idx
   for material, material_slot: AST.materials
   {
-    material_alias := AssetAliasFromAssetHash(MaterialAlias, material.hash);
+    material_alias := AliasFromName(MaterialAlias, material.name);
     if material_alias > 0 {
       AST.material_alias_to_slot[material_alias] = xx material_slot;
     }
@@ -470,50 +471,36 @@ ASSET_InitModels :: ()
     SDL_SubmitGPUCommandBuffer(cmd);
   }
 
-  // Alloc nil_model... not really used right now...
+  for * model: AST.links.models
   {
-    nil_nodel := array_add(*AST.models);
-  }
-
-  for pie_model: AST.links.models
-  {
-    model := array_add(*AST.models);
-    model.name = pie_model.name;
-    model.hash = AssetHashFromName(.Model, model.name);
-    model.is_skinned = !!pie_model.is_skinned;
-
-    if pie_model.is_skinned
+    if model.is_skinned
     {
-      if pie_model.skeleton_index >= AST.skeletons.count
+      if model.skeleton_slot >= AST.skeletons.count
       {
         AST_Error("Skeleton index overflow");
         return;
       }
-
-      model.skeleton = *AST.skeletons[pie_model.skeleton_index];
     }
 
-    model.meshes = NewArray(pie_model.meshes.count, Mesh);
-    for *mesh: model.meshes
+    for * mesh: model.meshes
     {
-      pie_mesh := *pie_model.meshes[it_index];
-
-      if !is_index_in_bounds(AST.materials, pie_mesh.material_index)
+      if !is_index_in_bounds(AST.links.materials, mesh.material_slot)
       {
-        AST_Error("Pie mesh material index (%) is out of bounds (count=%).", pie_mesh.material_index, AST.materials.count);
+        AST_Error("Pie mesh material index (%) is out of bounds (count=%).", mesh.material_slot, AST.materials.count);
         return;
       }
 
-      mesh.material_slot = pie_mesh.material_index + 1;
-      mesh.vertices_start_index = pie_mesh.vertices_start_index;
-      mesh.indices_start_index = pie_mesh.indices_start_index;
-      mesh.indices_count = pie_mesh.indices_count;
+      mesh.material_slot += 1; // correct for additional nil material
     }
   }
 
-  // set default model_id_to_idx to Bed model
+
+
+
+
+  // Set default alias -> slot mapping to Bed model
   {
-    bed_slot: ModelSlot = 1;
+    bed_slot: ModelSlot;
     for AST.models {
       if it.name == "Bed" {
         bed_slot = xx it_index;
@@ -525,10 +512,10 @@ ASSET_InitModels :: ()
     }
   }
 
-  // fill model_id_to_idx
+  // Create alias -> slot mapping for models
   for model, model_slot: AST.models
   {
-    model_alias := AssetAliasFromAssetHash(ModelAlias, model.hash);
+    model_alias := AliasFromName(ModelAlias, model.name);
     if model_alias > 0 {
       AST.model_alias_to_slot[model_alias] = xx model_slot;
     }
@@ -566,10 +553,10 @@ ASSET_InitSkeletons :: ()
     }
 
     // Animations
-    skel.animations = NewArray(pie_skel.anims.count, Animation);
+    skel.animations = NewArray(pie_skel.animations.count, Animation);
     for * anim: skel.animations
     {
-      pie_anim := *pie_skel.anims[it_index];
+      pie_anim := *pie_skel.animations[it_index];
 
       anim.name = pie_anim.name;
       anim.t_min = pie_anim.t_min;
@@ -580,10 +567,8 @@ ASSET_InitSkeletons :: ()
       {
         pie_chan := *pie_anim.channels[it_index];
 
-        pie_joint_index := ((pie_chan.joint_index30_type2 << 2) >> 2).(u32);
-        pie_transform_type := cast(PIE_AnimationChannelType) (pie_chan.joint_index30_type2 >> 30);
-        chan.joint_index = pie_joint_index;
-        chan.type = pie_transform_type;
+        chan.joint_index = pie_chan.joint_index;
+        chan.type = pie_chan.type;
         chan.inputs = pie_chan.inputs;
 
         comp_count := ifx chan.type == .Rotation then 4 else 3;

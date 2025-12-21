@@ -15,10 +15,10 @@ main :: ()
 
 B_ProcessAssets :: (thread: *Thread) -> s64
 {
-  B_InitPieBuilder();
-
   thread_name := sprint("Client_%", LaneIdx());
   // PerfThreadName(thread_name);
+
+  B_InitPieBuilder();
 
   // Load .gltf models
   {

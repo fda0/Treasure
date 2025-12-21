@@ -313,9 +313,10 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     model := ModelFromAlias(ghost.model);
     if model.is_skinned
     {
+      skeleton := SkeletonFromSlot(model.skeleton_slot);
       instance.pose_offset = xx batch.transforms.count;
       tracks := AN_GetAnimationTracks(ghost);
-      transforms := AN_GetPoseTransforms(model.skeleton, tracks);
+      transforms := AN_GetPoseTransforms(skeleton, tracks);
       array_add_from_another_array(*batch.transforms, transforms);
     }
 

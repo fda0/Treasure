@@ -447,8 +447,8 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
   // Animations
   if data.animations_count
   {
-    skeleton.anims = B_NewArray(xx data.animations_count, PIE_Animation);
-    for * skeleton.anims
+    skeleton.animations = B_NewArray(xx data.animations_count, PIE_Animation);
+    for * skeleton.animations
     {
       gltf_anim := *data.animations[it_index];
       t_min := FLOAT32_MAX;
@@ -467,18 +467,14 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
         Check(gltf_sampler.input.count == gltf_sampler.output.count);
 
         sample_count := gltf_sampler.input.count.(s64);
-        joint_index := B_GLTF_FindJointIndex(skin, gltf_channel.target_node);
+        it.joint_index = B_GLTF_FindJointIndex(skin, gltf_channel.target_node);
 
-        channel_type: PIE_AnimationChannelType;
         if gltf_channel.target_path == {
           case; Check(false, "Unsupported channel target");
-          case .cgltf_animation_path_type_translation; channel_type = .Translation;
-          case .cgltf_animation_path_type_rotation;    channel_type = .Rotation;
-          case .cgltf_animation_path_type_scale;       channel_type = .Scale;
+          case .cgltf_animation_path_type_translation; it.type = .Translation;
+          case .cgltf_animation_path_type_rotation;    it.type = .Rotation;
+          case .cgltf_animation_path_type_scale;       it.type = .Scale;
         }
-
-        it.joint_index30_type2 = joint_index | (channel_type << 30).(u32);
-
 
         // Inputs
         it.inputs = B_NewArray(sample_count, float);
@@ -519,7 +515,7 @@ B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
   {
     baker_mesh := baker_model.meshes[it_index];
 
-    it.material_index = xx baker_mesh.material_index;
+    it.material_slot = xx baker_mesh.material_index;
     it.vertices_start_index = xx context.pie.vertices.count;
 
     // vertices

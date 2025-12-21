@@ -44,7 +44,7 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
       B_PatchAddress(it, offset);
     }
 
-    for * anim: skeleton.anims
+    for * anim: skeleton.animations
     {
       for * channel: anim.channels
       {
@@ -55,14 +55,14 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
       B_PatchAddress(*anim.channels, offset);
     }
 
+    B_PatchAddress(*skeleton.animations, offset);
+    B_PatchAddress(*skeleton.names, offset);
     B_PatchAddress(*skeleton.inverse_matrices, offset);
     B_PatchAddress(*skeleton.child_index_buffer, offset);
     B_PatchAddress(*skeleton.child_index_ranges, offset);
     B_PatchAddress(*skeleton.translations, offset);
     B_PatchAddress(*skeleton.rotations, offset);
     B_PatchAddress(*skeleton.scales, offset);
-    B_PatchAddress(*skeleton.names, offset);
-    B_PatchAddress(*skeleton.anims, offset);
   }
 
   for * material: builder_or_links.materials
@@ -103,7 +103,7 @@ B_MergePieBuilders :: (dst: *B_PieBuilder, src: *B_PieBuilder)
   {
     for * it.meshes
     {
-      it.material_index += xx dst.materials.count;
+      it.material_slot += xx dst.materials.count;
       it.vertices_start_index += xx dst.vertices.count;
       it.indices_start_index += xx dst.indices.count;
     }

@@ -10,10 +10,9 @@ AssetState :: struct
   file_path: string;
   file: string;
   header: *PIE_Header;
-  links: *PIE_Links;
+  using,only(models) links: *PIE_Links;
 
   // Materials
-  // nil_material: Material;
   materials: [..] Material; // reserve 0 for nil
 
   // Texture loading thread
@@ -22,8 +21,7 @@ AssetState :: struct
   tex_thread: Thread;
 
   // Models
-  // nil_model: Model;
-  models: [..] Model; // reserve 0 for nil
+  // models: [..] Model; // reserve 0 for nil
   model_vertices: *SDL_GPUBuffer;
   model_indices: *SDL_GPUBuffer;
   skeletons: [] Skeleton;
@@ -62,15 +60,9 @@ AssetStream :: struct
   };
 }
 
-AssetBase :: struct
-{
-  name: string;
-  hash: AssetHash;
-}
-
 Material :: struct
 {
-  using base: AssetBase;
+  name: string;
   stream: AssetStream;
   params: PIE_MaterialParams;
   has_texture: bool;
@@ -78,30 +70,15 @@ Material :: struct
   tex: *SDL_GPUTexture;
 };
 
-Mesh :: struct
-{
-  using base: AssetBase;
-  material_slot: MaterialSlot;
-  vertices_start_index: u32;
-  indices_start_index: u32;
-  indices_count: u32;
-};
-
-Model :: struct
-{
-  using base: AssetBase;
-  is_skinned: bool;
-  skeleton: *Skeleton; // can be null
-  meshes: [] Mesh;
-};
-
 IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
-IsNil :: (a: *Model) -> bool { return a == *AST.models[0]; }
 
-MaterialFromSlot :: (idx: MaterialSlot) -> *Material
+MaterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
+ModelFromAlias :: (alias: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(alias)); }
+
+MaterialFromSlot :: (slot: MaterialSlot) -> *Material
 {
-  material := *AST.materials[idx];
-  if idx > 0
+  material := *AST.materials[slot];
+  if slot > 0
   {
     material.stream.last_touched_frame = G.frame_number;
     if !(material.stream.flags & .LOADED) AST.tex_load_needed = true;
@@ -109,9 +86,8 @@ MaterialFromSlot :: (idx: MaterialSlot) -> *Material
   return material;
 }
 
-MaterialFromAlias :: (id: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(id)); }
-ModelFromSlot :: (idx: ModelSlot) -> *Model { return *AST.models[idx]; }
-ModelFromAlias :: (id: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(id)); }
+ModelFromSlot :: (slot: ModelSlot) -> *Model { return *AST.models[slot]; }
+SkeletonFromSlot :: (slot: SkeletonSlot) -> *Skeleton { return *AST.skeletons[slot]; }
 
 GetShader :: (type: ShaderType) -> string
 {
@@ -152,46 +128,22 @@ MaterialAlias_Count :: #run EnumCount(MaterialAlias);
 ModelSlotFromAlias :: (alias: ModelAlias) -> ModelSlot { return AST.model_alias_to_slot[alias]; }
 MaterialSlotFromAlias :: (alias: MaterialAlias) -> MaterialSlot { return AST.material_alias_to_slot[alias]; }
 
-//
-// Currently loaded memory asset offsets
-//
-ModelSlot :: u32;
-MaterialSlot :: u32;
-
-//
-// Name based asset hash.
-// Used to match assets between game and pie file.
-//
-AssetHash :: u64;
-
-AssetHashFromName :: (kind: AssetKind, name: string) -> AssetHash
-{
-  hash := Hash64Any(kind, name);
-  type4_hash60 := (kind).(u64) | (hash << 4);
-  return type4_hash60;
-}
-
-AssetKindFromType :: (T: Type) -> AssetKind, bool
-{
-  if T == {
-    case MaterialAlias; return .Material, true;
-    case ModelAlias; return .Model, true;
-  }
-  return .Material, false;
-}
-
-AssetAliasFromAssetHash :: ($T: Type, hash: AssetHash) -> T
+AliasFromName :: ($T: Type, name: string) -> T
 {
   #insert -> string {
     b: String_Builder;
-    append(*b, "if hash == {\n");
+    append(*b, "if name == {\n");
 
-    kind, known_type := AssetKindFromType(T);
-    assert(known_type, "Unexpected T % in AssetIDFromAssetHash", T);
+    kind: AssetKind;
+    #if T == {
+      case MaterialAlias; kind = .Material;
+      case ModelAlias; kind = .Model;
+      case; assert(false, "Unexpected Type % in AssetAliasFromName", T);
+    }
 
     info := type_info(T);
     for info.names {
-      print_to_builder(*b, "case %; return .%;", AssetHashFromName(kind, it), it);
+      print_to_builder(*b, "case \"%\"; return .%;", it, it);
     }
 
     append(*b, "}\n");

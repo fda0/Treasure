@@ -3,6 +3,10 @@
 // .pie files pack all the data needed by the game like models' meshes & animations, materials, textures.
 //
 
+ModelSlot :: u32;
+MaterialSlot :: u32;
+SkeletonSlot :: u32;
+
 RD_WorldVertex :: struct
 {
   p: V3;
@@ -36,7 +40,8 @@ PIE_AnimationChannelType :: enum u32
 
 PIE_AnimationChannel :: struct
 {
-  joint_index30_type2: u32; // [u32 | (PIE_AnimationChannelType << 30)] // @todo this is silly, simplify
+  type: PIE_AnimationChannelType;
+  joint_index: u32;
   inputs: [] float;  // float * count
   outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
 }
@@ -50,33 +55,34 @@ PIE_Animation :: struct
 
 PIE_Skeleton :: struct
 {
+  root_transform: Mat4;
+  animations: [] PIE_Animation;
+
   // each of these has the same count of elements (joints_count)
+  names: [] string;
   inverse_matrices: [] Mat4;
   child_index_buffer: [] u32; // @todo use u16 here?
   child_index_ranges: [] Range(u32); // @todo use u16 here?
+
+  // bind translations, rotations, scales
   translations: [] V3;
   rotations: [] Quat;
   scales: [] V3;
-  names: [] string; // offset of min & max char* - can be transformed to S8
-
-  anims: [] PIE_Animation;
-  root_transform: Mat4;
 }
 
 PIE_Mesh :: struct
 {
-  material_index: u32; // @todo replace with material_hash?
-
+  material_slot: MaterialSlot;
   vertices_start_index: u32;
   indices_start_index: u32;
   indices_count: u32;
 }
 
-PIE_Model :: struct
+Model :: struct
 {
   name: string;
   is_skinned: bool;
-  skeleton_index: u32; // for skinned only
+  skeleton_slot: SkeletonSlot; // for skinned only
   meshes: [] PIE_Mesh;
 }
 
@@ -143,7 +149,7 @@ PIE_Links :: struct
 {
   vertices: [] RD_WorldVertex;
   indices: [] u16;
-  models: [] PIE_Model;
+  models: [] Model;
 
   skeletons: [] PIE_Skeleton;
   materials: [] PIE_Material;

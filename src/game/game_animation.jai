@@ -80,7 +80,7 @@ AN_InitSkeletons :: ()
     AN_WaterfallToChildren(.ASSIGN, `skeleton, AN_JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
   }
 
-  skeleton := ModelFromAlias(.Dude).skeleton;
+  skeleton := SkeletonFromSlot(ModelFromAlias(.Dude).skeleton_slot);
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -132,7 +132,7 @@ AN_InitSkeletons :: ()
     }
   }
 
-  skeleton = ModelFromAlias(.Zombie).skeleton;
+  skeleton = SkeletonFromSlot(ModelFromAlias(.Zombie).skeleton_slot);
   if skeleton
   {
     for enum_values_as_enum(AnimationID)
@@ -306,6 +306,8 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
   model := ModelFromAlias(ghost.model);
   if model.is_skinned
   {
+    skeleton := SkeletonFromSlot(model.skeleton_slot);
+
     WALK_TO_RUN_COEFFICIENT :: 0.2;
     a := *ghost.anim;
 
@@ -315,7 +317,7 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
       if (tracks.count == 0) return true;
       track := tracks[tracks.count - 1];
       if (track.weight != 1.0) return true;
-      record := model.skeleton.animation_records[track.id];
+      record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.id];
       return record.joint_weights.count != 0;
     }
 
@@ -328,7 +330,7 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 
     if NotAllWeightsAreFull() {
       t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
-      t = AN_Time01ToAnimT(model.skeleton, .PUNCH, t);
+      t = AN_Time01ToAnimT(skeleton, .PUNCH, t);
 
       hands := array_add(*tracks);
       hands.weight = sqrt(a.is_attacking_weight);
@@ -345,21 +347,21 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
       track := array_add(*tracks);
       track.id = .RUN;
       track.weight = Smoothstep(a.is_walking_weight, 1, 2);
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+      track.t = AN_Time01ToAnimT(skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
       track.id = .WALK;
       track.weight = Smoothstep(a.is_walking_weight, 0, 1);
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
+      track.t = AN_Time01ToAnimT(skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
       track.id = .IDLE;
       track.weight = 1.0;
-      track.t = AN_Time01ToAnimT(model.skeleton, track.id, a.idle_cycle);
+      track.t = AN_Time01ToAnimT(skeleton, track.id, a.idle_cycle);
     }
 
     result = copy_array(to_view(tracks),, temp);
