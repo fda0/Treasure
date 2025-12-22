@@ -480,6 +480,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
         i := (face_i * vertices_per_face) + vert_i;
         mesh_verts[i].uv = face_uvs[vert_i];
         mesh_verts[i].normal = normal;
+        mesh_verts[i].color = U32_MAX;
       }
     }
 

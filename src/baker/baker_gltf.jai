@@ -21,6 +21,7 @@ B_GLTF_Mesh :: struct
   positions:     [..] float;
   normals:       [..] float;
   texcoords:     [..] float;
+  colors:        [..] u16;
   joint_indices: [..] u8;
   weights:       [..] float;
 };
@@ -58,22 +59,22 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
 
   // Parse .gltf file & load buffers
   data: *cgltf_data;
-  res := cgltf_parse_file(*options, to_c_string(spec.file_path), *data);
-  if res != .cgltf_result_success
+  ok := cgltf_parse_file(*options, to_c_string(spec.file_path), *data);
+  if ok != .cgltf_result_success
   {
     log_error("[GLTF LOADER] Failed to parse %", spec.file_path);
     return;
   }
 
-  res = cgltf_load_buffers(*options, data, to_c_string(spec.file_path));
-  if res != .cgltf_result_success
+  ok = cgltf_load_buffers(*options, data, to_c_string(spec.file_path));
+  if ok != .cgltf_result_success
   {
     log_error("[GLTF LOADER] Failed to load buffers, %", spec.file_path);
     return;
   }
 
-  res = cgltf_validate(data);
-  if res != .cgltf_result_success
+  ok = cgltf_validate(data);
+  if ok != .cgltf_result_success
   {
     log_error("[GLTF LOADER] Failed to validate data, %", spec.file_path);
     return;
@@ -83,10 +84,6 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
   dir_path, file_name_no_ext, _, _ := path_decomp(spec.file_path);
 
   // Collect data from .gltf file
-  // @todo Arena_Scope scratch = Arena_PushScope(BAKER.tmp);
-  max_indices := 1024*256;
-  max_verts := 1024*128;
-
   model: B_GLTF_Model;
   model.name = ifx spec.name then spec.name else file_name_no_ext;
   model.spec = spec;
@@ -241,6 +238,11 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
           Check(comp_count == 2);
           Check(accessor.component_type == .cgltf_component_type_r_32f);
           B_GLTF_UnpackAccessor(accessor, *bk_mesh.texcoords);
+
+          case .cgltf_attribute_type_color;
+          Check(comp_count == 4);
+          Check(accessor.component_type == .cgltf_component_type_r_16u);
+          B_GLTF_UnpackAccessor(accessor, *bk_mesh.colors);
 
           case .cgltf_attribute_type_joints;
           Check(comp_count == 4);
@@ -557,6 +559,18 @@ B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
         baker_mesh.texcoords[vert_i*2 + 0],
         baker_mesh.texcoords[vert_i*2 + 1],
       };
+
+      // COLOR
+      vert.color = U32_MAX;
+      if baker_mesh.colors.count > 0
+      {
+        c4: V4;
+        c4.x = baker_mesh.colors[vert_i*4 + 0].(float) / U16_MAX.(float);
+        c4.y = baker_mesh.colors[vert_i*4 + 1].(float) / U16_MAX.(float);
+        c4.z = baker_mesh.colors[vert_i*4 + 2].(float) / U16_MAX.(float);
+        c4.w = baker_mesh.colors[vert_i*4 + 3].(float) / U16_MAX.(float);
+        vert.color = xx C32_from_C4(c4);
+      }
 
       // SKINNED specific
       if model.is_skinned

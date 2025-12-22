@@ -12,7 +12,7 @@ RD_WorldVertex :: struct
   p: V3;
   normal: V3;
   uv: V2;
-  // @todo color_packed: u32; (Carrot model uses vertex colors!)
+  color: u32;
   joints_packed4: u32;
   joint_weights: V4;
 }

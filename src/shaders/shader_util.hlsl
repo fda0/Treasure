@@ -18,6 +18,16 @@ static V4 UnpackColor32(U32 packed)
   return res;
 }
 
+static uint PackColor(float4 color)
+{
+  uint r = (uint)(color.x * 255) & 255;
+  uint g = (uint)(color.y * 255) & 255;
+  uint b = (uint)(color.z * 255) & 255;
+  uint a = (uint)(color.w * 255) & 255;
+  uint res = (a << 24) | (b << 16) | (g << 8) | r;
+  return res;
+}
+
 static Mat4 Mat4_Identity()
 {
   return Mat4(1.0f, 0.0f, 0.0f, 0.0f,

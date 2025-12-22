@@ -28,8 +28,9 @@ struct WORLD_DX_Vertex
   V3  p              : TEXCOORD0;
   V3  normal         : TEXCOORD1;
   V2  uv             : TEXCOORD2;
-  U32 joints_packed4 : TEXCOORD3;
-  V4  joint_weights  : TEXCOORD4;
+  U32 color          : TEXCOORD3;
+  U32 joints_packed4 : TEXCOORD4;
+  V4  joint_weights  : TEXCOORD5;
   U32 instance_index : SV_InstanceID;
 };
 
@@ -116,11 +117,17 @@ WORLD_DX_Fragment WORLD_DxShaderVS(WORLD_DX_Vertex vert)
   Mat3 position_rotation = Mat3_FromMat4(Mat4_RotationPart(position_transform));
   Mat3 normal_rotation = mul(position_rotation, input_normal_mat);
 
+  // Merge color masks
+  float4 instance_color = UnpackColor32(instance.color_mask);
+  float4 vertex_color = UnpackColor32(vert.color);
+  float4 color_mask = instance_color * vertex_color;
+  uint color_mask_packed = PackColor(color_mask);
+
   // Return
   WORLD_DX_Fragment frag;
   frag.shadow_p = mul(UV.shadow_transform, world_p);
   frag.world_p = world_p.xyz;
-  frag.color_mask = instance.color_mask;
+  frag.color_mask = color_mask_packed;
   frag.hue_shift = instance.hue_shift;
   frag.picking_color = instance.picking_color;
   frag.uv = vert.uv;
