@@ -2,14 +2,10 @@
 using,only(AST,G) COMPS;
 #scope_export;
 
-AnimationRecord :: struct
-{
-  animation_index: s32;
-  joint_weights: [] float; // Animations like punching shouldn't really apply to legs etc
-  // count = 0 -> all weights are equal to one
-}
-
-AnimationID :: enum u8
+//
+// AnimationTag -> AnimationWeights -> AnimationData
+//
+AnimationTag :: enum u8
 {
   IDLE;
   WALK;
@@ -22,121 +18,36 @@ AnimationID :: enum u8
   DEATH;
 }
 
-AnimationRequest :: struct
+AnimationWeights :: struct
 {
-  tick: ServerTick;
-  id: AnimationID;
+  animation_index: s32;
+  joint_weights: [] float; // Animations like punching shouldn't really apply to legs etc
+  // count = 0 -> all weights are equal to one
 }
 
 AnimationTrack :: struct
 {
-  id: AnimationID;
+  tag: AnimationTag;
   t: float;
   weight: float;
 }
 
-AN_InitSkeletons :: ()
+//
+// AnimationRequest -> AnimationPlayback
+//
+AnimationRequest :: struct
 {
-  PerfFunc();
-
-  MaskJoints :: (joint_name: string, value: float) #expand
-  {
-    AN_WaterfallToChildren(.ASSIGN, `skeleton, AN_JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
-  }
-
-  skeleton := SkeletonFromSlot(ModelFromAlias(.Dude).skeleton_slot);
-  if skeleton
-  {
-    for enum_values_as_enum(AnimationID)
-    {
-      r := *skeleton.animation_records[it];
-
-      temp_weights := NewArray(skeleton.joints_count, float,, temp);
-      for *temp_weights it.* = 1.0;
-
-      if it == {
-        case .IDLE;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle_Loop");
-
-        case .WALK;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk_Loop");
-
-        case .RUN;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
-        // temp_weights[AN_JointNameToIndex(skeleton, "DEF-spine.001")] = 0.5;
-
-        case .PUNCH_HANDS;
-        MaskJoints("root", 0.0);
-        MaskJoints("DEF-spine.003", 1.0);
-        #through;
-        case .PUNCH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Cross");
-
-        case .JAB_HANDS;
-        MaskJoints("root", 0.0);
-        MaskJoints("DEF-spine.003", 1.0);
-        #through;
-        case .JAB;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Jab");
-
-        case .HIT;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Hit_Head");
-        MaskJoints("root", 0.0);
-        MaskJoints("DEF-spine.001", 1.0);
-        MaskJoints("DEF-shoulder.L", 0.0);
-        MaskJoints("DEF-shoulder.R", 0.0);
-
-        case .DEATH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death01");
-      }
-
-      has_non_one := false;
-      for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights);
-    }
-  }
-
-  skeleton = SkeletonFromSlot(ModelFromAlias(.Zombie).skeleton_slot);
-  if skeleton
-  {
-    for enum_values_as_enum(AnimationID)
-    {
-      r := *skeleton.animation_records[it];
-
-      temp_weights := NewArray(skeleton.joints_count, float,, temp);
-      for *temp_weights it.* = 1.0;
-
-      if it == {
-        case .IDLE;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle");
-
-        case .WALK;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk");
-
-        case .RUN;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Run");
-
-        case .PUNCH_HANDS; #through;
-        case .PUNCH; #through;
-        case .JAB_HANDS; #through;
-        case .JAB;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch");
-
-        case .HIT;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "HitReact");
-
-        case .DEATH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death");
-      }
-
-      has_non_one := false;
-      for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights);
-    }
-  }
+  tick: ServerTick;
+  tag: AnimationTag;
 }
 
-AN_UpdateGhostTimers :: (ghost: *Ghost)
+AnimationPlayback :: struct
+{
+  start_time: Timestamp;
+  tag: AnimationTag;
+}
+
+AN_UpdatePlaybacks :: (ghost: *Ghost)
 {
   activity := *ghost.activity;
   animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
@@ -263,7 +174,7 @@ AN_UpdateGhostTimers :: (ghost: *Ghost)
   }
 }
 
-AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
+AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 {
   result: [] AnimationTrack;
 
@@ -281,13 +192,13 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
       if (tracks.count == 0) return true;
       track := tracks[tracks.count - 1];
       if (track.weight != 1.0) return true;
-      record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.id];
+      record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.tag];
       return record.joint_weights.count != 0;
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
-      track.id = .DEATH;
+      track.tag = .DEATH;
       track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
       track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
     }
@@ -298,34 +209,34 @@ AN_GetAnimationTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 
       hands := array_add(*tracks);
       hands.weight = sqrt(a.is_attacking_weight);
-      hands.id = .PUNCH_HANDS;
+      hands.tag = .PUNCH_HANDS;
       hands.t = t;
 
       punch := array_add(*tracks);
       punch.weight = a.is_attacking_weight;
-      punch.id = .PUNCH;
+      punch.tag = .PUNCH;
       punch.t = t;
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
-      track.id = .RUN;
+      track.tag = .RUN;
       track.weight = Smoothstep(a.is_walking_weight, 1, 2);
-      track.t = AN_Time01ToAnimT(skeleton, track.id, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+      track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
-      track.id = .WALK;
+      track.tag = .WALK;
       track.weight = Smoothstep(a.is_walking_weight, 0, 1);
-      track.t = AN_Time01ToAnimT(skeleton, track.id, WrapFloat(a.walk_cycle, 0, 1));
+      track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle, 0, 1));
     }
 
     if NotAllWeightsAreFull() {
       track := array_add(*tracks);
-      track.id = .IDLE;
+      track.tag = .IDLE;
       track.weight = 1.0;
-      track.t = AN_Time01ToAnimT(skeleton, track.id, a.idle_cycle);
+      track.t = AN_Time01ToAnimT(skeleton, track.tag, a.idle_cycle);
     }
 
     result = copy_array(to_view(tracks),, temp);
@@ -356,7 +267,7 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
     rotations := ifx first_loop then accumulated_rotations else array_copy(skeleton.bind_rotations);
     translations := ifx first_loop then accumulated_translations else array_copy(skeleton.bind_translations);
 
-    record := AN_RecordFromType(skeleton, track.id);
+    record := AN_RecordFromType(skeleton, track.tag);
 
     // Overwrite translations, rotations, scales with values from animation
     {
@@ -458,28 +369,129 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
   return result_matrices;
 }
 
+AN_InitWeights :: ()
+{
+  PerfFunc();
+
+  MaskJoints :: (joint_name: string, value: float) #expand
+  {
+    AN_WaterfallToChildren(.ASSIGN, `skeleton, AN_JointNameToIndex(`skeleton, joint_name), `temp_weights, value);
+  }
+
+  skeleton := SkeletonFromSlot(ModelFromAlias(.Dude).skeleton_slot);
+  if skeleton
+  {
+    for enum_values_as_enum(AnimationTag)
+    {
+      r := *skeleton.animation_records[it];
+
+      temp_weights := NewArray(skeleton.joints_count, float,, temp);
+      for *temp_weights it.* = 1.0;
+
+      if it == {
+        case .IDLE;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle_Loop");
+
+        case .WALK;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk_Loop");
+
+        case .RUN;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
+        // temp_weights[AN_JointNameToIndex(skeleton, "DEF-spine.001")] = 0.5;
+
+        case .PUNCH_HANDS;
+        MaskJoints("root", 0.0);
+        MaskJoints("DEF-spine.003", 1.0);
+        #through;
+        case .PUNCH;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Cross");
+
+        case .JAB_HANDS;
+        MaskJoints("root", 0.0);
+        MaskJoints("DEF-spine.003", 1.0);
+        #through;
+        case .JAB;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Jab");
+
+        case .HIT;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Hit_Head");
+        MaskJoints("root", 0.0);
+        MaskJoints("DEF-spine.001", 1.0);
+        MaskJoints("DEF-shoulder.L", 0.0);
+        MaskJoints("DEF-shoulder.R", 0.0);
+
+        case .DEATH;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death01");
+      }
+
+      has_non_one := false;
+      for temp_weights if it != 1.0 then has_non_one = true;
+      if has_non_one then r.joint_weights = array_copy(temp_weights);
+    }
+  }
+
+  skeleton = SkeletonFromSlot(ModelFromAlias(.Zombie).skeleton_slot);
+  if skeleton
+  {
+    for enum_values_as_enum(AnimationTag)
+    {
+      r := *skeleton.animation_records[it];
+
+      temp_weights := NewArray(skeleton.joints_count, float,, temp);
+      for *temp_weights it.* = 1.0;
+
+      if it == {
+        case .IDLE;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle");
+
+        case .WALK;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk");
+
+        case .RUN;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Run");
+
+        case .PUNCH_HANDS; #through;
+        case .PUNCH; #through;
+        case .JAB_HANDS; #through;
+        case .JAB;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch");
+
+        case .HIT;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "HitReact");
+
+        case .DEATH;
+        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death");
+      }
+
+      has_non_one := false;
+      for temp_weights if it != 1.0 then has_non_one = true;
+      if has_non_one then r.joint_weights = array_copy(temp_weights);
+    }
+  }
+}
+
 #scope_file;
-AN_RecordFromType :: (skeleton: Skeleton, id: AnimationID) -> *AnimationRecord
+AN_RecordFromType :: (skeleton: Skeleton, tag: AnimationTag) -> *AnimationWeights
 {
-  return *skeleton.animation_records[id];
+  return *skeleton.animation_records[tag];
 }
 
-AN_AnimationFromType :: (skeleton: Skeleton, id: AnimationID) -> *Animation
+AN_AnimationFromType :: (skeleton: Skeleton, tag: AnimationTag) -> *AnimationData
 {
-  return *skeleton.animations[AN_RecordFromType(skeleton, id).animation_index];
+  return *skeleton.animations[AN_RecordFromType(skeleton, tag).animation_index];
 }
 
-AN_WrapTime :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
+AN_WrapTime :: (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
 {
-  anim_index := skeleton.animation_records[id].animation_index;
+  anim_index := skeleton.animation_records[tag].animation_index;
   anim := skeleton.animations[anim_index];
   result := WrapFloat(t, anim.t_min, anim.t_max);
   return result;
 }
 
-AN_Time01ToAnimT :: (skeleton: Skeleton, id: AnimationID, t: float) -> float
+AN_Time01ToAnimT :: (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
 {
-  anim_index := skeleton.animation_records[id].animation_index;
+  anim_index := skeleton.animation_records[tag].animation_index;
   anim := skeleton.animations[anim_index];
   result := (anim.t_max - anim.t_min) * t + anim.t_min;
   return result;
@@ -525,7 +537,7 @@ AN_AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, fou
     if name == it.name
       return xx it_index, true;
   }
-  log("Animation name not found: %", name, flags=.WARNING);
+  log("AnimationData name not found: %", name, flags=.WARNING);
   return 0, false;
 }
 

@@ -637,9 +637,9 @@ SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   QueuePush(*obj.sound_requests, .{SV.tick, type});
 }
-SIM_PlayAnimation :: (obj: *Object, id: AnimationID)
+SIM_PlayAnimation :: (obj: *Object, tag: AnimationTag)
 {
-  QueuePush(*obj.animation_requests, .{SV.tick, id});
+  QueuePush(*obj.animation_requests, .{SV.tick, tag});
 }
 
 SIM_DealDamage :: (target: *Object, source: *Object, amount: float)

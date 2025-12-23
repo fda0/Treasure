@@ -449,7 +449,7 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
   // Animations
   if data.animations_count
   {
-    skeleton.animations = B_NewArray(xx data.animations_count, Animation);
+    skeleton.animations = B_NewArray(xx data.animations_count, AnimationData);
     for * skeleton.animations
     {
       gltf_anim := *data.animations[it_index];
@@ -460,7 +460,7 @@ B_GLTF_ExportSkeletonToPie :: (model: *B_GLTF_Model, data: *cgltf_data)
       it.name = B_CopyString(to_string(gltf_anim.name));
 
       // Channels
-      it.channels = B_NewArray(xx gltf_anim.channels_count, AnimationChannel);
+      it.channels = B_NewArray(xx gltf_anim.channels_count, AnimationData.Channel);
       for * it.channels
       {
         gltf_channel := *gltf_anim.channels[it_index];

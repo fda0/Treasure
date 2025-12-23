@@ -541,7 +541,7 @@ AST_LoadSkeletons :: ()
       {
         comp_count := ifx it.type == .Rotation then 4 else 3;
         if !(comp_count * it.inputs.count * size_of(float) == array_size_bytes(it.outputs)) {
-          AST_Error("Animation channel %*%*% != %", comp_count, it.inputs.count, size_of(float), array_size_bytes(it.outputs));
+          AST_Error("AnimationData channel %*%*% != %", comp_count, it.inputs.count, size_of(float), array_size_bytes(it.outputs));
           return;
         }
       }

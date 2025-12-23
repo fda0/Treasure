@@ -315,7 +315,7 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     {
       skeleton := SkeletonFromSlot(model.skeleton_slot);
       instance.pose_offset = xx batch.transforms.count;
-      tracks := AN_GetAnimationTracks(ghost);
+      tracks := AN_GetTracks(ghost);
       transforms := AN_GetPoseTransforms(skeleton, tracks);
       array_add_from_another_array(*batch.transforms, transforms);
     }

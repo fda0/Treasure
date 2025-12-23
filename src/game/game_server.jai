@@ -109,7 +109,6 @@ SV_CreateMinion :: (team: OBJ_Team) -> *Object
   if !OBJ_IsNil(obj)
   {
     obj.model = .Zombie;
-    obj.model = .Carrot;
     obj.team = team;
 
     obj.base_stats.max_health = 60.0;

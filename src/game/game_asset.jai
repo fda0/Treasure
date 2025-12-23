@@ -2,33 +2,6 @@
 using,only(AST,G) COMPS;
 #scope_export;
 
-AssetState :: struct
-{
-  // Errors
-  error: bool;
-  error_message: string;
-
-  // Asset file
-  file_path: string;
-  file: string;
-  using links: *PieLinks;
-
-  // Materials
-  materials: [] Material; // reserve 0 for nil
-  tex_load_needed: bool;
-  tex_semaphore: Semaphore;
-  tex_thread: Thread;
-
-  // Models
-  model_vertices: *SDL_GPUBuffer;
-  model_indices: *SDL_GPUBuffer;
-  skeletons: [] Skeleton;
-
-  // Aliases
-  model_alias_to_slot: [ModelAlias_Count] ModelSlot;
-  material_alias_to_slot: [MaterialAlias_Count] MaterialSlot;
-}
-
 ShaderType :: enum
 {
   WORLD_VS;
@@ -55,29 +28,8 @@ Skeleton :: struct
 {
   using base: BaseSkeleton;
   joints_count: s64;
-  animation_records: [#run EnumCount(AnimationID)] AnimationRecord;
+  animation_records: [#run EnumCount(AnimationTag)] AnimationWeights;
 }
-
-//
-// User friendly alias enum for getting common models/materials
-//
-IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
-MaterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
-ModelFromAlias :: (alias: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(alias)); }
-
-MaterialFromSlot :: (slot: MaterialSlot) -> *Material
-{
-  material := *AST.materials[slot];
-  if slot > 0
-  {
-    material.stream.last_touched = G.frame_timestamp;
-    if !(material.stream.flags & .LOADED) AST.tex_load_needed = true;
-  }
-  return material;
-}
-
-ModelFromSlot :: (slot: ModelSlot) -> *Model { return *AST.models[slot]; }
-SkeletonFromSlot :: (slot: SkeletonSlot) -> *Skeleton { return *AST.skeletons[slot]; }
 
 ModelAlias :: enum u16
 {
@@ -105,6 +57,54 @@ MaterialAlias :: enum u16
 
 ModelAlias_Count :: #run EnumCount(ModelAlias);
 MaterialAlias_Count :: #run EnumCount(MaterialAlias);
+
+AssetState :: struct
+{
+  // Errors
+  error: bool;
+  error_message: string;
+
+  // Asset file
+  file_path: string;
+  file: string;
+  using links: *PieLinks;
+
+  // Materials
+  materials: [] Material; // reserve 0 for nil
+  tex_load_needed: bool;
+  tex_semaphore: Semaphore;
+  tex_thread: Thread;
+
+  // Models
+  model_vertices: *SDL_GPUBuffer;
+  model_indices: *SDL_GPUBuffer;
+  skeletons: [] Skeleton;
+
+  // Aliases
+  model_alias_to_slot: [ModelAlias_Count] ModelSlot;
+  material_alias_to_slot: [MaterialAlias_Count] MaterialSlot;
+}
+
+//
+// User friendly alias enum for getting common models/materials
+//
+IsNil :: (a: *Material) -> bool { return a == *AST.materials[0]; }
+MaterialFromAlias :: (alias: MaterialAlias) -> *Material { return MaterialFromSlot(MaterialSlotFromAlias(alias)); }
+ModelFromAlias :: (alias: ModelAlias) -> *Model { return ModelFromSlot(ModelSlotFromAlias(alias)); }
+
+MaterialFromSlot :: (slot: MaterialSlot) -> *Material
+{
+  material := *AST.materials[slot];
+  if slot > 0
+  {
+    material.stream.last_touched = G.frame_timestamp;
+    if !(material.stream.flags & .LOADED) AST.tex_load_needed = true;
+  }
+  return material;
+}
+
+ModelFromSlot :: (slot: ModelSlot) -> *Model { return *AST.models[slot]; }
+SkeletonFromSlot :: (slot: SkeletonSlot) -> *Skeleton { return *AST.skeletons[slot]; }
 
 ModelSlotFromAlias :: (alias: ModelAlias) -> ModelSlot { return AST.model_alias_to_slot[alias]; }
 MaterialSlotFromAlias :: (alias: MaterialAlias) -> MaterialSlot { return AST.material_alias_to_slot[alias]; }

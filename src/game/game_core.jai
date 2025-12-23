@@ -97,8 +97,8 @@ G_Init :: ()
   AST_LoadAssetFile();
   GPU_Init();
   AST_ContinueLoadAssetFileWithGPU();
-  
-  AN_InitSkeletons();
+
+  AN_InitWeights();
   FONT_Init();
   RD_UIClearRenderCounters();
   HR_InitWatcher();
@@ -331,7 +331,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
     if is_shared && !DEV.pause_ghosts_interpolation {
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
-    inline AN_UpdateGhostTimers(ghost);
+    inline AN_UpdatePlaybacks(ghost);
     inline RD_DrawGhost(ghost, batch);
   }
 }

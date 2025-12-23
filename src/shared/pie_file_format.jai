@@ -31,25 +31,25 @@ RD_WorldFlags :: enum_flags u32
   PixelEarlyExit;
 }
 
-AnimationChannel :: struct
-{
-  type: enum u8 { Translation; Rotation; Scale; };
-  joint_index: u32;
-  inputs: [] float;  // float * count
-  outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
-}
-
-Animation :: struct
+AnimationData :: struct
 {
   name: string;
   t_min, t_max: float;
-  channels: [] AnimationChannel;
+  channels: [] Channel;
+
+  Channel :: struct
+  {
+    type: enum u8 { Translation; Rotation; Scale; };
+    joint_index: u32;
+    inputs: [] float;  // float * count
+    outputs: [] float; // float * (3 or 4 [V3 or Quat]) * count
+  }
 }
 
 BaseSkeleton :: struct
 {
   root_transform: Mat4;
-  animations: [] Animation;
+  animations: [] AnimationData;
 
   // each of these has the same count of elements (joints_count)
   names: [] string;
