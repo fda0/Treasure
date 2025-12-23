@@ -115,7 +115,7 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_metallic_roughness
       {
         metal := *gltf_material.pbr_metallic_roughness;
-        material.diffuse   = xx Color32_RGBAf(metal.base_color_factor);
+        material.diffuse   = ColorPack(ColorRGBA(metal.base_color_factor));
         material.roughness = metal.roughness_factor;
 
         if metal.base_color_texture.texture
@@ -125,8 +125,8 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
       if gltf_material.has_pbr_specular_glossiness
       {
         gloss := *gltf_material.pbr_specular_glossiness;
-        material.diffuse   = xx Color32_RGBAf(gloss.diffuse_factor);
-        material.specular  = xx Color32_RGBf(gloss.specular_factor);
+        material.diffuse   = ColorPack(ColorRGBA(gloss.diffuse_factor));
+        material.specular  = ColorPack(ColorRGB(gloss.specular_factor));
         material.roughness = 1.0 - gloss.glossiness_factor;
 
         if gloss.diffuse_texture.texture
@@ -564,12 +564,12 @@ B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
       vert.color = U32_MAX;
       if baker_mesh.colors.count > 0
       {
-        c4: V4;
-        c4.x = baker_mesh.colors[vert_i*4 + 0].(float) / U16_MAX.(float);
-        c4.y = baker_mesh.colors[vert_i*4 + 1].(float) / U16_MAX.(float);
-        c4.z = baker_mesh.colors[vert_i*4 + 2].(float) / U16_MAX.(float);
-        c4.w = baker_mesh.colors[vert_i*4 + 3].(float) / U16_MAX.(float);
-        vert.color = xx C32_from_C4(c4);
+        color: Color;
+        color.x = baker_mesh.colors[vert_i*4 + 0].(float) / U16_MAX.(float);
+        color.y = baker_mesh.colors[vert_i*4 + 1].(float) / U16_MAX.(float);
+        color.z = baker_mesh.colors[vert_i*4 + 2].(float) / U16_MAX.(float);
+        color.w = baker_mesh.colors[vert_i*4 + 3].(float) / U16_MAX.(float);
+        vert.color = ColorPack(color);
       }
 
       // SKINNED specific

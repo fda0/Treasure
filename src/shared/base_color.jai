@@ -1,109 +1,107 @@
-Color32 :: #type,distinct u32;
-C4 :: V4;
-C32 :: Color32;
+Color32 :: u32; // Packed color
+Color :: V4; // Unpacked color
 
-Color32_RGBAi :: (r: u32, g: u32, b: u32, a: u32) -> Color32
+ColorUnpack :: (packed: u32) -> Color
 {
+  inv :: 1.0 / 255.0;
+  res: V4 = ---;
+  res.x = (packed & 0xff) * inv;
+  res.y = ((packed >> 8) & 0xff) * inv;
+  res.z = ((packed >> 16) & 0xff) * inv;
+  res.w = ((packed >> 24) & 0xff) * inv;
+  return res;
+}
+
+ColorPack :: (color: V4) -> Color32
+{
+  r := (color.x * 0xff).(u32) & 0xff;
+  g := (color.y * 0xff).(u32) & 0xff;
+  b := (color.z * 0xff).(u32) & 0xff;
+  a := (color.w * 0xff).(u32) & 0xff;
   res := (a << 24) | (b << 16) | (g << 8) | r;
-  return res.(Color32);
+  return res;
 }
-C32_SetAlphai :: (color: Color32, a: u32) -> Color32
+
+ColorRGB :: (r: float, g: float, b: float) -> Color {
+  return .{r, g, b, 1};
+}
+ColorRGB :: (rgb: [3] float) -> Color {
+  return .{rgb[0], rgb[1], rgb[2], 1};
+}
+ColorRGBA :: (r: float, g: float, b: float, a: float) -> Color {
+  return .{r, g, b, a};
+}
+ColorRGBA :: (rgba: [4] float) -> Color {
+  return .{rgba[0], rgba[1], rgba[2], rgba[3]};
+}
+
+ColorBlack :: (shade := 0.0, alpha := 1.0) -> V4 {
+  return .{shade, shade, shade, alpha};
+}
+ColorGray :: (shade := 0.5, alpha := 1.0) -> V4 {
+  return .{shade, shade, shade, alpha};
+}
+ColorWhite :: (shade := 1.0, alpha := 1.0) -> V4 {
+  return .{shade, shade, shade, alpha};
+}
+
+//
+// Packed
+//
+PackedRGB :: (r: Color32, g: Color32, b: Color32) -> Color32 {
+  return r | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (0xff << 24);
+}
+PackedRGB :: (rgb: Color32) -> Color32 {
+  return (rgb & 0xffffff) | (0xff << 24);
+}
+PackedRGBA :: (r: Color32, g: Color32, b: Color32, a: Color32) -> Color32 {
+  return r | ((g & 0xff) << 8) | ((b & 0xff) << 16) | ((a & 0xff) << 24);
+}
+
+PackedBGR :: (bgr: Color32) -> Color32 {
+  b := bgr & 0xff;
+  g := (bgr >> 8) & 0xff;
+  r := (bgr >> 16) & 0xff;
+  return r | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (0xff << 24);
+}
+PackedBGRA :: (bgra: Color32) -> Color32 {
+  b := bgra & 0xff;
+  g := (bgra >> 8) & 0xff;
+  r := (bgra >> 16) & 0xff;
+  a := (bgra >> 25) & 0xff;
+  return r | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (a << 24);
+}
+
+PackedBlack :: (shade: Color32 = 0, alpha: Color32 = 255) -> Color32 {
+  return PackedRGBA(shade, shade, shade, alpha);
+}
+PackedGray :: (shade: Color32 = 128, alpha: Color32 = 255) -> Color32 {
+  return PackedRGBA(shade, shade, shade, alpha);
+}
+PackedWhite :: (shade: Color32 = 255, alpha: Color32 = 255) -> Color32 {
+  return PackedRGBA(shade, shade, shade, alpha);
+}
+
+// Packed misc
+PackedLerp :: (a: Color32, b: Color32, t: float) -> Color32 {
+   return ColorPack(lerp(ColorUnpack(a), ColorUnpack(b), t));
+}
+
+PackedNegativeRGB :: (color: Color32) -> Color32
 {
-  no_alpha := color.(u32) & ~(0xff << 24);
-  return xx (no_alpha | (a << 24));
+  rgb := (~color) & 0xff_ff_ff;
+  color &= 0xff_00_00_00;
+  color |= rgb;
+  return color;
 }
-C32_SetAlphaf :: (color: Color32, a: float) -> Color32
+
+PackedSetAlphaI :: (color: Color32, a: u32) -> Color32
+{
+  no_alpha := color & ~((0xff << 24).(u32));
+  return (no_alpha | (a << 24));
+}
+PackedSetAlphaF :: (color: Color32, a: float) -> Color32
 {
   ai := (a * 255.0).(u32);
-  return C32_SetAlphai(color, ai);
+  return PackedSetAlphaI(color, ai);
 }
-Color32_RGBAf :: (r: float, g: float, b: float, a: float) -> Color32
-{
-  ri := (r * 255).(u32) & 255;
-  gi := (g * 255).(u32) & 255;
-  bi := (b * 255).(u32) & 255;
-  ai := (a * 255).(u32) & 255;
-  return Color32_RGBAi(ri, gi, bi, ai);
-}
-Color32_RGBf :: (r: float, g: float, b: float) -> Color32
-{
-  ri := (r * 255).(u32) & 255;
-  gi := (g * 255).(u32) & 255;
-  bi := (b * 255).(u32) & 255;
-  return Color32_RGBAi(ri, gi, bi, 255);
-}
-Color32_RGBi  :: (r: u32, g: u32, b: u32) -> Color32 { return Color32_RGBAi(r, g, b, 255); }
-Color32_Grayi :: (rgb: u32) -> Color32 { return Color32_RGBi(rgb, rgb, rgb); }
-Color32_Grayf :: (rgb: float)       -> Color32 { return Color32_RGBf(rgb, rgb, rgb); }
-Color32_RGBf  :: (color: V3)        -> Color32 { return Color32_RGBf(color.x, color.y, color.z); }
-Color32_RGBf  :: (color: [3] float) -> Color32 { return Color32_RGBf(color[0], color[1], color[2]); }
-Color32_RGBAf :: (color: [4] float) -> Color32 { return Color32_RGBAf(color[0], color[1], color[2], color[3]); }
-
-C32_RGBAi :: Color32_RGBAi;
-C32_RGBAf :: Color32_RGBAf;
-C32_RGBf :: Color32_RGBf;
-C32_RGBi :: Color32_RGBi;
-C32_Grayi :: Color32_Grayi;
-C32_Grayf :: Color32_Grayf;
-C32_RGBf :: Color32_RGBf;
-C32_RGBf :: Color32_RGBf;
-C32_RGBAf :: Color32_RGBAf;
-C32_RGBAf :: Color32_RGBAf;
-
-C32_0xRGB :: (rgb: u32) -> C32
-{
-  r := (rgb >> 16) & 0xff;
-  g := (rgb >> 8) & 0xff;
-  b := rgb & 0xff;
-  return C32_RGBi(r, g, b);
-}
-
-lerp :: (c0: Color32, c1: Color32, t: float) -> Color32
-{
-  // @todo Do a lerp in a different color space - like Oklab or something
-  // https://raphlinus.github.io/color/2021/01/18/oklab-critique.html
-  vec0 := C4_from_C32(c0);
-  vec1 := C4_from_C32(c1);
-  lerped := lerp(vec0, vec1, t);
-  res := C32_from_C4(lerped);
-  return res;
-}
-
-C32_to_C4 :: C4_from_C32;
-Unpack :: C4_from_C32;
-C4_from_C32 :: (packed: Color32) -> C4
-{
-  inv: float = 1.0 / 255.0;
-  res: C4 = ---;
-  res.x = (packed & 255) * inv;
-  res.y = ((packed >> 8) & 255) * inv;
-  res.z = ((packed >> 16) & 255) * inv;
-  res.w = ((packed >> 24) & 255) * inv;
-  return res;
-}
-
-C4_to_C32 :: C32_from_C4;
-Pack :: C32_from_C4;
-C32_from_C4 :: (color: V4) -> Color32
-{
-  return Color32_RGBAf(color.x, color.y, color.z, color.w);
-}
-
-C4_RGB :: (r: float, g: float, b: float) -> C4
-{
-  return .{r, g, b, 1.0};
-}
-
-InvertRGB :: (c: C32) -> C32
-{
-  rgb := ~c & 0xff_ff_ff;
-  c &= 0xff_00_00_00;
-  c |= rgb;
-  return c;
-}
-
-White :: (shade := 1.0, alpha := 1.0) -> C32
-{
-  return C32_RGBAf(shade, shade, shade, alpha);
-}
-

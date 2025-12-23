@@ -184,7 +184,7 @@ Object :: struct
   sound_requests: Queue(4, AUDIO_Request);
 
   // visuals
-  color: Color32 = 0xffff_ffff; @lerp // unused?
+  color: Color32 = 0xffff_ffff; @lerp_color // unused?
   hue_shift: float; @lerp
   rotation: Quat; @Slerp
   model: ModelAlias; // used by DrawModel
@@ -229,6 +229,7 @@ OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
         basic_lerp := "";
         if Contains(it.notes, "lerp") basic_lerp = "lerp";
         if Contains(it.notes, "Slerp") basic_lerp = "Slerp";
+        if Contains(it.notes, "lerp_color") basic_lerp = "PackedLerp";
         if basic_lerp {
           print_to_builder(b, "result%1.%2 = %3(prev%1.%2, next%1.%2, t);\n", prefix, it.name, basic_lerp);
         }

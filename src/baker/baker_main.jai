@@ -63,10 +63,10 @@ B_ProcessAssets :: (thread: *Thread) -> s64
   // Load texture files
   {
     // @todo adjust after adding tone mapping
-    spec_tiny := Color32_Grayf(0.05);
-    spec_low := Color32_Grayf(0.1);
-    spec_mid := Color32_Grayf(0.2);
-    spec_big := Color32_Grayf(0.4);
+    spec_tiny := ColorPack(ColorGray(0.05));
+    spec_low := ColorPack(ColorGray(0.1));
+    spec_mid := ColorPack(ColorGray(0.2));
+    spec_big := ColorPack(ColorGray(0.4));
     // B_TEX_LoadPBRs("Bricks071", spec_mid);
     // B_TEX_LoadPBRs("Bricks097", spec_mid);
     B_TEX_LoadPBRs("Clay002", spec_big);
@@ -213,8 +213,8 @@ B: B_State;
 
 B_SetDefaultsPIEMaterial :: (material: *BaseMaterial)
 {
-  material.diffuse = xx Color32_RGBi(128,128,128);
-  material.specular = xx Color32_RGBf(0.05, 0.02, 0.01);
+  material.diffuse = ColorPack(ColorRGB(0.5, 0.5, 0.5));
+  material.specular = ColorPack(ColorRGB(0.05, 0.02, 0.01));
   material.roughness = 0.5;
 }
 

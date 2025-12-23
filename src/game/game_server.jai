@@ -133,7 +133,7 @@ SV_CreateHero :: (model: ModelAlias, team: OBJ_Team) -> *Object
     obj.collider = OBJ_ColliderFromRect(.{dim,dim});
     obj.height = dim;
     obj.model = model;
-    obj.color = Color32_Grayf(1);
+    obj.color = PackedWhite();
     obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
     obj.team = team;
 
@@ -246,7 +246,7 @@ SV_IterateSend :: ()
           r := ifx user_index & 4 then 0.3 else 0.8;
           g := ifx user_index & 2 then 0.3 else 0.8;
           b := ifx user_index & 1 then 0.3 else 0.8;
-          player.color = Color32_RGBf(r, g, b);
+          player.color = ColorPack(ColorRGB(r, g, b));
         }
         user.key = player.key;
       }

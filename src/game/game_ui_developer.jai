@@ -4,30 +4,30 @@ using,only(AUDIO,DEV,FONT,G,STATS) COMPS;
 
 #scope_file;
 using BOX;
-UI_RED1      :: #run C32_RGBi(0xcc, 0x24, 0x1d);
-UI_RED2      :: #run C32_RGBi(0xfb, 0x49, 0x34);
-UI_GREEN1    :: #run C32_RGBi(0x98, 0x97, 0x1a);
-UI_GREEN2    :: #run C32_RGBi(0xb8, 0xbb, 0x26);
-UI_YELLOW1   :: #run C32_RGBi(0xd7, 0x99, 0x21);
-UI_YELLOW2   :: #run C32_RGBi(0xfa, 0xbd, 0x2f);
-UI_BLUE1     :: #run C32_RGBi(0x45, 0x85, 0x88);
-UI_BLUE2     :: #run C32_RGBi(0x83, 0xa5, 0x98);
-UI_ORANGE1   :: #run C32_RGBi(0xd6, 0x5d, 0x0e);
-UI_ORANGE2   :: #run C32_RGBi(0xfe, 0x80, 0x19);
+UI_RED1      :: #run PackedRGB(0xcc, 0x24, 0x1d);
+UI_RED2      :: #run PackedRGB(0xfb, 0x49, 0x34);
+UI_GREEN1    :: #run PackedRGB(0x98, 0x97, 0x1a);
+UI_GREEN2    :: #run PackedRGB(0xb8, 0xbb, 0x26);
+UI_YELLOW1   :: #run PackedRGB(0xd7, 0x99, 0x21);
+UI_YELLOW2   :: #run PackedRGB(0xfa, 0xbd, 0x2f);
+UI_BLUE1     :: #run PackedRGB(0x45, 0x85, 0x88);
+UI_BLUE2     :: #run PackedRGB(0x83, 0xa5, 0x98);
+UI_ORANGE1   :: #run PackedRGB(0xd6, 0x5d, 0x0e);
+UI_ORANGE2   :: #run PackedRGB(0xfe, 0x80, 0x19);
 UI_BG        :: UI_BG0;
-UI_BG0       :: #run C32_RGBi(40, 40, 40);
-UI_BG1       :: #run C32_0xRGB(0x3c3836);
-UI_BG2       :: #run C32_0xRGB(0x504945);
+UI_BG0       :: #run PackedRGB(40, 40, 40);
+UI_BG1       :: #run PackedRGB(0x3c3836);
+UI_BG2       :: #run PackedRGB(0x504945);
 UI_FG        :: UI_FG1;
-UI_FG0       :: #run C32_0xRGB(0xfbf1c7);
-UI_FG1       :: #run C32_RGBi(235, 219, 178);
-UI_FG2       :: #run C32_0xRGB(0xd5c4a1);
-UI_FG3       :: #run C32_0xRGB(0xbdae93);
-UI_BORDER_BG :: #run C32_RGBi(29, 32, 33);
-UI_BUTTON_BG :: #run C32_RGBi(80, 73, 69);
-UI_BUTTON_HOVER_BG :: #run C32_RGBi(102, 92, 84);
-UI_SHADOW    :: #run C32_RGBAi(29, 32, 33, 96);
-UI_DARKER    :: #run C32_RGBAi(0, 0, 0, 64);
+UI_FG0       :: #run PackedRGB(0xfbf1c7);
+UI_FG1       :: #run PackedRGB(235, 219, 178);
+UI_FG2       :: #run PackedRGB(0xd5c4a1);
+UI_FG3       :: #run PackedRGB(0xbdae93);
+UI_BORDER_BG :: #run PackedRGB(29, 32, 33);
+UI_BUTTON_BG :: #run PackedRGB(80, 73, 69);
+UI_BUTTON_HOVER_BG :: #run PackedRGB(102, 92, 84);
+UI_SHADOW    :: #run PackedRGBA(29, 32, 33, 96);
+UI_DARKER    :: #run PackedRGBA(0, 0, 0, 64);
 
 UI_RADIUS :: #run RadiusAll(Px(2));
 UI_BORDER_WIDTH :: #run BorderOutside(Px(1));
@@ -183,7 +183,7 @@ UI_BuildDeveloperWindow :: ()
                                         track_signal = .WITHOUT_ACTIVATION,
                                         layout.size.min.y = Rem(1),
                                         snap_to_full_pixel = true,
-                                        bg_color = C32_0xRGB(0)}));
+                                        bg_color = PackedRGB(0)}));
 
         // Calculate graph width
         bar_width_px := max(1.0, floor(window_outer.inner.x / c.history.CAPACITY));
@@ -235,8 +235,8 @@ UI_BuildDeveloperWindow :: ()
             CreateText(tprint("Index: %", it_index));
             CreateText(tprint("Value: %", it));
 
-            total.bg_color = C32_Grayf(1.0);
-            filled.bg_color = InvertRGB(filled.bg_color);
+            total.bg_color = PackedWhite();
+            filled.bg_color = PackedNegativeRGB(filled.bg_color);
           }
         }
       }
@@ -317,7 +317,7 @@ UI_DrawDeveloperFontAtlas :: ()
       clip_rect = clip,
       tex_rect = MakeRectMinDim(.{}, tex_dim),
       tex_layer = xx it_index,
-      color = White(shade = shade),
+      color = ColorPack(ColorWhite(shade)),
     };
     RD_UIDraw2D(shape);
   }
@@ -356,9 +356,9 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
   resize_button: *Box;
   {
     BAR_THICKNESS :: #run Rem(0.75);
-    color_bar_bg := C32_SetAlphai(UI_FG, 24);
-    color_scroll := C32_SetAlphai(UI_FG, 128);
-    color_scroll_active := C32_SetAlphai(UI_FG, 220);
+    color_bar_bg := PackedSetAlphaI(UI_FG, 24);
+    color_scroll := PackedSetAlphaI(UI_FG, 128);
+    color_scroll_active := PackedSetAlphaI(UI_FG, 220);
 
     Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
     default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};
@@ -615,9 +615,9 @@ UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{
   Layer(.{seed = Hash64Any(scroll_x.(u64), scroll_y.(u64))});
 
   BAR_THICKNESS :: #run Rem(0.75);
-  color_bar_bg := C32_SetAlphai(UI_FG, 24);
-  color_scroll := C32_SetAlphai(UI_FG, 128);
-  color_scroll_active := C32_SetAlphai(UI_FG, 220);
+  color_bar_bg := PackedSetAlphaI(UI_FG, 24);
+  color_scroll := PackedSetAlphaI(UI_FG, 128);
+  color_scroll_active := PackedSetAlphaI(UI_FG, 220);
 
   Layer(.{layout.padding = PaddingAll(Px(0))}); // @todo Add something that allows the user to disable Layers for a while?
   default_spec := BoxSpec.{layout = .{size.pref = Grow2()}};

@@ -299,14 +299,14 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     transform := TranslationMatrix(ghost.anim.position);
     transform = transform * RotationMatrix(ghost.anim.rotation); // rotate first, translate second
 
-    hover_color := C4.{1,1,1,1};
+    hover_color := ColorWhite();
     if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
     if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
 
     instance := RD_WorldInstance.{
       transform = transform,
       hue_shift = ghost.hue_shift,
-      color_mask = C32_from_C4(hover_color),
+      color_mask = ColorPack(hover_color),
       picking_color = ifx ghost.flags & .DISABLE_MOUSE then (0).(Color32) else OBJ_KeyToColor(ghost.key),
     };
 
@@ -340,11 +340,11 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
 
     max_hp_bar := RD_UIShape.{
       rect = MakeRectMinDim(.{start_x, start_y}, .{ghost.stats.max_health, bar_height}),
-      color = Color32_RGBAf(0, 0, 0, alpha)
+      color = ColorPack(ColorRGBA(0, 0, 0, alpha))
     };
     active_hp_bar := RD_UIShape.{
       rect = MakeRectMinDim(.{start_x, start_y}, .{max(0.0, ghost.health), bar_height}),
-      color = Color32_RGBAf(0.1, 1, 0, alpha)
+      color = ColorPack(ColorRGBA(0.1, 1, 0, alpha))
     };
 
     RD_UIDraw3D(ghost.p + .{0,0,1.75}, max_hp_bar);
@@ -353,8 +353,8 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     if ghost.team
     {
       color: Color32;
-      if ghost.team == .BLUE color = Color32_RGBAf(0.2, 0.2, 1.0, alpha);
-      if ghost.team == .RED  color = Color32_RGBAf(1.0, 0.2, 0.2, alpha);
+      if ghost.team == .BLUE color = ColorPack(ColorRGBA(0.2, 0.2, 1.0, alpha));
+      if ghost.team == .RED  color = ColorPack(ColorRGBA(1.0, 0.2, 0.2, alpha));
 
       bar_dim := bar_height;
 

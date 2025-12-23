@@ -371,7 +371,7 @@ FONT_GetGlyph :: (codepoint: u32, preferred_font: FONT_Family, pixel_height: u16
           bitmap_row: *u8 = *bitmap.buffer[bitmap.pitch * y];
           glyph_row: *u32 = *glyph_pixels_no_margin[bitmap_and_margin_dim.x * y];
           for x: MakeRange(bitmap_dim.x)
-            glyph_row[x] = Color32_RGBAi(255, 255, 255, bitmap_row[x]).(u32);
+            glyph_row[x] = PackedRGBA(255, 255, 255, bitmap_row[x]).(u32);
         }
       }
       else

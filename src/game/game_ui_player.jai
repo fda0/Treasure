@@ -4,14 +4,14 @@ using,only(G) COMPS;
 
 #scope_file;
 using BOX;
-HUD_BG    :: #run C32_0xRGB(0x14_18_24);
-BUTTON_BG :: #run C32_0xRGB(0x1C_27_48);
-BUTTON_BG_INACTIVE :: #run C32_0xRGB(0x30_30_30);
-BUTTON_BG_FLASH :: #run C32_0xRGB(0x4C_57_98);
-HEALTH_FG :: #run C32_0xRGB(/*0x1C_a7_48*/ 0x27_96_26);
-ENERGY_FG :: #run C32_0xRGB(0x9C_97_28);
-TEXT_FG :: #run C32_0xRGB(0xcf_cf_cf);
-TEXT_COOLDOWN :: #run C32_0xRGB(0x9f_9f_9f);
+HUD_BG    :: #run PackedBGR(0x14_18_24);
+BUTTON_BG :: #run PackedBGR(0x1C_27_48);
+BUTTON_BG_INACTIVE :: #run PackedBGR(0x30_30_30);
+BUTTON_BG_FLASH :: #run PackedBGR(0x4C_57_98);
+HEALTH_FG :: #run PackedBGR(/*0x1C_a7_48*/ 0x27_96_26);
+ENERGY_FG :: #run PackedBGR(0x9C_97_28);
+TEXT_FG :: #run PackedBGR(0xcf_cf_cf);
+TEXT_COOLDOWN :: #run PackedBGR(0x9f_9f_9f);
 GAP_SIZE  :: #run Rem(0.5);
 PADDING :: #run PaddingAll(GAP_SIZE);
 #scope_export;
@@ -73,8 +73,8 @@ UI_BuildHUD :: ()
 
       cooldown := max(0.0, it.cooldown_timer);
 
-      bg_color := lerp(BUTTON_BG, BUTTON_BG_INACTIVE, min(cooldown*8, 1.0));
-      bg_color = lerp(bg_color, BUTTON_BG_FLASH, Smoothstep(abs(it.cooldown_timer), 0.15, 0.0));
+      bg_color := PackedLerp(BUTTON_BG, BUTTON_BG_INACTIVE, min(cooldown*8, 1.0));
+      bg_color = PackedLerp(bg_color, BUTTON_BG_FLASH, Smoothstep(abs(it.cooldown_timer), 0.15, 0.0));
 
       button := CreateBox(.{layout.size.min = Rem2(button_dim), bg_color = bg_color});
       Parent(button);
@@ -85,7 +85,7 @@ UI_BuildHUD :: ()
                  .{floating.attach_to = .PARENT, floating.offset = Rem2(.{0.25, -0.25}),
                    floating.anchors = GetAnchor2(.LEFT, .BOTTOM)});
 
-      cooldown_color := C32_SetAlphaf(TEXT_FG, Smoothstep(it.cooldown_timer, -0.1, 0.2));
+      cooldown_color := PackedSetAlphaF(TEXT_FG, Smoothstep(it.cooldown_timer, -0.1, 0.2));
       CreateText(tprint("%", ceil(cooldown)),
                  .{text.color = cooldown_color,
                    text.font_size = Rem(1.4),
