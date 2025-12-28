@@ -21,7 +21,7 @@ FONT_Glyph :: struct
   // metrics
   bearing: V2;
   advance: float;
-};
+}
 
 FONT_Layer :: struct
 {
@@ -32,7 +32,7 @@ FONT_Layer :: struct
   hash_table:      [FONT_ATLAS_LAYER_MAX_GLYPHS] FONT_Glyph;
   collision_array: [FONT_ATLAS_LAYER_MAX_GLYPHS] FONT_Glyph;
   collision_count: u16;
-};
+}
 
 FONT_Family :: enum u8
 {
@@ -40,7 +40,7 @@ FONT_Family :: enum u8
   Jacquard24;
   Inconsolata;
   NotoColorEmoji;
-};
+}
 
 FONT_State :: struct
 {
@@ -53,7 +53,7 @@ FONT_State :: struct
 
   ft_library: FT_Library;
   ft_faces: [#run EnumCount(FONT_Family)] FT_Face;
-};
+}
 
 FONT_Init :: ()
 {
@@ -119,7 +119,7 @@ FONT_FaceMetrics :: struct
   ascent: float;
   descent: float;
   linespace: float;
-};
+}
 
 FONT_GetFaceMetrics :: (font: FONT_Family, pixel_height: u16) -> FONT_FaceMetrics
 {

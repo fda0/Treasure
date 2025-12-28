@@ -331,7 +331,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
     if is_shared && !DEV.pause_ghosts_interpolation {
       inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
-    inline AN_UpdatePlaybacks(ghost);
+    inline AN_UpdateGhost(ghost);
     inline RD_DrawGhost(ghost, batch);
   }
 }

@@ -25,13 +25,6 @@ AnimationWeights :: struct
   // count = 0 -> all weights are equal to one
 }
 
-AnimationTrack :: struct
-{
-  tag: AnimationTag;
-  t: float;
-  weight: float;
-}
-
 //
 // AnimationRequest -> AnimationPlayback
 //
@@ -47,7 +40,21 @@ AnimationPlayback :: struct
   tag: AnimationTag;
 }
 
-AN_UpdatePlaybacks :: (ghost: *Ghost)
+//
+// AnimationPlaybacks + other timers -> AnimationTrack
+// AnimationTracks -> pose_transforms: [] Mat4
+//
+AnimationTrack :: struct
+{
+  tag: AnimationTag;
+  t: float;
+  weight: float;
+}
+
+//
+//
+//
+AN_UpdateGhost :: (ghost: *Ghost)
 {
   activity := *ghost.activity;
   animate_rotation := OBJ_HasAnyFlag(ghost, .ANIMATE_ROTATION);
@@ -85,8 +92,8 @@ AN_UpdatePlaybacks :: (ghost: *Ghost)
 
     t := Elapsed(G.frame_timestamp, ghost.creation_time);
     ghost.anim.rotation =
-    RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
-    RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
+      RotationAroundAxis(AxisV3(.X), t*weight0 + offset0) *
+      RotationAroundAxis(AxisV3(.Y), t*weight1 + offset1);
   }
 
   if animate_rotation
@@ -131,117 +138,127 @@ AN_UpdatePlaybacks :: (ghost: *Ghost)
   if OBJ_HasAnyFlag(ghost, .ANIMATE_TRACKS)
   {
     an := *ghost.anim;
-    model := ModelFromAlias(ghost.model);
-    if model.is_skinned
+
+
+    // requests -> playbacck
+    for ghost.animation_requests
     {
-      DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
-
-      // idle_cycle
-      an.idle_cycle += G.dt;
-      an.idle_cycle = WrapFloat(an.idle_cycle, 0, 1);
-
-      // walk_cycle
-      moved_distance := length(ghost.moved_dp);
-      meters_per_second := moved_distance * TICK_RATE;
-
-      moved_cycle_delta := meters_per_second * DISTANCE_TO_WALK_ANIMATION_COEFFICIENT;
-      an.walk_cycle += moved_cycle_delta;
-      an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
-
-      // is_walking_weight
-      target_is_walking := 0.0;
-      if (meters_per_second > 0) target_is_walking += 1; // walk
-      if (meters_per_second > 3.0) target_is_walking += 1; // run
-
-      is_walking_t := clamp(G.dt * 10.0, 0, 1);
-      an.is_walking_weight = lerp(an.is_walking_weight, target_is_walking, is_walking_t);
-
-      // is_attacking_weight
-      an.is_attacking_weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
-      an.is_attacking_weight = clamp(an.is_attacking_weight, 0, 1);
-
-      if (ghost.key == G.player_key) {
-        // log("moved_distance: %; an.is_walking_weight %; is_attacking_weight %; target_is_walking: %; X %",
-        //   moved_distance, an.is_walking_weight, an.is_attacking_weight, target_is_walking, .0001*TICK_RATE);
+      if IsTickDue(it.tick, ghost)
+      {
+        array_add(*ghost.anim.playbacks, .{G.frame_timestamp, it.tag});
       }
-
-      //
-      // @todo [client side vs server side animation state]
-      // It's a bit weird to calculate all these things above client-side only. This might be especially tricky for fog-of-war.
-      // Perhaps it would be both simpler and better to move some of these calculations to server-side and just lerp them client side.
-      //
     }
+
+
+    DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
+
+    // idle_cycle
+    an.idle_cycle += G.dt;
+    an.idle_cycle = WrapFloat(an.idle_cycle, 0, 1);
+
+    // walk_cycle
+    moved_distance := length(ghost.moved_dp);
+    meters_per_second := moved_distance * TICK_RATE;
+
+    moved_cycle_delta := meters_per_second * DISTANCE_TO_WALK_ANIMATION_COEFFICIENT;
+    an.walk_cycle += moved_cycle_delta;
+    an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
+
+    // is_walking_weight
+    target_is_walking := 0.0;
+    if (meters_per_second > 0) target_is_walking += 1; // walk
+    if (meters_per_second > 3.0) target_is_walking += 1; // run
+
+    is_walking_t := clamp(G.dt * 10.0, 0, 1);
+    an.is_walking_weight = lerp(an.is_walking_weight, target_is_walking, is_walking_t);
+
+    // is_attacking_weight
+    an.is_attacking_weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
+    an.is_attacking_weight = clamp(an.is_attacking_weight, 0, 1);
+
+
+
+
+
+
+
+    if (ghost.key == G.player_key) {
+      // log("moved_distance: %; an.is_walking_weight %; is_attacking_weight %; target_is_walking: %; X %",
+      //   moved_distance, an.is_walking_weight, an.is_attacking_weight, target_is_walking, .0001*TICK_RATE);
+    }
+
+    //
+    // @todo [client side vs server side animation state]
+    // It's a bit weird to calculate all these things above client-side only. This might be especially tricky for fog-of-war.
+    // Perhaps it would be both simpler and better to move some of these calculations to server-side and just lerp them client side.
+    //
   }
 }
 
 AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 {
-  result: [] AnimationTrack;
-
   model := ModelFromAlias(ghost.model);
-  if model.is_skinned
-  {
-    skeleton := SkeletonFromSlot(model.skeleton_slot);
+  if !model.is_skinned return .[];
 
-    WALK_TO_RUN_COEFFICIENT :: 0.2;
-    a := *ghost.anim;
+  skeleton := SkeletonFromSlot(model.skeleton_slot);
 
-    tracks: Fixed(AnimationTrack, 16);
+  WALK_TO_RUN_COEFFICIENT :: 0.2;
+  a := *ghost.anim;
 
-    NotAllWeightsAreFull :: () -> bool #expand {
-      if (tracks.count == 0) return true;
-      track := tracks[tracks.count - 1];
-      if (track.weight != 1.0) return true;
-      record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.tag];
-      return record.joint_weights.count != 0;
-    }
+  tracks: Fixed(AnimationTrack, 16);
 
-    if NotAllWeightsAreFull() {
-      track := array_add(*tracks);
-      track.tag = .DEATH;
-      track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-      track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
-    }
-
-    if NotAllWeightsAreFull() {
-      t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
-      t = AN_Time01ToAnimT(skeleton, .PUNCH, t);
-
-      hands := array_add(*tracks);
-      hands.weight = sqrt(a.is_attacking_weight);
-      hands.tag = .PUNCH_HANDS;
-      hands.t = t;
-
-      punch := array_add(*tracks);
-      punch.weight = a.is_attacking_weight;
-      punch.tag = .PUNCH;
-      punch.t = t;
-    }
-
-    if NotAllWeightsAreFull() {
-      track := array_add(*tracks);
-      track.tag = .RUN;
-      track.weight = Smoothstep(a.is_walking_weight, 1, 2);
-      track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
-    }
-
-    if NotAllWeightsAreFull() {
-      track := array_add(*tracks);
-      track.tag = .WALK;
-      track.weight = Smoothstep(a.is_walking_weight, 0, 1);
-      track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle, 0, 1));
-    }
-
-    if NotAllWeightsAreFull() {
-      track := array_add(*tracks);
-      track.tag = .IDLE;
-      track.weight = 1.0;
-      track.t = AN_Time01ToAnimT(skeleton, track.tag, a.idle_cycle);
-    }
-
-    result = copy_array(to_view(tracks),, temp);
+  NotAllWeightsAreFull :: () -> bool #expand {
+    if (tracks.count == 0) return true;
+    track := tracks[tracks.count - 1];
+    if (track.weight != 1.0) return true;
+    record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.tag];
+    return record.joint_weights.count != 0;
   }
 
+  if NotAllWeightsAreFull() {
+    track := array_add(*tracks);
+    track.tag = .DEATH;
+    track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
+    track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
+  }
+
+  if NotAllWeightsAreFull() {
+    t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
+    t = AN_Time01ToAnimT(skeleton, .PUNCH, t);
+
+    hands := array_add(*tracks);
+    hands.weight = sqrt(a.is_attacking_weight);
+    hands.tag = .PUNCH_HANDS;
+    hands.t = t;
+
+    punch := array_add(*tracks);
+    punch.weight = a.is_attacking_weight;
+    punch.tag = .PUNCH;
+    punch.t = t;
+  }
+
+  if NotAllWeightsAreFull() {
+    track := array_add(*tracks);
+    track.tag = .RUN;
+    track.weight = Smoothstep(a.is_walking_weight, 1, 2);
+    track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
+  }
+
+  if NotAllWeightsAreFull() {
+    track := array_add(*tracks);
+    track.tag = .WALK;
+    track.weight = Smoothstep(a.is_walking_weight, 0, 1);
+    track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle, 0, 1));
+  }
+
+  if NotAllWeightsAreFull() {
+    track := array_add(*tracks);
+    track.tag = .IDLE;
+    track.weight = 1.0;
+    track.t = AN_Time01ToAnimT(skeleton, track.tag, a.idle_cycle);
+  }
+
+  result := copy_array(to_view(tracks),, temp);
   return result;
 }
 

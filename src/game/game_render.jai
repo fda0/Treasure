@@ -43,7 +43,7 @@ RD_WorldUniform :: struct
   material_specular: Color32; // RGBA
   material_roughness: float;
   material_loaded_t: float;
-};
+}
 
 RD_WorldInstance :: struct
 {

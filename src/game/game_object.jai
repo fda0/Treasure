@@ -164,7 +164,7 @@ Object :: struct
   moved_dp: V3; @lerp // move that Object did after collision simulation
 
   effects: Fixed(OBJ_Effect, 16);
-  base_stats: OBJ_Stats;;
+  base_stats: OBJ_Stats;
   stats: OBJ_Stats;
   health: float; @lerp
   energy: float; @lerp
@@ -180,7 +180,7 @@ Object :: struct
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
-  animation_requests: Queue(4, AnimationRequest);
+animation_requests: Queue(4, AnimationRequest);
   sound_requests: Queue(4, AUDIO_Request);
 
   // visuals

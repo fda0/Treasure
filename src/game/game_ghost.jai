@@ -27,10 +27,12 @@ Ghost :: struct
     is_walking_weight: float; // 0=idle; 1=walking; 2=running
     is_attacking_weight: float;
     is_hit_weight: float;
-  };
+
+    playbacks: Fixed(AnimationPlayback, 4);
+  }
 
   #overlay(at) using #as at_obj: Object;
-};
+}
 
 IsTickDue :: (tick: ServerTick, ghost: Ghost) -> bool
 {

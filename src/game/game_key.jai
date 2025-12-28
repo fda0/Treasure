@@ -15,7 +15,7 @@ KEY_Code :: enum u32
   // S :: SDL_SCANCODE_S;
   // A :: SDL_SCANCODE_A;
   // D :: SDL_SCANCODE_D;
-};
+}
 
 KEY_Flags :: enum_flags u8
 {
@@ -30,7 +30,7 @@ Key :: struct
 {
   f: KEY_Flags;
   held_start: Timestamp;
-};
+}
 
 KEY_Update :: (key_code: KEY_Code, is_down: bool)
 {
