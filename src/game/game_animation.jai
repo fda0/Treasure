@@ -179,23 +179,31 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
 
     //
-    for ghost.animation_requests
+    model := ModelFromAlias(ghost.model);
+    if model.is_skinned
     {
-      if IsTickDue(it.tick, ghost)
+      skeleton := SkeletonFromSlot(model.skeleton_slot);
+
+      for ghost.animation_requests
       {
-        playback: AnimationPlayback;
-        playback.tag = it.tag;
-        playback.start_time = G.frame_timestamp;
-        array_add(*ghost.anim.playbacks, playback);
+        if IsTickDue(it.tick, ghost)
+        {
+          playback: AnimationPlayback;
+          playback.tag = it.tag;
+          playback.start_time = G.frame_timestamp;
+          array_add(*ghost.anim.playbacks, playback);
+        }
       }
-    }
 
-    for ghost.anim.playbacks
-    {
-      t := Elapsed(G.frame_timestamp, it.start_time);
-      // anim_data :=
+      for ghost.anim.playbacks
+      {
+        t := Elapsed(G.frame_timestamp, it.start_time);
+        clip := AN_ClipFromTag(skeleton, it.tag);
 
-      // if t >
+        if t >= clip.t_max {
+          remove it;
+        }
+      }
     }
 
 
@@ -224,7 +232,8 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 
   tracks: Fixed(AnimationTrack, 16);
 
-  NotAllWeightsAreFull :: () -> bool #expand {
+  NotAllWeightsAreFull :: () -> bool #expand
+  {
     if (tracks.count == 0) return true;
     track := tracks[tracks.count - 1];
     if (track.weight != 1.0) return true;
@@ -232,14 +241,27 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     return weights.joint_weights.count != 0;
   }
 
-  if NotAllWeightsAreFull() {
+  if NotAllWeightsAreFull()
+  {
     track := array_add(*tracks);
     track.tag = .DEATH;
     track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
     track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
   }
 
-  if NotAllWeightsAreFull() {
+  for ghost.anim.playbacks
+  {
+    if NotAllWeightsAreFull()
+    {
+      track := array_add(*tracks);
+      track.tag = it.tag;
+      track.t = Elapsed(G.frame_timestamp, it.start_time);
+      track.weight = 1.0;
+    }
+  }
+
+  if NotAllWeightsAreFull()
+  {
     t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
     t = AN_Time01ToAnimT(skeleton, .PUNCH, t);
 
@@ -254,21 +276,24 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     punch.t = t;
   }
 
-  if NotAllWeightsAreFull() {
+  if NotAllWeightsAreFull()
+  {
     track := array_add(*tracks);
     track.tag = .RUN;
     track.weight = Smoothstep(a.is_walking_weight, 1, 2);
     track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
   }
 
-  if NotAllWeightsAreFull() {
+  if NotAllWeightsAreFull()
+  {
     track := array_add(*tracks);
     track.tag = .WALK;
     track.weight = Smoothstep(a.is_walking_weight, 0, 1);
     track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle, 0, 1));
   }
 
-  if NotAllWeightsAreFull() {
+  if NotAllWeightsAreFull()
+  {
     track := array_add(*tracks);
     track.tag = .IDLE;
     track.weight = 1.0;
