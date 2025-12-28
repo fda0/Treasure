@@ -189,13 +189,13 @@ AST_LoadPieFile :: (file_path: string)
     PatchOffset(*it.bind_rotations);
     PatchOffset(*it.bind_scales);
     PatchOffset(*it.names);
-    PatchOffset(*it.animations);
+    PatchOffset(*it.clips);
 
     for * it.names {
       PatchOffset(it);
     }
 
-    for * it.animations {
+    for * it.clips {
       PatchOffset(*it.name);
       PatchOffset(*it.channels);
 
@@ -535,7 +535,7 @@ AST_LoadSkeletons :: ()
       return;
     }
 
-    for skeleton.animations
+    for skeleton.clips
     {
       for it.channels
       {

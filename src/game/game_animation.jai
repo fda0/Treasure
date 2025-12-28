@@ -20,7 +20,7 @@ AnimationTag :: enum u8
 
 AnimationWeights :: struct
 {
-  animation_index: s32;
+  clip_idx: s32;
   joint_weights: [] float; // Animations like punching shouldn't really apply to legs etc
   // count = 0 -> all weights are equal to one
 }
@@ -178,8 +178,25 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
 
 
+    //
+    for ghost.animation_requests
+    {
+      if IsTickDue(it.tick, ghost)
+      {
+        playback: AnimationPlayback;
+        playback.tag = it.tag;
+        playback.start_time = G.frame_timestamp;
+        array_add(*ghost.anim.playbacks, playback);
+      }
+    }
 
+    for ghost.anim.playbacks
+    {
+      t := Elapsed(G.frame_timestamp, it.start_time);
+      // anim_data :=
 
+      // if t >
+    }
 
 
     if (ghost.key == G.player_key) {
@@ -211,8 +228,8 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     if (tracks.count == 0) return true;
     track := tracks[tracks.count - 1];
     if (track.weight != 1.0) return true;
-    record := SkeletonFromSlot(model.skeleton_slot).animation_records[track.tag];
-    return record.joint_weights.count != 0;
+    weights := SkeletonFromSlot(model.skeleton_slot).animation_weights[track.tag];
+    return weights.joint_weights.count != 0;
   }
 
   if NotAllWeightsAreFull() {
@@ -284,14 +301,14 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
     rotations := ifx first_loop then accumulated_rotations else array_copy(skeleton.bind_rotations);
     translations := ifx first_loop then accumulated_translations else array_copy(skeleton.bind_translations);
 
-    record := AN_RecordFromType(skeleton, track.tag);
+    weights := AN_WeightsFromTag(skeleton, track.tag);
 
     // Overwrite translations, rotations, scales with values from animation
     {
-      anim := *skeleton.animations[record.animation_index];
-      time := clamp(track.t, anim.t_min, anim.t_max);
+      clip := *skeleton.clips[weights.clip_idx];
+      time := clamp(track.t, clip.t_min, clip.t_max);
 
-      for channel: anim.channels
+      for channel: clip.channels
       {
         if channel.joint_index >= skeleton.joints_count
         {
@@ -299,7 +316,7 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
           continue;
         }
 
-        if record.joint_weights.count > 0 && record.joint_weights[channel.joint_index] <= 0.0
+        if weights.joint_weights.count > 0 && weights.joint_weights[channel.joint_index] <= 0.0
           continue;
 
         t := 1.0;
@@ -356,8 +373,8 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
       for joint_index: MakeRange(skeleton.joints_count)
       {
         joint_weight := 1.0;
-        if record.joint_weights.count > 0 {
-          joint_weight = record.joint_weights[joint_index];
+        if weights.joint_weights.count > 0 {
+          joint_weight = weights.joint_weights[joint_index];
         }
 
         weight := track.weight * joint_weight;
@@ -400,20 +417,20 @@ AN_InitWeights :: ()
   {
     for enum_values_as_enum(AnimationTag)
     {
-      r := *skeleton.animation_records[it];
+      w := *skeleton.animation_weights[it];
 
       temp_weights := NewArray(skeleton.joints_count, float,, temp);
       for *temp_weights it.* = 1.0;
 
       if it == {
         case .IDLE;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle_Loop");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Idle_Loop");
 
         case .WALK;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk_Loop");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Walk_Loop");
 
         case .RUN;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Jog_Fwd_Loop");
         // temp_weights[AN_JointNameToIndex(skeleton, "DEF-spine.001")] = 0.5;
 
         case .PUNCH_HANDS;
@@ -421,29 +438,29 @@ AN_InitWeights :: ()
         MaskJoints("DEF-spine.003", 1.0);
         #through;
         case .PUNCH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Cross");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Punch_Cross");
 
         case .JAB_HANDS;
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.003", 1.0);
         #through;
         case .JAB;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch_Jab");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Punch_Jab");
 
         case .HIT;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Hit_Head");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Hit_Head");
         MaskJoints("root", 0.0);
         MaskJoints("DEF-spine.001", 1.0);
         MaskJoints("DEF-shoulder.L", 0.0);
         MaskJoints("DEF-shoulder.R", 0.0);
 
         case .DEATH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death01");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Death01");
       }
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights);
+      if has_non_one then w.joint_weights = array_copy(temp_weights);
     }
   }
 
@@ -452,66 +469,63 @@ AN_InitWeights :: ()
   {
     for enum_values_as_enum(AnimationTag)
     {
-      r := *skeleton.animation_records[it];
+      w := *skeleton.animation_weights[it];
 
       temp_weights := NewArray(skeleton.joints_count, float,, temp);
       for *temp_weights it.* = 1.0;
 
       if it == {
         case .IDLE;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Idle");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Idle");
 
         case .WALK;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Walk");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Walk");
 
         case .RUN;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Run");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Run");
 
         case .PUNCH_HANDS; #through;
         case .PUNCH; #through;
         case .JAB_HANDS; #through;
         case .JAB;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Punch");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Punch");
 
         case .HIT;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "HitReact");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "HitReact");
 
         case .DEATH;
-        r.animation_index = AN_AnimationNameToIndex(skeleton, "Death");
+        w.clip_idx = AN_AnimationNameToIndex(skeleton, "Death");
       }
 
       has_non_one := false;
       for temp_weights if it != 1.0 then has_non_one = true;
-      if has_non_one then r.joint_weights = array_copy(temp_weights);
+      if has_non_one then w.joint_weights = array_copy(temp_weights);
     }
   }
 }
 
 #scope_file;
-AN_RecordFromType :: (skeleton: Skeleton, tag: AnimationTag) -> *AnimationWeights
+AN_WeightsFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationWeights
 {
-  return *skeleton.animation_records[tag];
+  return *skeleton.animation_weights[tag];
 }
 
-AN_AnimationFromType :: (skeleton: Skeleton, tag: AnimationTag) -> *AnimationData
+AN_ClipFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationClip
 {
-  return *skeleton.animations[AN_RecordFromType(skeleton, tag).animation_index];
+  weights := skeleton.animation_weights[tag];
+  return *skeleton.clips[weights.clip_idx];
 }
 
-AN_WrapTime :: (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
+AN_WrapTime :: inline (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
 {
-  anim_index := skeleton.animation_records[tag].animation_index;
-  anim := skeleton.animations[anim_index];
-  result := WrapFloat(t, anim.t_min, anim.t_max);
-  return result;
+  clip := AN_ClipFromTag(skeleton, tag);
+  return WrapFloat(t, clip.t_min, clip.t_max);
 }
 
-AN_Time01ToAnimT :: (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
+AN_Time01ToAnimT :: inline (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
 {
-  anim_index := skeleton.animation_records[tag].animation_index;
-  anim := skeleton.animations[anim_index];
-  result := (anim.t_max - anim.t_min) * t + anim.t_min;
-  return result;
+  clip := AN_ClipFromTag(skeleton, tag);
+  return (clip.t_max - clip.t_min) * t + clip.t_min;
 }
 
 AN_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
@@ -549,7 +563,7 @@ AN_WaterfallToChildren :: ($mode: enum {MULTIPLY; ASSIGN;},
 //
 AN_AnimationNameToIndex :: (skeleton: Skeleton, name: string) -> index: s32, found: bool
 {
-  for skeleton.animations
+  for skeleton.clips
   {
     if name == it.name
       return xx it_index, true;

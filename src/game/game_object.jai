@@ -180,7 +180,7 @@ Object :: struct
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
-animation_requests: Queue(4, AnimationRequest);
+  animation_requests: Queue(4, AnimationRequest);
   sound_requests: Queue(4, AUDIO_Request);
 
   // visuals

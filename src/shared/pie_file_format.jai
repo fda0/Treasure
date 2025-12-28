@@ -31,7 +31,7 @@ RD_WorldFlags :: enum_flags u32
   PixelEarlyExit;
 }
 
-AnimationData :: struct
+AnimationClip :: struct
 {
   name: string;
   t_min, t_max: float;
@@ -49,7 +49,7 @@ AnimationData :: struct
 BaseSkeleton :: struct
 {
   root_transform: Mat4;
-  animations: [] AnimationData;
+  clips: [] AnimationClip;
 
   // each of these has the same count of elements (joints_count)
   names: [] string;

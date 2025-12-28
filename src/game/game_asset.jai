@@ -28,7 +28,7 @@ Skeleton :: struct
 {
   using base: BaseSkeleton;
   joints_count: s64;
-  animation_records: [#run EnumCount(AnimationTag)] AnimationWeights;
+  animation_weights: [#run EnumCount(AnimationTag)] AnimationWeights;
 }
 
 ModelAlias :: enum u16

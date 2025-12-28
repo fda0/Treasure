@@ -44,7 +44,7 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
       B_PatchAddress(it, offset);
     }
 
-    for * anim: skeleton.animations
+    for * anim: skeleton.clips
     {
       for * channel: anim.channels
       {
@@ -55,7 +55,7 @@ B_PatchManyAddresses :: (builder_or_links: *$T, offset: s64)
       B_PatchAddress(*anim.channels, offset);
     }
 
-    B_PatchAddress(*skeleton.animations, offset);
+    B_PatchAddress(*skeleton.clips, offset);
     B_PatchAddress(*skeleton.names, offset);
     B_PatchAddress(*skeleton.inverse_matrices, offset);
     B_PatchAddress(*skeleton.child_index_buffer, offset);

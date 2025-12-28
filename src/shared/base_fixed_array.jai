@@ -26,7 +26,7 @@ operator []= :: inline (f: *Fixed, i: int, value: f.T)
   f.buf[i] = value;
 }
 
-for_expansion :: (f: *$A/Fixed, body: Code, flags: For_Flags) #expand
+for_expansion :: (f: *Fixed, body: Code, flags: For_Flags) #expand
 {
   #assert(flags & ~.POINTER == 0);
 
@@ -45,13 +45,20 @@ for_expansion :: (f: *$A/Fixed, body: Code, flags: For_Flags) #expand
     }
 
     #insert (remove = {
-      if f.count > 1 {
-        f.buf[it_index] = f.buf[f.count - 1];
-      }
+      array_unordered_remove_by_index(f, it_index);
       it_index -= 1;
-      f.count -= 1;
     }) body;
   }
+}
+
+array_unordered_remove_by_index :: inline (f: *Fixed, index: s64) {
+    assert(index >= 0);
+    assert(index < f.count);
+
+    if f.count > 1 {
+      f.buf[index] = f.buf[f.count - 1];
+    }
+    f.count -= 1;
 }
 
 array_size_bytes :: (f: Fixed) -> s64 {
