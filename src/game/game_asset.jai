@@ -24,13 +24,6 @@ Material :: struct
   texture_handle: *SDL_GPUTexture;
 }
 
-Skeleton :: struct
-{
-  using base: BaseSkeleton;
-  joints_count: s64;
-  animation_weights: [#run EnumCount(AnimationTag)] AnimationWeights;
-}
-
 ModelAlias :: enum u16
 {
   None;

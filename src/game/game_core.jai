@@ -98,7 +98,7 @@ G_Init :: ()
   GPU_Init();
   AST_ContinueLoadAssetFileWithGPU();
 
-  AN_InitWeights();
+  AN_InitTagProps();
   FONT_Init();
   RD_UIClearRenderCounters();
   HR_InitWatcher();

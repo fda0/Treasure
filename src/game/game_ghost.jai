@@ -18,18 +18,7 @@ Ghost :: struct
   creation_time: Timestamp;
   death_time: Timestamp;
 
-  anim: struct {
-    rotation: Quat; // animates towards at.obj.rotation
-    position: V3; // animates towards at.obj.p
-
-    idle_cycle: float;
-    walk_cycle: float;
-    is_walking_weight: float; // 0=idle; 1=walking; 2=running
-    is_attacking_weight: float;
-    is_hit_weight: float;
-
-    playbacks: Fixed(AnimationPlayback, 4);
-  }
+  anim: AnimationState;
 
   #overlay(at) using #as at_obj: Object;
 }
