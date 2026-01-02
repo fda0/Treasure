@@ -17,7 +17,7 @@ Skeleton :: struct
   using base: BaseSkeleton;
   joints_count: s64;
   tag_to_sequence: [AnimationTag_COUNT] AnimationSequence;
-  joint_masks: [AnimationMask_COUNT] [/*per joint*/] bool; // @todo 1compress with bit vector thing
+  joint_masks: [AnimationMask_COUNT] AnimationJointMask; // @todo 1compress with bit vector thing
 }
 
 AnimationTag :: enum u8
@@ -45,6 +45,8 @@ AnimationMask :: enum u8
 }
 AnimationMask_COUNT :: #run EnumCount(AnimationMask);
 
+AnimationJointMask :: #type [] bool;
+
 AnimationSequence :: struct
 {
   clip_idxs: [] s64;
@@ -66,6 +68,14 @@ AnimationNode :: struct
   }
 
   next, prev: *AnimationNode;
+}
+
+AnimationTrack :: struct
+{
+  weight: float;
+  t: float;
+  tag: AnimationTag;
+  joint_mask: AnimationJointMask; // @todo replace with bitvector thing
 }
 
 AnimationData :: struct
@@ -270,82 +280,50 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
   model := ModelFromAlias(ghost.model);
   if !model.is_skinned return .[];
 
+  WALK_TO_RUN_COEFFICIENT :: 0.2;
   skeleton := SkeletonFromSlot(model.skeleton_slot);
 
-  WALK_TO_RUN_COEFFICIENT :: 0.2;
-  a := *ghost.anim;
+  push_allocator(temp);
+  tracks: [..] AnimationTrack;
 
-  tracks: Fixed(AnimationTrack, 16);
-
-  NotAllWeightsAreFull :: () -> bool #expand
+  // Nodes -> Tracks
   {
-    if (tracks.count == 0) return true;
-    track := tracks[tracks.count - 1];
-    if (track.weight != 1.0) return true;
-    weights := SkeletonFromSlot(model.skeleton_slot).animation_weights[track.tag];
-    return weights.joint_weights.count != 0;
-  }
-
-  if NotAllWeightsAreFull()
-  {
-    track := array_add(*tracks);
-    track.tag = .DEATH;
-    track.t = Elapsed(G.frame_timestamp, ghost.death_time) * 1.0;
-    track.weight = ifx ghost.death_tick then min(1.0, track.t * 10.0) else 0.0;
-  }
-
-  for ghost.anim.playbacks
-  {
-    if NotAllWeightsAreFull()
+    node := ghost.anim.node;
+    while !IsNil(node)
     {
+      defer node = node.next;
+
+      if (node.weight == 0.0) continue;
+
       track := array_add(*tracks);
-      track.tag = it.tag;
-      track.t = Elapsed(G.frame_timestamp, it.start_time);
-      track.weight = 1.0;
+      track.weight = node.weight;
+      track.t = node.t; // @todo handle denormalize flag
+      track.tag = node.tag;
+
+      mask_idx := skeleton.tag_to_sequence[track.tag].mask;
+      track.joint_mask = array_copy(skeleton.joint_masks[mask_idx]);
     }
   }
 
-  if NotAllWeightsAreFull()
+  // Search for joint_mask elements that would end up being dead values.
+  // When weight = 1.0 backpropagate zeroes into previous joint_masks.
+  for < top_track, top_index: tracks
   {
-    t := WrapFloat(ghost.activity.attack_t / ghost.attack_cooldown_t, 0.0, 1.0);
-    t = AN_Time01ToAnimT(skeleton, .PUNCH, t);
+    if (top_track.weight != 1.0) continue;
 
-    hands := array_add(*tracks);
-    hands.weight = sqrt(a.is_attacking_weight);
-    hands.tag = .PUNCH_HANDS;
-    hands.t = t;
-
-    punch := array_add(*tracks);
-    punch.weight = a.is_attacking_weight;
-    punch.tag = .PUNCH;
-    punch.t = t;
+    for bottom_index: MakeRange(top_index)
+    {
+      bottom_track := tracks[bottom_index];
+      for top_joint, joint_index: top_track.joint_mask
+      {
+        if top_joint == true
+        {
+          bottom_track.joint_mask[joint_index] = false;
+        }
+      }
+    }
   }
 
-  if NotAllWeightsAreFull()
-  {
-    track := array_add(*tracks);
-    track.tag = .RUN;
-    track.weight = Smoothstep(a.is_walking_weight, 1, 2);
-    track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle * WALK_TO_RUN_COEFFICIENT, 0, 1));
-  }
-
-  if NotAllWeightsAreFull()
-  {
-    track := array_add(*tracks);
-    track.tag = .WALK;
-    track.weight = Smoothstep(a.is_walking_weight, 0, 1);
-    track.t = AN_Time01ToAnimT(skeleton, track.tag, WrapFloat(a.walk_cycle, 0, 1));
-  }
-
-  if NotAllWeightsAreFull()
-  {
-    track := array_add(*tracks);
-    track.tag = .IDLE;
-    track.weight = 1.0;
-    track.t = AN_Time01ToAnimT(skeleton, track.tag, a.idle_cycle);
-  }
-
-  result := copy_array(to_view(tracks),, temp);
   return result;
 }
 
