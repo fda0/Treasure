@@ -77,11 +77,6 @@ RD_Init :: ()
   }
 }
 
-RD_GetLaneWorldBatch :: inline () -> *RD_WorldBatch
-{
-  return *RD.world_batches[LaneIdx()];
-}
-
 RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
 {
   batch.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);

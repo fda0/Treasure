@@ -3,65 +3,83 @@
 
 BindingsConfig :: struct
 {
- targets: enum_flags {BASE; NET; IMAGE;};
- optimizations: enum {DEBUG; RELEASE;};
- base_directory: string;
- output_filename: string;
+  targets: enum_flags {BASE; NET; IMAGE;};
+  optimizations: enum {DEBUG; RELEASE;};
+  base_directory: string;
+  output_filename: string;
 };
 
 GenerateBindings :: (using config: BindingsConfig) -> bool
 {
- opt_dir := ifx optimizations == .DEBUG then "Debug" else "Release";
- base_dir := base_directory;
- if base_dir.count > 0 && !(ends_with(base_dir, "/") || ends_with(base_dir, "\\"))
- {
-  base_dir = tprint("%/", base_dir);
- }
+  os_dir := ifx OS == .WINDOWS then "win" else "lin";
+  opt_dir := ifx optimizations == .DEBUG then "Debug" else "Release";
+  base_dir := base_directory;
+  if base_dir.count > 0 && !(ends_with(base_dir, "/") || ends_with(base_dir, "\\"))
+  {
+    base_dir = tprint("%/", base_dir);
+  }
 
- output_path := join(base_dir, output_filename);
+  output_path := join(base_dir, output_filename);
 
- footer_builder: String_Builder;
- opts: Generate_Bindings_Options;
- opts.header = HEADER;
- opts.strip_flags = .FUNCTIONS_WITH_VALIST;
+  footer_builder: String_Builder;
+  opts: Generate_Bindings_Options;
+  opts.header = HEADER;
+  opts.strip_flags = .FUNCTIONS_WITH_VALIST;
 
- AddTarget :: (dir_name: string, lib_name: string) #expand
- {
-  build_path   := tprint("%/build/win/%/", dir_name, opt_dir);
-  lib_path     := join(base_dir, build_path);
-  include_path := tprint("%1%2/include", base_dir, dir_name);
-  source_file  := tprint("%1%2/include/%/%.h", base_dir, dir_name, lib_name, dir_name);
-  array_add(*opts.libnames,      lib_name);
-  array_add(*opts.libpaths,      lib_path);
-  array_add(*opts.include_paths, include_path);
-  array_add(*opts.source_files,  source_file);
-  print_to_builder(*footer_builder, "%1 :: #library,no_dll \"%2%3\";\n", to_lower_copy(lib_name), build_path, lib_name);
- }
+  AddTarget :: (dir_name: string, lib_name: string) #expand
+  {
+    lib_file := lib_name;
+    if (OS == .WINDOWS) lib_file = to_lower_copy(lib_file);
+    if (OS == .LINUX) lib_file = join("lib", lib_file);
 
- if targets & .BASE  then AddTarget("SDL", "SDL3");
- if targets & .NET   then AddTarget("SDL_net", "SDL3_net");
- if targets & .IMAGE then AddTarget("SDL_image", "SDL3_image");
+    build_path     := tprint("%/build/%/", dir_name, os_dir);
+    build_opt_path := join(build_path, opt_dir);
+    lib_path       := join(base_dir, build_path);
+    include_path   := tprint("%1%2/include", base_dir, dir_name);
+    source_file    := tprint("%1%2/include/%/%.h", base_dir, dir_name, lib_name, dir_name);
 
- // @todo revisit this comment bellow:
- // DLL provided by user not in bin, so use our own footer not generated library declaration
- opts.footer = builder_to_string(*footer_builder);
- opts.generate_library_declarations = false;
+    log("build_path: %, lib_path: %, include_path: %, source_file: %, lib_name: %, lib_file: %",
+      build_path, lib_path, include_path, source_file, lib_name, lib_file);
 
- opts.visitor = sdl3_visitor;
- opts.generate_compile_time_struct_checks = false;
- return generate_bindings(opts, output_path);
+    array_add(*opts.libnames,      lib_file);
+    array_add(*opts.libpaths,      lib_path);
+    array_add(*opts.include_paths, include_path);
+    array_add(*opts.source_files,  source_file);
+
+    if OS == .WINDOWS {
+      print_to_builder(*footer_builder,
+        "%1 :: #library,no_dll \"%2%3\";\n",
+        lib_name, build_opt_path, lib_file);
+    }
+    if OS == .LINUX {
+      print_to_builder(*footer_builder,
+        "%1 :: #library \"%2%3\";\n",
+        lib_name, build_path, lib_file);
+    }
+  }
+
+  if targets & .BASE  then AddTarget("SDL", "SDL3");
+  if targets & .NET   then AddTarget("SDL_net", "SDL3_net");
+  if targets & .IMAGE then AddTarget("SDL_image", "SDL3_image");
+
+  // @todo revisit this comment bellow:
+  // DLL provided by user not in bin, so use our own footer not generated library declaration
+  opts.footer = builder_to_string(*footer_builder);
+  log("footer: %", opts.footer);
+  opts.generate_library_declarations = false;
+
+  opts.visitor = sdl3_visitor;
+  opts.generate_compile_time_struct_checks = false;
+  return generate_bindings(opts, output_path);
 }
 
 sdl3_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration_Visit_Result {
-
- if parent_decl return .RECURSE;
-
- if array_find(DECLARATIONS_TO_OMIT, decl.name) {
-  decl.decl_flags |= .OMIT_FROM_OUTPUT;
-  return .STOP;
- }
-
- return .RECURSE;
+  if parent_decl return .RECURSE;
+  if array_find(DECLARATIONS_TO_OMIT, decl.name) {
+    decl.decl_flags |= .OMIT_FROM_OUTPUT;
+    return .STOP;
+  }
+  return .RECURSE;
 }
 
 #import "Basic";
@@ -73,31 +91,31 @@ sdl3_visitor :: (decl: *Declaration, parent_decl: *Declaration) -> Declaration_V
 #import "String";
 
 DECLARATIONS_TO_OMIT :: string.[
- "_m_prefetch",
- "__debugbreak",
+  "_m_prefetch",
+  "__debugbreak",
 
- /*
+  /*
     Those are force inlined functions defined in the headers, so they don't appear in the library and so bindings generator complains.
 
     One way is to automatically remove inline, compile them into a DLL, and turn them into #c_call jai procs. However, this loses inline.
 
     The performant way is to rewrite them in pure jai code, however that introduces overhead of ensuring they are updated.
     */
- "SDL_size_mul_check_overflow",
- "SDL_size_mul_check_overflow_builtin",
- "SDL_size_add_check_overflow",
- "SDL_size_add_check_overflow_builtin",
- "SDL_SwapFloat",
- "SDL_MostSignificantBitIndex32",
- "SDL_HasExactlyOneBitSet32",
- "SDL_RectToFRect",
- "SDL_PointInRect",
- "SDL_RectEmpty",
- "SDL_RectsEqual",
- "SDL_PointInRectFloat",
- "SDL_RectEmptyFloat",
- "SDL_RectsEqualEpsilon",
- "SDL_RectsEqualFloat",
+  "SDL_size_mul_check_overflow",
+  "SDL_size_mul_check_overflow_builtin",
+  "SDL_size_add_check_overflow",
+  "SDL_size_add_check_overflow_builtin",
+  "SDL_SwapFloat",
+  "SDL_MostSignificantBitIndex32",
+  "SDL_HasExactlyOneBitSet32",
+  "SDL_RectToFRect",
+  "SDL_PointInRect",
+  "SDL_RectEmpty",
+  "SDL_RectsEqual",
+  "SDL_PointInRectFloat",
+  "SDL_RectEmptyFloat",
+  "SDL_RectsEqualEpsilon",
+  "SDL_RectsEqualFloat",
 ];
 
 /*

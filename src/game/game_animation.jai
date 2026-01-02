@@ -1,6 +1,16 @@
 #scope_file;
-using,only(AST,G) COMPS;
+using,only(AN,AST,G) COMPS;
 #scope_export;
+
+AnimationState :: struct
+{
+  per_lane: [] Lane;
+
+  Lane :: struct
+  {
+    free_nodes: *AnimationNode;
+  }
+}
 
 Skeleton :: struct
 {
@@ -57,7 +67,7 @@ AnimationNode :: struct
   next, prev: *AnimationNode;
 }
 
-AnimationState :: struct
+AnimationData :: struct
 {
   rotation: Quat; // animates towards at.obj.rotation
   position: V3; // animates towards at.obj.p
@@ -159,7 +169,16 @@ AN_UpdateGhost :: (ghost: *Ghost)
   {
     an := *ghost.anim;
 
+    if IsNil(ghost.anim.node)
+    {
+      ghost.anim.node = AN_AllocNode();
+      walk := AN_AllocNode(ghost.anim.node);
+      run := AN_AllocNode(walk);
+    }
 
+    idle := ghost.anim.node;
+    walk := idle.next;
+    run := walk.next;
 
     DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
 
@@ -431,9 +450,12 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
   return result_matrices;
 }
 
-AN_InitTagProps :: ()
+AN_Init :: ()
 {
   PerfFunc();
+
+  AN.per_lane = NewArray(GLOBAL.core_count, AnimationState.Lane);
+
 
   SetMask :: (joint_name: string, value: bool) #expand
   {
@@ -493,7 +515,8 @@ AN_WeightsFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *Animatio
 
 AN_ClipFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationClip
 {
-  idx := skeleton.tag_to_animation_idx[tag];
+  // @todo handle multiple clips
+  idx := skeleton.tag_to_sequence[tag].clip_idxs[0];
   return *skeleton.clips[idx];
 }
 
@@ -563,4 +586,40 @@ AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32, found: 
   }
   log("Joint name not found: %", name, flags=.WARNING);
   return 0, false;
+}
+
+//
+// AnimationNode
+//
+NIL_AnimationNode :: AnimationNode.{}; // @todo alloc memory, setup self-ref ptrs, call VirtualProtect on it to make it read-only
+
+IsNil :: (node: *AnimationNode) -> bool {
+  return !node || node == *NIL_AnimationNode;
+}
+
+AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
+{
+  result: *AnimationNode;
+  l := *AN.per_lane[LaneIdx()];
+  if l.free_nodes
+  {
+    result = l.free_nodes;
+    l.free_nodes = l.free_nodes.next;
+    Initialize(result);
+  }
+  else
+  {
+    result = New(AnimationNode);
+  }
+
+  result.prev = *NIL_AnimationNode;
+  result.next = *NIL_AnimationNode;
+
+  if !IsNil(prev_node)
+  {
+    result.prev = prev_node;
+    prev_node.next = result;
+  }
+
+  return result;
 }

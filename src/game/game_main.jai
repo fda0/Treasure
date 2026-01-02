@@ -22,7 +22,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
 
-  RD_InitializeWorldBatch(RD_GetLaneWorldBatch());
+  RD_InitializeWorldBatch(*RD.world_batches[LaneIdx()]);
   LaneSync();
 
   while !GLOBAL.in_shutdown
@@ -65,6 +65,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "game_unique_variables.jai";
 #load "game_simulation.jai";
 
+#load "../shared/base_system.jai";
 #load "../shared/base_utils.jai";
 #load "../shared/base_string.jai";
 #load "../shared/base_array.jai";
@@ -79,7 +80,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
 #load "../shared/pie_file_format.jai";
 #import "tr_hash_table";
 
-#import "superluminal"()(ENABLE_PROFILER = true);
+#import "superluminal"()(ENABLE_PROFILER = false);
 BOX :: #import "tr_box_layout"(Color=Color32);
 
 #import "Basic";
@@ -87,5 +88,4 @@ BOX :: #import "tr_box_layout"(Color=Color32);
 #import "Thread";
 #import "Atomics";
 #import "System";
-#import "Windows_Utf8";
 String :: #import "String";

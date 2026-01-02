@@ -40,13 +40,8 @@ AST_ShowErrorsToUser :: ()
   {
     if AST.error_message
     {
-      push_allocator(temp);
       header := tprint("Treasure error - couldn't load %", AST.file_path);
-
-      MessageBoxW(null,
-        utf8_to_wide(AST.error_message),
-        utf8_to_wide(header),
-        MB_OK | MB_ICONERROR | MB_TOPMOST);
+      SystemMessageBox(header, AST.error_message);
       AST.error_message = "";
     }
     exit(100);

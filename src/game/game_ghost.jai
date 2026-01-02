@@ -18,7 +18,7 @@ Ghost :: struct
   creation_time: Timestamp;
   death_time: Timestamp;
 
-  anim: AnimationState;
+  anim: AnimationData;
 
   #overlay(at) using #as at_obj: Object;
 }

@@ -98,7 +98,7 @@ G_Init :: ()
   GPU_Init();
   AST_ContinueLoadAssetFileWithGPU();
 
-  AN_InitTagProps();
+  AN_Init();
   FONT_Init();
   RD_UIClearRenderCounters();
   HR_InitWatcher();
@@ -322,7 +322,7 @@ G_Iterate :: ()
 
 G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 {
-  batch := RD_GetLaneWorldBatch();
+  batch := *RD.world_batches[LaneIdx()];
   for ghost_index: range
   {
     ghost := *G.all_ghosts[ghost_index];

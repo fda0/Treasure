@@ -1,4 +1,4 @@
-LOG_RUN :: false;
+LOG_RUN :: true;
 BUILD_DIRECTORY :: "build";
 release_build := false;
 
@@ -7,21 +7,24 @@ build :: ()
 {
   modify_print_style();
   set_build_options_dc(.{do_output=false});
+  os_dir := ifx OS == .WINDOWS then "win" else "lin";
 
   // Parse command-line arguments
   kill_processes := false;
-  clean_targets: enum_flags {
+  clean_targets: enum_flags
+  {
     BUILD;
     SDL;
     ALL :: ~0;
-  };
-  build_targets: enum_flags {
+  }
+  build_targets: enum_flags
+  {
     TREASURE;
     BAKER;
     SDL;
     CGLTF;
     ALL :: ~0;
-  };
+  }
   run_baker := false;
 
   options := get_build_options();
@@ -77,9 +80,9 @@ build :: ()
   {
     error_message = "Encountered an error when building SDL3 & generating bindings.";
 
-    stage1 := "cmake -S . -B build/win";
-    stage2 := "cmake --build build/win";
-    stage1b := join(stage1, " -DSDL3_DIR=../SDL/build/win");
+    stage1 := join("cmake -S . -B build/", os_dir);
+    stage2 := join("cmake --build build/", os_dir);
+    stage1b := join(stage1, " -DSDL3_DIR=../SDL/build/", os_dir);
 
     workdir := "libs/SDL";
     log("- building % -", workdir);
@@ -114,10 +117,17 @@ build :: ()
 
   // copy SDL dll dependencies into build directory if missing
   {
+    opt_dir := ifx OS == .WINDOWS then "/Debug";
+    prefix := ifx OS == .LINUX then "/lib" else "/";
+    ext := ifx OS == .LINUX then ".so" else ".dll";
+
     copies: [] struct {dst, src: string;} = .[
-      .{"build/SDL3.dll", "libs/SDL/build/win/Debug/SDL3.dll"},
-      .{"build/SDL3_net.dll", "libs/SDL_net/build/win/Debug/SDL3_net.dll"},
-      .{"build/SDL3_image.dll", "libs/SDL_image/build/win/Debug/SDL3_image.dll"},
+      .{join("build/", prefix, "SDL3", ext),
+        join("libs/SDL/build/", os_dir, opt_dir, prefix, "SDL3", ext)},
+      .{join("build/", prefix, "SDL3_net", ext),
+        join("libs/SDL_net/build/", os_dir, opt_dir, prefix, "SDL3_net", ext)},
+      .{join("build/", prefix, "SDL3_image", ext),
+        join("libs/SDL_image/build/", os_dir, opt_dir, prefix, "SDL3_image", ext)},
       .{"build/PerformanceAPI.dll", "libs/superluminal/PerformanceAPI.dll"},
     ];
     for copies if !file_exists(it.dst) then copy_file(it.src, it.dst);
