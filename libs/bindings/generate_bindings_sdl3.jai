@@ -12,7 +12,9 @@ BindingsConfig :: struct
 GenerateBindings :: (using config: BindingsConfig) -> bool
 {
   os_dir := ifx OS == .WINDOWS then "win" else "lin";
-  opt_dir := ifx optimizations == .DEBUG then "Debug" else "Release";
+  opt_dir := ifx optimizations == .DEBUG then "Debug/" else "Release/";
+  if (OS == .LINUX) opt_dir = "";
+
   base_dir := base_directory;
   if base_dir.count > 0 && !(ends_with(base_dir, "/") || ends_with(base_dir, "\\"))
   {
@@ -29,13 +31,12 @@ GenerateBindings :: (using config: BindingsConfig) -> bool
   AddTarget :: (dir_name: string, lib_name: string) #expand
   {
     lib_file := lib_name;
-    if (OS == .WINDOWS) lib_file = to_lower_copy(lib_file);
     if (OS == .LINUX) lib_file = join("lib", lib_file);
     lib_file_lower := to_lower_copy(lib_file);
 
     build_path     := tprint("%/build/%/", dir_name, os_dir);
     build_opt_path := join(build_path, opt_dir);
-    lib_path       := join(base_dir, build_path);
+    lib_path       := join(base_dir, build_path, opt_dir);
     include_path   := tprint("%1%2/include", base_dir, dir_name);
     source_file    := tprint("%1%2/include/%/%.h", base_dir, dir_name, lib_name, dir_name);
 
@@ -50,7 +51,7 @@ GenerateBindings :: (using config: BindingsConfig) -> bool
     if OS == .WINDOWS {
       print_to_builder(*footer_builder,
         "%1 :: #library,no_dll \"%2%3\";\n",
-        lib_name, build_opt_path, lib_file);
+        lib_file_lower, build_opt_path, lib_file);
     }
     if OS == .LINUX {
       print_to_builder(*footer_builder,
