@@ -179,9 +179,11 @@ CastSaturate :: ($Tdst: Type, value: $Tstr) -> Tdst
   return 0;
 }
 
-AddClamp01 :: (dst: *float, delta: float)
+clamp01 :: (x: float) -> float
 {
-  dst.* = clamp(dst.* + delta, 0.0, 1.0);
+  if x < 0.0  x = 0.0;
+  if x > 1.0  x = 1.0;
+  return x;
 }
 
 Round :: (x: float) -> float {
@@ -275,6 +277,8 @@ WrapFloat :: (t: float, min: float, max: float) -> float // @todo replace arg or
   offset := t - min;
   return (offset - (floor(offset / range) * range) + min);
 }
+
+WrapFloat01 :: #bake_arguments WrapFloat(min=0.0, max=1.0);
 
 invsqrt :: inline (x: float) -> float { return 1.0 / sqrt(x); }
 

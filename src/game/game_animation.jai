@@ -177,6 +177,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
       walk := AN_AllocNode(idle);
       run := AN_AllocNode(walk);
       attack := AN_AllocNode(run);
+      death := AN_AllocNode(attack);
 
       idle.weight = 1.0;
       idle.tag = .IDLE;
@@ -185,12 +186,14 @@ AN_UpdateGhost :: (ghost: *Ghost)
       walk.tag = .WALK;
       run.tag = .RUN;
       attack.tag = .PUNCH;
+      death.tag = .DEATH;
     }
 
     idle := ghost.anim.node;
     walk := idle.next;
     run := walk.next;
     attack := run.next;
+    death := AN_NodeBeforeDeath(attack).next;
 
     DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
 
@@ -207,28 +210,32 @@ AN_UpdateGhost :: (ghost: *Ghost)
     // walk / run weight
     walk.weight += G.dt * 10.0 * BoolSign(meters_per_second > 0.0);
     run.weight += G.dt * 10.0 * BoolSign(meters_per_second > 3.0);
-    walk.weight = clamp(walk.weight, 0, 1);
-    run.weight = clamp(run.weight, 0, 1);
+    walk.weight = clamp01(walk.weight);
+    run.weight = clamp01(run.weight);
 
     // attack weight
     attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
     attack.weight = clamp(attack.weight, 0, 1);
 
+    // death weight / time
+    death.t = Elapsed(G.frame_timestamp, ghost.death_time);
+    death.weight = clamp01(death.weight + G.dt*4.0*BoolSign(ghost.death_tick != 0));
+
     for ghost.animation_requests
     {
       if IsTickDue(it.tick, ghost)
       {
-        node := AN_AllocNode(AN_LastNode(attack));
+        node := AN_AllocNode(AN_NodeBeforeDeath(attack));
         node.tag = it.tag;
         node.flags = .INCREMENT_T | .INCREMENT_WEIGHT | .REMOVE_WHEN_FINISHED;
       }
     }
 
+    skeleton: *Skeleton;
     model := ModelFromAlias(ghost.model);
-    if model.is_skinned
-    {
-      skeleton := SkeletonFromSlot(model.skeleton_slot);
+    if (model.is_skinned) skeleton = SkeletonFromSlot(model.skeleton_slot);
 
+    {
       node := ghost.anim.node;
       while !IsNil(node)
       {
@@ -239,11 +246,13 @@ AN_UpdateGhost :: (ghost: *Ghost)
           node.t += G.dt;
         }
         if node.flags & .INCREMENT_WEIGHT {
-          node.weight = clamp(node.weight + G.dt, 0, 1);
+          node.weight = clamp01(node.weight + G.dt);
         }
-        if node.flags & .REMOVE_WHEN_FINISHED {
+        if node.flags & .REMOVE_WHEN_FINISHED && skeleton
+        {
           clip := AN_ClipFromTag(skeleton, node.tag);
-          if node.t >= clip.t_max {
+          if node.t >= clip.t_max
+          {
             AN_FreeNode(node);
             continue;
           }
@@ -251,17 +260,8 @@ AN_UpdateGhost :: (ghost: *Ghost)
       }
     }
 
-
     if (ghost.key == G.player_key) {
-      // log("moved_distance: %; an.is_walking_weight %; is_attacking_weight %; target_is_walking: %; X %",
-      //   moved_distance, an.is_walking_weight, an.is_attacking_weight, target_is_walking, .0001*TICK_RATE);
     }
-
-    //
-    // @todo [client side vs server side animation state]
-    // It's a bit weird to calculate all these things above client-side only. This might be especially tricky for fog-of-war.
-    // Perhaps it would be both simpler and better to move some of these calculations to server-side and just lerp them client side.
-    //
   }
 }
 
@@ -663,10 +663,12 @@ AN_UnlinkNode :: (node: *AnimationNode)
   node.next = *NIL_AnimationNode;
 }
 
-AN_LastNode :: (node: *AnimationNode) -> *AnimationNode
+AN_NodeBeforeDeath :: (node: *AnimationNode) -> *AnimationNode
 {
+  // return a node that's last or before death
   while !IsNil(node.next)
   {
+    if node.tag == .DEATH break;
     node = node.next;
   }
   return node;
