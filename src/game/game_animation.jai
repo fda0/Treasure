@@ -324,6 +324,26 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     }
   }
 
+  for tracks
+  {
+    to_remove := (top_track.weight == 0.0);
+
+    all_joints_are_false := true;
+    for it.joint_mask
+    {
+      if it
+      {
+        all_joints_are_false = false;
+        break;
+      }
+    }
+    to_remove |= all_joints_are_false;
+
+    if to_remove {
+      remove it;
+    }
+  }
+
   return result;
 }
 
