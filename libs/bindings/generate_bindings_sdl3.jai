@@ -31,6 +31,7 @@ GenerateBindings :: (using config: BindingsConfig) -> bool
     lib_file := lib_name;
     if (OS == .WINDOWS) lib_file = to_lower_copy(lib_file);
     if (OS == .LINUX) lib_file = join("lib", lib_file);
+    lib_file_lower := to_lower_copy(lib_file);
 
     build_path     := tprint("%/build/%/", dir_name, os_dir);
     build_opt_path := join(build_path, opt_dir);
@@ -54,7 +55,7 @@ GenerateBindings :: (using config: BindingsConfig) -> bool
     if OS == .LINUX {
       print_to_builder(*footer_builder,
         "%1 :: #library \"%2%3\";\n",
-        lib_name, build_path, lib_file);
+        lib_file_lower, build_path, lib_file);
     }
   }
 

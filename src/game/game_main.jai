@@ -1,3 +1,7 @@
+#scope_file;
+using,only(RD) COMPS;
+#scope_export;
+
 main :: ()
 {
   // Initialize client / server

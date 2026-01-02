@@ -242,9 +242,9 @@ AN_UpdateGhost :: (ghost: *Ghost)
           node.weight = clamp(node.weight + G.dt, 0, 1);
         }
         if node.flags & .REMOVE_WHEN_FINISHED {
-          clip := AN_ClipFromTag(skeleton, it.tag);
+          clip := AN_ClipFromTag(skeleton, node.tag);
           if node.t >= clip.t_max {
-            AN_RemoveNode(node);
+            AN_FreeNode(node);
             continue;
           }
         }
@@ -474,13 +474,13 @@ AN_Init :: ()
 
   SetMask :: (joint_name: string, value: bool) #expand
   {
-    AN_WaterfallToChildren(.ASSIGN, skeleton, AN_JointNameToIndex(skeleton, joint_name), it, value);
+    AN_WaterfallToChildren(.ASSIGN, skeleton, AN_JointNameToIndex(skeleton, joint_name), `it.*, value);
   }
 
   skeleton := SkeletonFromSlot(ModelFromAlias(.Dude).skeleton_slot);
   if skeleton
   {
-    for * joint_masks
+    for * skeleton.joint_masks
     {
       it.* = NewArray(skeleton.joints_count, bool);
 
@@ -502,7 +502,7 @@ AN_Init :: ()
   skeleton = SkeletonFromSlot(ModelFromAlias(.Zombie).skeleton_slot);
   if skeleton
   {
-    for * joint_masks
+    for * skeleton.joint_masks
     {
       it.* = NewArray(skeleton.joints_count, bool);
 
@@ -523,11 +523,6 @@ AN_Init :: ()
 }
 
 #scope_file;
-AN_WeightsFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationWeights
-{
-  return *skeleton.animation_weights[tag];
-}
-
 AN_ClipFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationClip
 {
   // @todo handle multiple clips
@@ -629,20 +624,43 @@ AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
 
   result.prev = *NIL_AnimationNode;
   result.next = *NIL_AnimationNode;
-
-  if !IsNil(prev_node)
-  {
-    if !IsNil(prev_node.next)
-    {
-      result.next = prev_node.next;
-      prev_node.next.prev = result;
-    }
-
-    result.prev = prev_node;
-    prev_node.next = result;
+  if !IsNil(prev_node) {
+    AN_LinkNode(prev_node, result);
   }
-
   return result;
+}
+
+AN_FreeNode :: (node: *AnimationNode)
+{
+  AN_UnlinkNode(node);
+  l := *AN.per_lane[LaneIdx()];
+  node.next = l.free_nodes;
+  l.free_nodes = node;
+}
+
+AN_LinkNode :: (prev_node: *AnimationNode, node: *AnimationNode)
+{
+  if !IsNil(prev_node.next)
+  {
+    node.next = prev_node.next;
+    prev_node.next.prev = node;
+  }
+  node.prev = prev_node;
+  prev_node.next = node;
+}
+
+AN_UnlinkNode :: (node: *AnimationNode)
+{
+  if !IsNil(node.prev)
+  {
+    node.prev.next = node.next;
+  }
+  if !IsNil(node.next)
+  {
+    node.next.prev = node.prev;
+  }
+  node.prev = *NIL_AnimationNode;
+  node.next = *NIL_AnimationNode;
 }
 
 AN_LastNode :: (node: *AnimationNode) -> *AnimationNode

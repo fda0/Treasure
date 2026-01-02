@@ -254,7 +254,7 @@ EasingInOut :: (x: float, out_threshold: float, in: EasingType, out: EasingType,
 }
 
 Sign :: (x: float) -> float { return ifx x < 0.0 then -1.0 else 1.0; }
-SignFromBool :: (b: bool) -> float { return ifx b then 1.0 else -1.0; }
+BoolSign :: (b: bool) -> float { return ifx b then 1.0 else -1.0; }
 
 CeilPow2 :: (v: u32) -> u32
 {
