@@ -16,7 +16,7 @@ Skeleton :: struct
 {
   using base: BaseSkeleton;
   joints_count: s64;
-  tag_to_sequence: [AnimationTag_COUNT] AnimationSequence;
+  tags: [AnimationTag_COUNT] AnimationTagInfo;
   joint_masks: [AnimationMask_COUNT] AnimationJointMask; // @todo 1compress with bit vector thing
 }
 
@@ -30,10 +30,10 @@ AnimationTag :: enum u8
   HIT;
   DEATH;
 
-  SPELL;
-  SPELL_ENTER;
-  SPELL_IDLE;
-  SPELL_EXIT;
+  // SPELL;
+  // SPELL_ENTER;
+  // SPELL_IDLE;
+  // SPELL_EXIT;
 }
 AnimationTag_COUNT :: #run EnumCount(AnimationTag);
 
@@ -47,9 +47,9 @@ AnimationMask_COUNT :: #run EnumCount(AnimationMask);
 
 AnimationJointMask :: #type [] bool;
 
-AnimationSequence :: struct
+AnimationTagInfo :: struct
 {
-  clip_idxs: [] s64;
+  clip: *AnimationClip;
   mask: AnimationMask;
 }
 
@@ -260,7 +260,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
         }
         if node.flags & .REMOVE_WHEN_FINISHED && skeleton
         {
-          clip := AN_ClipFromTag(skeleton, node.tag);
+          clip := skeleton.tags[node.tag].clip;
           if node.t >= clip.t_max
           {
             AN_FreeNode(node);
@@ -300,8 +300,8 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
       track.t = node.t; // @todo handle denormalize flag
       track.tag = node.tag;
 
-      mask_idx := skeleton.tag_to_sequence[track.tag].mask;
-      track.joint_mask = array_copy(skeleton.joint_masks[mask_idx]);
+      mask := skeleton.tags[track.tag].mask;
+      track.joint_mask = array_copy(skeleton.joint_masks[mask]);
     }
   }
 
@@ -353,103 +353,97 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Mat4
 {
   PerfFunc();
-  push_allocator(temp);
 
+  result_matrices := NewArray(skeleton.joints_count, Mat4);
+
+  push_allocator(temp);
   accumulated_scales       := array_copy(skeleton.bind_scales);
   accumulated_rotations    := array_copy(skeleton.bind_rotations);
   accumulated_translations := array_copy(skeleton.bind_translations);
-  result_matrices := NewArray(skeleton.joints_count, Mat4);
 
   // mix default rest pose + animation channels using temporary memory
-  first_loop := true;
-  for < track: tracks
+  for track, track_index: tracks
   {
-    defer first_loop = false;
-    if track.weight <= 0 continue;
-
     auto_release_temp();
-    scales := ifx first_loop then accumulated_scales else array_copy(skeleton.bind_scales);
-    rotations := ifx first_loop then accumulated_rotations else array_copy(skeleton.bind_rotations);
-    translations := ifx first_loop then accumulated_translations else array_copy(skeleton.bind_translations);
-
-    weights := AN_WeightsFromTag(skeleton, track.tag);
+    scales := ifx track_index == 0 then accumulated_scales else array_copy(skeleton.bind_scales);
+    rotations := ifx track_index == 0 then accumulated_rotations else array_copy(skeleton.bind_rotations);
+    translations := ifx track_index == 0 then accumulated_translations else array_copy(skeleton.bind_translations);
 
     // Overwrite translations, rotations, scales with values from animation
+    clip := skeleton.tags[track.tag].clip;
+    track_time := clamp(track.t, clip.t_min, clip.t_max);
+
+    for channel: clip.channels
     {
-      clip := *skeleton.clips[weights.clip_idx];
-      time := clamp(track.t, clip.t_min, clip.t_max);
+      if !track.joint_mask[channel.joint_index] {
+        continue;
+      }
 
-      for channel: clip.channels
+      t := 1.0;
+      sample_start: u32;
+      sample_end: u32;
+      // find t, sample_start, sample_end
       {
-        if channel.joint_index >= skeleton.joints_count
+        // @speed binary search might be faster?
+        for channel.inputs
         {
-          assert(false);
-          continue;
-        }
-
-        if weights.joint_priority[channel.joint_index] == 0 // @todo_now improve logic here
-          continue;
-
-        t := 1.0;
-        sample_start: u32;
-        sample_end: u32;
-        // find t, sample_start, sample_end
-        {
-          // @speed binary search might be faster?
-          for channel.inputs
-          {
-            if it >= time
-              break;
-            sample_start = xx it_index;
+          if it >= track_time {
+            break;
           }
-
-          sample_end = sample_start + 1;
-          if (sample_end >= channel.inputs.count)
-            sample_end = sample_start;
-
-          time_start := channel.inputs[sample_start];
-          time_end := channel.inputs[sample_end];
-
-          if time_start < time_end
-          {
-            time_range := time_end - time_start;
-            t = (time - time_start) / time_range;
-          }
+          sample_start = xx it_index;
         }
 
-        if channel.type == .Rotation
-        {
-          q0 := channel.outputs.data.(*Quat)[sample_start];
-          q1 := channel.outputs.data.(*Quat)[sample_end];
-          value := Slerp(q0, q1, t); // @todo NLerp with "neighborhood operator" could be used here?
+        sample_end = sample_start + 1;
+        if (sample_end >= channel.inputs.count)
+        sample_end = sample_start;
 
-          rotations[channel.joint_index] = value;
+        time_start := channel.inputs[sample_start];
+        time_end := channel.inputs[sample_end];
+
+        if time_start < time_end
+        {
+          time_range := time_end - time_start;
+          t = (track_time - time_start) / time_range;
         }
-        else
-        {
-          v0 := channel.outputs.data.(*V3)[sample_start];
-          v1 := channel.outputs.data.(*V3)[sample_end];
-          value := lerp(v0, v1, t);
+      }
 
-          if channel.type == .Translation
-            translations[channel.joint_index] = value;
-          else
-            scales[channel.joint_index] = value;
+      if channel.type == .Rotation
+      {
+        q0 := channel.outputs.data.(*Quat)[sample_start];
+        q1 := channel.outputs.data.(*Quat)[sample_end];
+        value := Slerp(q0, q1, t); // @todo NLerp with "neighborhood operator" could be used here?
+
+        rotations[channel.joint_index] = value;
+      }
+      else
+      {
+        v0 := channel.outputs.data.(*V3)[sample_start];
+        v1 := channel.outputs.data.(*V3)[sample_end];
+        value := lerp(v0, v1, t);
+
+        if channel.type == .Translation {
+          translations[channel.joint_index] = value;
+        } else {
+          scales[channel.joint_index] = value;
         }
       }
     }
 
-    if !first_loop && track.weight > 0
+    if track_index > 0
     {
       for MakeRange(skeleton.joints_count)
       {
-        accumulated_scales[it]       = lerp(accumulated_scales[it],       scales[it],       weight);
-        accumulated_rotations[it]    = Slerp(accumulated_rotations[it],   rotations[it],    weight);
-        accumulated_translations[it] = lerp(accumulated_translations[it], translations[it], weight);
+        if !track.joint_mask[it] {
+          continue;
+        }
+        accumulated_scales[it]       = lerp(accumulated_scales[it],       scales[it],       track.weight);
+        accumulated_rotations[it]    = Slerp(accumulated_rotations[it],   rotations[it],    track.weight);
+        accumulated_translations[it] = lerp(accumulated_translations[it], translations[it], track.weight);
       }
     }
   }
 
+  // Calculate final result matrices
   for * result_matrices
   {
     scale := ScaleMatrix(accumulated_scales[it_index]);
@@ -463,6 +457,7 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
   for * result_matrices {
     it.* = it.* * skeleton.inverse_matrices[it_index];
   }
+
   return result_matrices;
 }
 
@@ -471,7 +466,6 @@ AN_Init :: ()
   PerfFunc();
 
   AN.per_lane = NewArray(GLOBAL.core_count, AnimationState.Lane);
-
 
   SetMask :: (joint_name: string, value: bool) #expand
   {
@@ -485,7 +479,7 @@ AN_Init :: ()
     {
       it.* = NewArray(skeleton.joints_count, bool);
 
-      if it_index.(AnimationMask) == {
+      if #complete it_index.(AnimationMask) == {
         case .ALL;
         SetMask("root", true);
 
@@ -498,6 +492,19 @@ AN_Init :: ()
         SetMask("DEF-shoulder.R", false);
       }
     }
+
+    for * skeleton.tags
+    {
+      if #complete it_index.(AnimationTag) == {
+        case .IDLE;  it.clip = AN_ClipFromName(skeleton, "Idle_Loop");
+        case .WALK;  it.clip = AN_ClipFromName(skeleton, "Walk_Loop");
+        case .RUN;   it.clip = AN_ClipFromName(skeleton, "Jog_Fwd_Loop");
+        case .PUNCH; it.clip = AN_ClipFromName(skeleton, "Punch_Cross");
+        case .JAB;   it.clip = AN_ClipFromName(skeleton, "Punch_Jab");
+        case .HIT;   it.clip = AN_ClipFromName(skeleton, "Hit_Head");
+        case .DEATH; it.clip = AN_ClipFromName(skeleton, "Death01");
+      }
+    }
   }
 
   skeleton = SkeletonFromSlot(ModelFromAlias(.Zombie).skeleton_slot);
@@ -507,7 +514,7 @@ AN_Init :: ()
     {
       it.* = NewArray(skeleton.joints_count, bool);
 
-      if it_index.(AnimationMask) == {
+      if #complete it_index.(AnimationMask) == {
         case .ALL;
         SetMask("Root", true);
 
@@ -520,29 +527,23 @@ AN_Init :: ()
         // SetMask("DEF-shoulder.R", false)
       }
     }
+
+    for * skeleton.tags
+    {
+      if #complete it_index.(AnimationTag) == {
+        case .IDLE;  it.clip = AN_ClipFromName(skeleton, "Idle");
+        case .WALK;  it.clip = AN_ClipFromName(skeleton, "Walk");
+        case .RUN;   it.clip = AN_ClipFromName(skeleton, "Run");
+        case .PUNCH; it.clip = AN_ClipFromName(skeleton, "Punch");
+        case .JAB;   it.clip = AN_ClipFromName(skeleton, "Punch");
+        case .HIT;   it.clip = AN_ClipFromName(skeleton, "HitReact");
+        case .DEATH; it.clip = AN_ClipFromName(skeleton, "Death");
+      }
+    }
   }
 }
 
 #scope_file;
-AN_ClipFromTag :: inline (skeleton: Skeleton, tag: AnimationTag) -> *AnimationClip
-{
-  // @todo handle multiple clips
-  idx := skeleton.tag_to_sequence[tag].clip_idxs[0];
-  return *skeleton.clips[idx];
-}
-
-AN_WrapTime :: inline (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
-{
-  clip := AN_ClipFromTag(skeleton, tag);
-  return WrapFloat(t, clip.t_min, clip.t_max);
-}
-
-AN_Time01ToAnimT :: inline (skeleton: Skeleton, tag: AnimationTag, t: float) -> float
-{
-  clip := AN_ClipFromTag(skeleton, tag);
-  return (clip.t_max - clip.t_min) * t + clip.t_min;
-}
-
 AN_WaterfallToChildren :: ($mode: enum { MULTIPLY; ASSIGN; },
   skeleton: Skeleton, joint_index: u32, values: [] $T, parent_value: T)
 {
@@ -576,27 +577,28 @@ AN_WaterfallToChildren :: ($mode: enum { MULTIPLY; ASSIGN; },
 //
 //
 //
-AN_IdxFromClipName :: (skeleton: Skeleton, name: string) -> index: s32, found: bool
+AN_ClipFromName :: (skeleton: Skeleton, name: string) -> *AnimationClip
 {
-  for skeleton.clips
+  for * skeleton.clips
   {
-    if name == it.name
-      return xx it_index, true;
+    if name == it.name {
+      return it;
+    }
   }
   log("AnimationData name not found: %", name, flags=.WARNING);
-  return 0, false;
+  return *skeleton.clips[0];
 }
 
-AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32, found: bool
+AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32
 {
   for skeleton.names
   {
     if name == it {
-      return xx it_index, true;
+      return xx it_index;
     }
   }
   log("Joint name not found: %", name, flags=.WARNING);
-  return 0, false;
+  return 0;
 }
 
 //
@@ -667,9 +669,7 @@ AN_UnlinkNode :: (node: *AnimationNode)
 AN_NodeBeforeDeath :: (node: *AnimationNode) -> *AnimationNode
 {
   // return a node that's last or before death
-  while !IsNil(node.next)
-  {
-    if node.tag == .DEATH break;
+  while !IsNil(node.next) && node.next.tag != .DEATH {
     node = node.next;
   }
   return node;

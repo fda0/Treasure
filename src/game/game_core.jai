@@ -329,10 +329,10 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 
     is_shared := ghost_index < OBJ_SHARED_COUNT;
     if is_shared && !DEV.pause_ghosts_interpolation {
-      inline G_InterpolateSnapshotsForGhost(ghost, ghost_index);
+      G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
-    inline AN_UpdateGhost(ghost);
-    inline RD_DrawGhost(ghost, batch);
+    AN_UpdateGhost(ghost);
+    RD_DrawGhost(ghost, batch);
   }
 }
 

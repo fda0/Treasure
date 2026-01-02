@@ -539,6 +539,12 @@ AST_LoadSkeletons :: ()
           AST_Error("AnimationData channel %*%*% != %", comp_count, it.inputs.count, size_of(float), array_size_bytes(it.outputs));
           return;
         }
+
+        if it.joint_index >= skeleton.joints_count
+        {
+          AST_Error("Animation channel's joint index overflow % >= %", it.joint_index, skeleton.joints_count);
+          return;
+        }
       }
     }
   }
