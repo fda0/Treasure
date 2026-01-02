@@ -60,6 +60,7 @@ AnimationNode :: struct
   {
     INCREMENT_T;
     INCREMENT_WEIGHT;
+    DENORMALIZE_T; // t is normalized to [0:1] range, transform it into animation time range
     PLAYER_SLIDESHOW; // advance to next player idx on finished animation
     REMOVE_WHEN_FINISHED;
   }
@@ -172,66 +173,80 @@ AN_UpdateGhost :: (ghost: *Ghost)
     if IsNil(ghost.anim.node)
     {
       ghost.anim.node = AN_AllocNode();
-      walk := AN_AllocNode(ghost.anim.node);
+      idle := ghost.anim.node;
+      walk := AN_AllocNode(idle);
       run := AN_AllocNode(walk);
+      attack := AN_AllocNode(run);
+
+      idle.weight = 1.0;
+      idle.tag = .IDLE;
+      idle.flags = .DENORMALIZE_T;
+
+      walk.tag = .WALK;
+      run.tag = .RUN;
+      attack.tag = .PUNCH;
     }
 
     idle := ghost.anim.node;
     walk := idle.next;
     run := walk.next;
+    attack := run.next;
 
     DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
 
     // idle_cycle
-    an.idle_cycle += G.dt;
-    an.idle_cycle = WrapFloat(an.idle_cycle, 0, 1);
+    idle.t = WrapFloat(idle.t + G.dt, 0, 1);
 
     // walk_cycle
     moved_distance := length(ghost.moved_dp);
     meters_per_second := moved_distance * TICK_RATE;
-
     moved_cycle_delta := meters_per_second * DISTANCE_TO_WALK_ANIMATION_COEFFICIENT;
-    an.walk_cycle += moved_cycle_delta;
-    an.walk_cycle = WrapFloat(an.walk_cycle, 0, 100);
+    walk.t = WrapFloat(walk.t + moved_cycle_delta, 0, 100);
+    run.t = walk.t;
 
-    // is_walking_weight
-    target_is_walking := 0.0;
-    if (meters_per_second > 0) target_is_walking += 1; // walk
-    if (meters_per_second > 3.0) target_is_walking += 1; // run
+    // walk / run weight
+    walk.weight += G.dt * 10.0 * BoolSign(meters_per_second > 0.0);
+    run.weight += G.dt * 10.0 * BoolSign(meters_per_second > 3.0);
+    walk.weight = clamp(walk.weight, 0, 1);
+    run.weight = clamp(run.weight, 0, 1);
 
-    is_walking_t := clamp(G.dt * 10.0, 0, 1);
-    an.is_walking_weight = lerp(an.is_walking_weight, target_is_walking, is_walking_t);
+    // attack weight
+    attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
+    attack.weight = clamp(attack.weight, 0, 1);
 
-    // is_attacking_weight
-    an.is_attacking_weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + -2.0 * target_is_walking);
-    an.is_attacking_weight = clamp(an.is_attacking_weight, 0, 1);
+    for ghost.animation_requests
+    {
+      if IsTickDue(it.tick, ghost)
+      {
+        node := AN_AllocNode(AN_LastNode(attack));
+        node.tag = it.tag;
+        node.flags = .INCREMENT_T | .INCREMENT_WEIGHT | .REMOVE_WHEN_FINISHED;
+      }
+    }
 
-
-
-    //
     model := ModelFromAlias(ghost.model);
     if model.is_skinned
     {
       skeleton := SkeletonFromSlot(model.skeleton_slot);
 
-      for ghost.animation_requests
+      node := ghost.anim.node;
+      while !IsNil(node)
       {
-        if IsTickDue(it.tick, ghost)
-        {
-          playback: AnimationPlayback;
-          playback.tag = it.tag;
-          playback.start_time = G.frame_timestamp;
-          array_add(*ghost.anim.playbacks, playback);
+        next_node := node.next;
+        defer node = next_node;
+
+        if node.flags & .INCREMENT_T {
+          node.t += G.dt;
         }
-      }
-
-      for ghost.anim.playbacks
-      {
-        t := Elapsed(G.frame_timestamp, it.start_time);
-        clip := AN_ClipFromTag(skeleton, it.tag);
-
-        if t >= clip.t_max {
-          remove it;
+        if node.flags & .INCREMENT_WEIGHT {
+          node.weight = clamp(node.weight + G.dt, 0, 1);
+        }
+        if node.flags & .REMOVE_WHEN_FINISHED {
+          clip := AN_ClipFromTag(skeleton, it.tag);
+          if node.t >= clip.t_max {
+            AN_RemoveNode(node);
+            continue;
+          }
         }
       }
     }
@@ -617,9 +632,24 @@ AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
 
   if !IsNil(prev_node)
   {
+    if !IsNil(prev_node.next)
+    {
+      result.next = prev_node.next;
+      prev_node.next.prev = result;
+    }
+
     result.prev = prev_node;
     prev_node.next = result;
   }
 
   return result;
+}
+
+AN_LastNode :: (node: *AnimationNode) -> *AnimationNode
+{
+  while !IsNil(node.next)
+  {
+    node = node.next;
+  }
+  return node;
 }
