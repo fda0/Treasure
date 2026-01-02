@@ -137,16 +137,33 @@ RangeIntersection :: (a: Range($T), b: Range(T)) -> Range(T)
 
 for_expansion :: (range: Range($T), body: Code, flags: For_Flags) #expand
 {
-  #assert(flags == 0); // @todo extend support
-  `it_index := 0;
-  `it := range.min;
+  #assert(flags & ~.REVERSE == 0);
+  if (range.max <= range.min) return;
+
+  delta := #ifx flags & .REVERSE then -1 else 1;
+  `it_index := #ifx flags & .REVERSE then range.max - range.min - 1 else 0;
+  `it := #ifx flags & .REVERSE then range.max - 1 else range.min;
+
   while true
   {
-    if it >= range.max break;
-    defer {
-      it += 1;
-      it_index += 1;
+    #if !(flags & .REVERSE) if it >= range.max break;
+
+    defer
+    {
+      #if flags & .REVERSE
+      {
+        will_break := it <= range.min;
+        it -= 1;
+        it_index -= 1;
+        if (will_break) break;
+      }
+      else
+      {
+        it_index += 1;
+        it += 1;
+      }
     }
+
     #insert body;
   }
 }

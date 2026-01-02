@@ -75,6 +75,29 @@ TEST_math :: ()
     r := RangeIntersection(a, b);
     assert(r == MakeRect(-10, -8, -2, 40));
   }
+
+  // ranges for_expansion
+  {
+    it_bits := 0;
+    index_bits := 0;
+    for MakeRange(4, 7)
+    {
+      it_bits = (it_bits << 8) | it;
+      index_bits = (index_bits << 8) | it_index;
+    }
+    assert(it_bits    == 0x040506);
+    assert(index_bits == 0x000102);
+
+    it_bits = 0;
+    index_bits = 0;
+    for < MakeRange(4, 7)
+    {
+      it_bits = (it_bits << 8) | it;
+      index_bits = (index_bits << 8) | it_index;
+    }
+    assert(it_bits    == 0x060504);
+    assert(index_bits == 0x020100);
+  }
 }
 
 TEST_lanes :: ()

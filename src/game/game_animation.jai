@@ -305,20 +305,18 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     }
   }
 
-  // Search for joint_mask elements that would end up being dead values.
-  // When weight = 1.0 backpropagate zeroes into previous joint_masks.
-  for < top_track, top_index: tracks
+  // When weight of an upper layer is equal to 1.0 - the layers below become masked-off.
+  // This loop will back-propagate `false` values into joint_masks of lower layers.
+  for < upper_idx: MakeRange(tracks.count)
   {
-    if (top_track.weight != 1.0) continue;
+    if (tracks[upper_idx].weight < 1.0) continue;
 
-    for bottom_index: MakeRange(top_index)
+    for lower_idx: MakeRange(upper_idx)
     {
-      bottom_track := tracks[bottom_index];
-      for top_joint, joint_index: top_track.joint_mask
+      for mask_idx: MakeRange(tracks[0].joint_mask.count)
       {
-        if top_joint == true
-        {
-          bottom_track.joint_mask[joint_index] = false;
+        if tracks[upper_idx].joint_mask[mask_idx] == true {
+          tracks[lower_idx].joint_mask[mask_idx] = false;
         }
       }
     }
@@ -326,7 +324,11 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
 
   for tracks
   {
-    to_remove := (top_track.weight == 0.0);
+    if it.weight == 0.0
+    {
+      remove it;
+      continue;
+    }
 
     all_joints_are_false := true;
     for it.joint_mask
@@ -337,14 +339,15 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
         break;
       }
     }
-    to_remove |= all_joints_are_false;
 
-    if to_remove {
+    if all_joints_are_false
+    {
       remove it;
+      continue;
     }
   }
 
-  return result;
+  return tracks;
 }
 
 AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Mat4
