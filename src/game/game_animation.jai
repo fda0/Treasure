@@ -63,6 +63,7 @@ AnimationNode :: struct
     INCREMENT_T;
     INCREMENT_WEIGHT;
     DENORMALIZE_T; // t is normalized to [0:1] range, transform it into animation time range
+    WRAP_T; // wrap overflow
     PLAYER_SLIDESHOW; // advance to next player idx on finished animation
     REMOVE_WHEN_FINISHED;
   }
@@ -191,11 +192,17 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
       idle.weight = 1.0;
       idle.tag = .IDLE;
-      idle.flags = .DENORMALIZE_T;
+      idle.flags = .DENORMALIZE_T | .WRAP_T;
 
       walk.tag = .WALK;
+      walk.flags = .WRAP_T;
+
       run.tag = .RUN;
+      run.flags = .WRAP_T;
+
       attack.tag = .PUNCH;
+      attack.flags = .DENORMALIZE_T | .WRAP_T;
+
       death.tag = .DEATH;
     }
 
@@ -206,6 +213,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     death := AN_NodeBeforeDeath(attack).next;
 
     DISTANCE_TO_WALK_ANIMATION_COEFFICIENT :: 0.016;
+    WALK_TO_RUN_COEFFICIENT :: 0.2;
 
     // idle_cycle
     idle.t = WrapFloat(idle.t + G.dt, 0, 1);
@@ -215,7 +223,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     meters_per_second := moved_distance * TICK_RATE;
     moved_cycle_delta := meters_per_second * DISTANCE_TO_WALK_ANIMATION_COEFFICIENT;
     walk.t = WrapFloat(walk.t + moved_cycle_delta, 0, 100);
-    run.t = walk.t;
+    run.t = walk.t * WALK_TO_RUN_COEFFICIENT;
 
     // walk / run weight
     walk.weight += G.dt * 10.0 * BoolSign(meters_per_second > 0.0);
@@ -224,6 +232,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     run.weight = clamp01(run.weight);
 
     // attack weight
+    attack.t = activity.attack_t;
     attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
     attack.weight = clamp(attack.weight, 0, 1);
 
@@ -252,12 +261,16 @@ AN_UpdateGhost :: (ghost: *Ghost)
         next_node := node.next;
         defer node = next_node;
 
-        if node.flags & .INCREMENT_T {
+        if node.flags & .INCREMENT_T
+        {
           node.t += G.dt;
         }
-        if node.flags & .INCREMENT_WEIGHT {
+
+        if node.flags & .INCREMENT_WEIGHT
+        {
           node.weight = clamp01(node.weight + G.dt);
         }
+
         if node.flags & .REMOVE_WHEN_FINISHED && skeleton
         {
           clip := skeleton.tags[node.tag].clip;
@@ -280,9 +293,7 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
   model := ModelFromAlias(ghost.model);
   if !model.is_skinned return .[];
 
-  WALK_TO_RUN_COEFFICIENT :: 0.2;
   skeleton := SkeletonFromSlot(model.skeleton_slot);
-
   push_allocator(temp);
   tracks: [..] AnimationTrack;
 
@@ -292,13 +303,25 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     while !IsNil(node)
     {
       defer node = node.next;
-
       if (node.weight == 0.0) continue;
+
+      clip := skeleton.tags[node.tag].clip;
 
       track := array_add(*tracks);
       track.weight = node.weight;
-      track.t = node.t; // @todo handle denormalize flag
+      track.t = node.t;
       track.tag = node.tag;
+
+      if node.flags & .DENORMALIZE_T
+      {
+        range := clip.t_max - clip.t_min;
+        track.t = track.t * range + clip.t_min;
+      }
+
+      if node.flags & .WRAP_T
+      {
+        track.t = WrapFloat(track.t, clip.t_min, clip.t_max);
+      }
 
       mask := skeleton.tags[track.tag].mask;
       track.joint_mask = array_copy(skeleton.joint_masks[mask]);
@@ -322,6 +345,7 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     }
   }
 
+  // Remove no-op tracks
   for tracks
   {
     if it.weight == 0.0

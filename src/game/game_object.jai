@@ -77,8 +77,7 @@ OBJ_Activity :: struct
 
   walking_to: V2; @lerp
 
-  attack_t: float; @lerp
-  visual_attack_t: float; @lerp
+  attack_t: float; // manually lerped with special handling for negative values
 
   target: OBJ_Key;
   last_projectile: OBJ_Key;
@@ -249,6 +248,14 @@ OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
     // log("Code inserted by OBJ_LerpObject:\n%", code);
     return code;
   }
+
+  // Lerp attack_t with correct negative values handling
+  // prev_norm_attack_t := WrapFloat(prev.activity.attack_t, 0.0, prev.attack_cooldown_t);
+  // next_norm_attack_t := WrapFloat(next.activity.attack_t, 0.0, next.attack_cooldown_t);
+  // result_norm_attack_t := lerp(prev_norm_attack_t, next_norm_attack_t, t);
+  // result.activity.attack_t = WrapFloat(result_norm_attack_t, -result.attack_cooldown_t + result.attack_landed_t, result.attack_landed_t);
+  result.activity.attack_t = LerpInWrapRange(prev.activity.attack_t, next.activity.attack_t, t,
+    -result.attack_cooldown_t + result.attack_landed_t, result.attack_landed_t);
 
   return result;
 }

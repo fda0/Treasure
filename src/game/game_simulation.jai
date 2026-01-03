@@ -302,26 +302,6 @@ SIM_UpdateActivity :: (obj: *Object)
   attack_t_delta := TICK_FLOAT_STEP * obj.stats.attack_speed;
   activity.attack_t += attack_t_delta;
 
-  // advance visual_attack_t
-  if activity.is_attacking
-  {
-    activity.visual_attack_t += attack_t_delta;
-  }
-  else
-  {
-    if activity.visual_attack_t != 0.0
-    {
-      wrapped := WrapFloat(obj.attack_cooldown_t, activity.visual_attack_t, 0.0);
-      dir := ifx wrapped >= obj.attack_landed_t then 1.0 else -1.0;
-      activity.visual_attack_t += dir * attack_t_delta;
-
-      wrapped2 := WrapFloat(activity.visual_attack_t, 0.0, obj.attack_cooldown_t);
-      dir2 := ifx wrapped2 >= obj.attack_landed_t then 1.0 else -1.0;
-
-      if (dir != dir2) activity.visual_attack_t = 0.0;
-    }
-  }
-
   if activity.is_attacking
   {
     obj.rotation = DirectionXYToRotationZ(target.p - obj.p);
@@ -397,7 +377,6 @@ SIM_UpdateTurret :: (turret: *Object)
   }
 
   activity.attack_t += attack_t_delta;
-  activity.visual_attack_t += attack_t_delta;
 
   if activity.is_attacking
   {

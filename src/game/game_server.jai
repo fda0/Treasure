@@ -141,6 +141,7 @@ SV_CreateHero :: (model: ModelAlias, team: OBJ_Team) -> *Object
     obj.base_stats.max_energy = 50;
     obj.base_stats.energy_regen = 2;
     obj.base_stats.move_speed = 1.5;
+    obj.base_stats.attack_speed = 0.2;
     obj.health = obj.base_stats.max_health;
     obj.energy = obj.base_stats.max_energy;
 

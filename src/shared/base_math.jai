@@ -297,6 +297,34 @@ WrapFloat :: (t: float, min: float, max: float) -> float // @todo replace arg or
 
 WrapFloat01 :: #bake_arguments WrapFloat(min=0.0, max=1.0);
 
+LerpInWrapRange :: (a: float, b: float, t: float, min: float, max: float) -> float
+{
+  range := max - min;
+  base := a;
+
+  dist_regular := b - a;
+  dist_wrap0 := (b + range) - a;
+  dist_wrap1 := (a + range) - b;
+
+  dist := dist_regular;
+  if (abs(dist_regular) > abs(Min(dist_wrap0, dist_wrap1)))
+  {
+    if dist_wrap0 > dist_wrap1
+    {
+      dist = dist_wrap1;
+      t = -t;
+      base = max;
+    }
+    else
+    {
+      dist = dist_wrap0;
+    }
+  }
+
+  result := base + dist * t;
+  return result;
+}
+
 invsqrt :: inline (x: float) -> float { return 1.0 / sqrt(x); }
 
 // VECTOR2 MATH
