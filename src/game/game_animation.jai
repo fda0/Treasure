@@ -90,6 +90,8 @@ AnimationRequest :: struct
 {
   tick: ServerTick;
   tag: AnimationTag;
+  cancel: bool;
+  speed: float;
 }
 
 //
@@ -225,16 +227,18 @@ AN_UpdateGhost :: (ghost: *Ghost)
     walk.t = WrapFloat(walk.t + moved_cycle_delta, 0, 100);
     run.t = walk.t * WALK_TO_RUN_COEFFICIENT;
 
-    // walk / run weight
-    walk.weight += G.dt * 10.0 * BoolSign(meters_per_second > 0.0);
-    run.weight += G.dt * 10.0 * BoolSign(meters_per_second > 3.0);
-    walk.weight = clamp01(walk.weight);
-    run.weight = clamp01(run.weight);
+      // walk / run weight
+      walk.weight += G.dt * 10.0 * BoolSign(meters_per_second > 0.0);
+      run.weight += G.dt * 10.0 * BoolSign(meters_per_second > 3.0);
+      walk.weight = clamp01(walk.weight);
+      run.weight = clamp01(run.weight);
 
-    // attack weight
-    attack.t = activity.attack_t;
-    attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
-    attack.weight = clamp(attack.weight, 0, 1);
+    if false {
+      // attack weight
+      attack.t = activity.attack_t;
+      attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
+      attack.weight = clamp(attack.weight, 0, 1);
+    }
 
     // death weight / time
     death.t = Elapsed(G.frame_timestamp, ghost.death_time);
@@ -268,7 +272,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
         if node.flags & .INCREMENT_WEIGHT
         {
-          node.weight = clamp01(node.weight + G.dt);
+          node.weight = clamp01(node.weight + G.dt * 10.0);
         }
 
         if node.flags & .REMOVE_WHEN_FINISHED && skeleton

@@ -306,12 +306,21 @@ SIM_UpdateActivity :: (obj: *Object)
   {
     obj.rotation = DirectionXYToRotationZ(target.p - obj.p);
 
-    attack_damage := 10.0;
-    while activity.attack_t >= obj.attack_landed_t
+    while true
     {
-      SIM_DealDamage(target, obj, 10.0);
+      if activity.last_animation_attack_t < activity.attack_t
+      {
+        activity.last_animation_attack_t = activity.attack_t;
+        SIM_PlayAnimation(obj, .PUNCH);
+      }
+
+      if activity.attack_t < obj.attack_landed_t {
+        break;
+      }
 
       activity.attack_t -= obj.attack_cooldown_t;
+      activity.last_animation_attack_t = 0.0;
+      SIM_DealDamage(target, obj, 10.0);
 
       stop_attacking := false;
       stop_attacking |= attack_is_out_of_range;
@@ -322,11 +331,11 @@ SIM_UpdateActivity :: (obj: *Object)
         break;
       }
     }
-
   }
   if !activity.is_attacking
   {
     activity.attack_t = min(activity.attack_t, 0.0);
+    activity.last_animation_attack_t = 0.0;
   }
 }
 
@@ -616,9 +625,15 @@ SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
   QueuePush(*obj.sound_requests, .{SV.tick, type});
 }
-SIM_PlayAnimation :: (obj: *Object, tag: AnimationTag)
+
+SIM_PlayAnimation :: (obj: *Object, tag: AnimationTag, speed := 1.0, cancel := false)
 {
-  QueuePush(*obj.animation_requests, .{SV.tick, tag});
+  req: AnimationRequest;
+  req.tick = SV.tick;
+  req.tag = tag;
+  req.cancel = cancel;
+  req.speed = speed;
+  QueuePush(*obj.animation_requests, req);
 }
 
 SIM_DealDamage :: (target: *Object, source: *Object, amount: float)
