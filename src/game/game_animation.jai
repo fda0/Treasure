@@ -232,7 +232,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     run.weight = clamp01(run.weight);
 
     // attack weight
-    attack.t = activity.attack_t;
+    attack.t = activity.visual_attack_t;
     attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
     attack.weight = clamp(attack.weight, 0, 1);
 

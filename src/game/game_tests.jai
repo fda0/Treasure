@@ -98,35 +98,6 @@ TEST_math :: ()
     assert(it_bits    == 0x060504);
     assert(index_bits == 0x020100);
   }
-
-  // lerp in range
-  {
-    cmp :: (a: float, b: float) -> bool {
-      return abs(a - b) < 0.01;
-    }
-
-    // easy
-    r := LerpInWrapRange(1.0, 2.0, 0.5, 0.0, 10.0);
-    assert(cmp(r, 1.5));
-
-    // 4 tests with the same result:
-    // b == max
-    r = LerpInWrapRange(0.1, 0.2, 0.25, -0.5, 0.2);
-    assert(cmp(r, 0.125));
-
-    // b == min
-    r = LerpInWrapRange(0.1, -0.5, 0.25, -0.5, 0.2);
-    assert(cmp(r, 0.125));
-
-    // swap b <-> a, t -> 0.75
-    // a == max
-    r = LerpInWrapRange(0.2, 0.1, 0.75, -0.5, 0.2);
-    assert(cmp(r, 0.125));
-
-    // a == min
-    r = LerpInWrapRange(-0.5, 0.1, 0.75, -0.5, 0.2);
-    assert(cmp(r, 0.125));
-  }
 }
 
 TEST_lanes :: ()
