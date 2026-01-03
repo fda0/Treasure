@@ -78,7 +78,6 @@ OBJ_Activity :: struct
   walking_to: V2; @lerp
 
   attack_t: float; // manually lerped with special handling for negative values
-  last_animation_attack_t: float;
 
   target: OBJ_Key;
   last_projectile: OBJ_Key;
