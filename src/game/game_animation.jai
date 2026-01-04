@@ -27,8 +27,8 @@ AnimationTag :: enum u8
   RUN;
   PUNCH;
   JAB;
-  HIT;
   DEATH;
+  HIT;
 
   // SPELL;
   // SPELL_ENTER;
@@ -521,10 +521,10 @@ AN_Init :: ()
         case .IDLE;  it.clip = AN_ClipFromName(skeleton, "Idle_Loop");
         case .WALK;  it.clip = AN_ClipFromName(skeleton, "Walk_Loop");
         case .RUN;   it.clip = AN_ClipFromName(skeleton, "Jog_Fwd_Loop");
-        case .PUNCH; it.clip = AN_ClipFromName(skeleton, "Punch_Cross");
-        case .JAB;   it.clip = AN_ClipFromName(skeleton, "Punch_Jab");
-        case .HIT;   it.clip = AN_ClipFromName(skeleton, "Hit_Head");
+        case .PUNCH; it.* = .{AN_ClipFromName(skeleton, "Punch_Cross"), .ARMS};
+        case .JAB;   it.* = .{AN_ClipFromName(skeleton, "Punch_Jab"), .ARMS};
         case .DEATH; it.clip = AN_ClipFromName(skeleton, "Death01");
+        case .HIT;   it.* = .{AN_ClipFromName(skeleton, "Hit_Head"), .HEAD};
       }
     }
   }
@@ -558,8 +558,8 @@ AN_Init :: ()
         case .RUN;   it.clip = AN_ClipFromName(skeleton, "Run");
         case .PUNCH; it.clip = AN_ClipFromName(skeleton, "Punch");
         case .JAB;   it.clip = AN_ClipFromName(skeleton, "Punch");
-        case .HIT;   it.clip = AN_ClipFromName(skeleton, "HitReact");
         case .DEATH; it.clip = AN_ClipFromName(skeleton, "Death");
+        case .HIT;   it.clip = AN_ClipFromName(skeleton, "HitReact");
       }
     }
   }

@@ -62,6 +62,12 @@ SIM_AdvanceByTick :: ()
         obj.activity.walking_to.y = 2.0;
         if (obj.key == SV.enemy1) obj.activity.walking_to.y += 1.0;
       }
+
+      if obj.key == SV.enemy1 && !OBJ_KeyIsZero(SV.users[0].key)
+      {
+        obj.activity.wants_to_attack = true;
+        obj.activity.target = SV.users[0].key;
+      }
     }
 
     // Run UpdateStats
