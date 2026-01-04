@@ -251,6 +251,10 @@ OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
     return code;
   }
 
+  if next.activity.visual_attack_t < prev.activity.visual_attack_t {
+    result.activity.visual_attack_t = lerp( WrapFloat01(prev.activity.visual_attack_t), WrapFloat01(next.activity.visual_attack_t), t);
+  }
+
   return result;
 }
 

@@ -307,8 +307,6 @@ SIM_UpdateActivity :: (obj: *Object)
   // advance visual_attack_t
   if activity.is_attacking {
     activity.visual_attack_t += attack_t_delta;
-  } else {
-    activity.visual_attack_t = 0.0;
   }
 
   if activity.is_attacking
@@ -329,11 +327,11 @@ SIM_UpdateActivity :: (obj: *Object)
         break;
       }
     }
-
   }
   if !activity.is_attacking
   {
     activity.attack_t = min(activity.attack_t, 0.0);
+    activity.visual_attack_t = WrapFloat01(activity.attack_t);
   }
 }
 

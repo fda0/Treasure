@@ -232,16 +232,12 @@ AN_UpdateGhost :: (ghost: *Ghost)
     run.weight = clamp01(run.weight);
 
     // attack weight
-    if activity.is_attacking
-    {
-      attack.t = activity.visual_attack_t;
+    attack.t = activity.visual_attack_t;
+    if activity.is_attacking {
       attack.weight += G.dt * 5.0;
     }
-    else
-    {
-      attack.t = WrapFloat01(attack.t);
-      attack.t = clamp01(attack.t + G.dt * ghost.stats.attack_speed * BoolSign(attack.t > ghost.attack_landed_t));
-      attack.weight -= G.dt * 0.1;
+    if !activity.is_attacking && attack.t < 0.01 {
+      attack.weight -= G.dt * 2.0;
     }
     attack.weight = clamp01(attack.weight);
 
