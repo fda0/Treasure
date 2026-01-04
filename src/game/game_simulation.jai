@@ -45,9 +45,9 @@ SIM_AdvanceByTick :: ()
   // User actions -> modify object's activity
   for * user: SV.users
   {
-    player_object := SV_GetObject(user.key);
-    if OBJ_IsNil(player_object) continue;
-    SIM_ConsumeActions(user, player_object);
+    user_object := SV_GetObject(user.key);
+    if OBJ_IsNil(user_object) continue;
+    SIM_ConsumeActions(user, user_object);
   }
 
   // Update things

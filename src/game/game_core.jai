@@ -104,6 +104,7 @@ G_Init :: ()
   HR_InitWatcher();
   CL_Init();
   RD_Init();
+  DEV_Init();
 
   // Allocate objects
   {

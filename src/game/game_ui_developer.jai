@@ -54,30 +54,6 @@ DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
 
-  active_categories: CategoryFlags = .switches;
-  CategoryFlags :: enum_flags {stats; switches; assets; network; sounds; objects; fonts; }
-  CATEGORY_NAMES :: #run enum_names(CategoryFlags);
-  CATEGORY_VALUES :: #run enum_values_as_enum(CategoryFlags);
-  CATEGORY_COUNT :: CATEGORY_NAMES.count;
-
-  category_window_positions := INITIAL_WINDOW_POSITIONS;
-  category_window_sizes := INITIAL_WINDOW_SIZES;
-
-  INITIAL_WINDOW_POSITIONS :: #run -> [CATEGORY_COUNT] V2 {
-    result: [CATEGORY_COUNT] V2;
-    for *result
-    {
-      it.x = 200.0 + 210.0 * xx it_index;
-      it.y = 50.0 + 10.0 * xx it_index;
-    }
-    return result;
-  }
-  INITIAL_WINDOW_SIZES :: #run -> [CATEGORY_COUNT] V2 {
-    result: [CATEGORY_COUNT] V2;
-    for *result it.* = .{600, 600};
-    return result;
-  }
-
   selected_object: OBJ_Key;
 
   atlas_boxes: [FONT_ATLAS_LAYERS] *Box;
@@ -91,8 +67,81 @@ DEV_State :: struct // @todo serialize this struct to disk
   pause_ghosts_interpolation: bool;
   mouse_picking: enum_flags { ENABLED; ONE_PIXEL; } = .ENABLED;
 
-  // objects
-  show_joint_hierarchy := false;
+  // window
+  windows: DEV_Window;
+}
+
+DEV_Window :: struct
+{
+  Category :: enum
+  {
+    STATS;
+    SWITCHES;
+    ASSETS;
+    NETWORK;
+    SOUNDS;
+    OBJECTS;
+    FONTS;
+  }
+  CATEGORY_NAMES :: #run enum_names(Category);
+  CATEGORY_COUNT :: #run EnumCount(Category);
+
+  prev, next: *DEV_Window;
+  to_be_closed: bool;
+
+  category: Category;
+  position: V2;
+  size: V2;
+}
+
+DEV_Init :: ()
+{
+  DEV.windows.prev = *DEV.windows;
+  DEV.windows.next = *DEV.windows;
+}
+
+DEV_FindWindow :: (category: DEV_Window.Category) -> *DEV_Window
+{
+  window := DEV.windows.next;
+  while window != *DEV.windows
+  {
+    if window.category == category {
+      break;
+    }
+    window = window.next;
+  }
+  return window;
+}
+
+DEV_OpenWindow :: (category: DEV_Window.Category) -> *DEV_Window, did_open: bool
+{
+  window := DEV_FindWindow(category);
+  did_open := false;
+  if window == *DEV.windows
+  {
+    did_open = true;
+    window = New(DEV_Window);
+
+    // Link
+    window.next = *DEV.windows;
+    window.prev = DEV.windows.prev;
+    DEV.windows.prev.next = window;
+    DEV.windows.prev = window;
+
+    // Init data
+    window.category = category;
+    window.position = V2.{100, 100} + V2.{40, 20} * category.(float);
+    window.size = .{400, 400};
+  }
+  return window, did_open;
+}
+
+DEV_CloseWindow :: (window: *DEV_Window)
+{
+  if (window == *DEV.windows) return;
+  window.next.prev = window.prev;
+  window.prev.next = window.next;
+  free(window);
 }
 
 UI_DeveloperKeyShortcuts :: ()
@@ -105,11 +154,10 @@ UI_DeveloperKeyShortcuts :: ()
 
 UI_BuildDeveloperWindow :: ()
 {
-  using DEV;
-  ArrayClear(atlas_boxes);
-  atlas_clip_box = null;
+  ArrayClear(DEV.atlas_boxes);
+  DEV.atlas_clip_box = null;
 
-  if !show return;
+  if !DEV.show return;
   PerfFunc();
 
   Layer(.{text.color = UI_FG});
@@ -123,28 +171,35 @@ UI_BuildDeveloperWindow :: ()
                        floating = .{attach_to = .ROOT}},
                      UI_WINDOW_LOOK, UI_WINDOW_LAYOUT));
 
-    for CATEGORY_NAMES
+    for DEV_Window.CATEGORY_NAMES
     {
-      UI_Checkbox(it, *active_categories, CATEGORY_VALUES[it_index]);
+      if UI_Button(it)
+      {
+        window, did_open := DEV_OpenWindow(xx it_index);
+        if !did_open
+        {
+          window.to_be_closed = true;
+        }
+      }
     }
   }
 
   // Create window for each active category
-  for category_mask, category_index: CATEGORY_VALUES
+  window := DEV.windows.next;
+  while window != *DEV.windows
   {
-    if !(active_categories & category_mask) continue;
-    Layer(.{seed = xx category_mask});
+    defer window = window.next;
 
-    category_name := CATEGORY_NAMES[category_index];
-    window_position := *category_window_positions[category_index];
-    window_size := *category_window_sizes[category_index];
+    Layer(.{seed = xx window});
 
-    window_body, window_outer := UI_FloatingWindow(category_name, window_position, window_size);
+    category_name := DEV_Window.CATEGORY_NAMES[window.category];
+
+    window_body, window_outer := UI_FloatingWindow(category_name, window);
     Parent(window_body);
 
     // Per category imlementation
-    if #complete category_mask == {
-      case .stats;
+    if #complete window.category == {
+      case .STATS;
       Layers(UI_MONO_TEXT);
       CreateText(tprint("dt: %ms; fps: %", Round(G.dt*1000), Round(1.0 / G.dt)));
       CreateText(tprint("is_server: %, is_client: %", GLOBAL.is_server, GLOBAL.is_client));
@@ -237,25 +292,25 @@ UI_BuildDeveloperWindow :: ()
         }
       }
 
-      case .switches;
-      UI_Checkbox("Noclip camera", *noclip);
-      UI_Checkbox("Sun camera", *sun_camera);
-      UI_Checkbox("Show colliders", *show_colliders);
-      UI_Checkbox("Pause ghosts interpolation", *pause_ghosts_interpolation);
-      UI_Checkbox("Enable mouse picking", *mouse_picking, .ENABLED);
-      UI_Checkbox("Mouse picking - one pixel mode", *mouse_picking, .ONE_PIXEL);
+      case .SWITCHES;
+      UI_Checkbox("Noclip camera", *DEV.noclip);
+      UI_Checkbox("Sun camera", *DEV.sun_camera);
+      UI_Checkbox("Show colliders", *DEV.show_colliders);
+      UI_Checkbox("Pause ghosts interpolation", *DEV.pause_ghosts_interpolation);
+      UI_Checkbox("Enable mouse picking", *DEV.mouse_picking, .ENABLED);
+      UI_Checkbox("Mouse picking - one pixel mode", *DEV.mouse_picking, .ONE_PIXEL);
       UI_Checkbox("Render normals", null);
 
-      case .assets;
+      case .ASSETS;
       Layers(UI_MONO_TEXT);
       CreateText("what got loaded from .pie file?");
       CreateText("hot-reload state");
 
-      case .network;
+      case .NETWORK;
       Layers(UI_MONO_TEXT);
       CreateText("network stuff here");
 
-      case .sounds;
+      case .SOUNDS;
       Layers(UI_MONO_TEXT);
       // @todo Master volume slider
       CreateText("Active sounds:");
@@ -266,27 +321,41 @@ UI_BuildDeveloperWindow :: ()
       }
       // @todo log recently finished sounds too
 
-      case .objects;
+      case .OBJECTS;
       Layers(UI_MONO_TEXT);
-      if KEY_Pressed(.T) selected_object = G.hover_object; // @todo improve
-      CreateText(tprint("Seletected: % {index: %, serial: %}", selected_object, OBJ_IndexOfKey(selected_object), OBJ_SerialOfKey(selected_object)));
-      if UI_Button("reset selection") selected_object = .{};
+      if KEY_Pressed(.T) DEV.selected_object = G.hover_object; // @todo improve
+      CreateText(tprint("Seletected: % {index: %, serial: %}", DEV.selected_object, OBJ_IndexOfKey(DEV.selected_object), OBJ_SerialOfKey(DEV.selected_object)));
+      if UI_Button("reset selection") DEV.selected_object = .{};
 
-      obj := G_GetGhost(.ALL, selected_object);
+      obj := G_GetGhost(.ALL, DEV.selected_object);
       if OBJ_IsNil(obj) CreateText("obj is nil");
 
       CreateText(tprint("ModelKey: %", obj.model));
 
-      case .fonts;
+      case .FONTS;
       CreateText(tprint("Active atlas layer: %/%", FONT.active_layer_index, FONT.layers.count));
       side_size_px := window_outer.inner.x * 0.8;
 
-      atlas_clip_box = window_outer;
-      for *atlas_boxes
+      DEV.atlas_clip_box = window_outer;
+      for *DEV.atlas_boxes
       {
         it.* = CreateBox(.{layout.size.min = Px2(side_size_px),
                            border = .{color = UI_FG, widths = UI_BORDER_WIDTH}});
       }
+    }
+  }
+
+  // handle closed windows
+  {
+    window := DEV.windows.next;
+    while window != *DEV.windows
+    {
+      next := window.next;
+      if window.to_be_closed
+      {
+        DEV_CloseWindow(window);
+      }
+      window = next;
     }
   }
 }
@@ -319,9 +388,12 @@ UI_DrawDeveloperFontAtlas :: ()
   }
 }
 
-UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> content: *Box, window: *Box
+UI_FloatingWindow :: (label: string, dev_window: *DEV_Window) -> content: *Box, window: *Box
 {
-  Layer(.{seed = Hash64Any(window_position.(u64), window_size.(u64))});
+  Layer(.{seed = xx dev_window});
+
+  window_position := *dev_window.position;
+  window_size := *dev_window.size;
 
   window := Parent(CreateBox(.{is_persistent = true,
                                layout.child_order = .TOP_TO_BOTTOM,
@@ -338,11 +410,29 @@ UI_FloatingWindow :: (label: string, window_position: *V2, window_size: *V2) -> 
                                      track_signal = .ALL}));
 
     if (window_bar.signal & .DRAG) window_position.* += G.mouse_delta;
-    clamped_win_p := clamp(window_position.*, .{}, G.window_dim * 0.9);
+    clamped_win_p := clamp(window_position.*, .{}, G.window_dim - window_size.*);
     window.floating.offset = Px2(clamped_win_p);
     if !(window_bar.signal & .DRAG) window_position.* = clamped_win_p;
 
     CreateText(label, .{text.color = UI_BG});
+
+    {
+      x_button := CreateBox(.{layout = .{size.min = Fit2(), size.pref.x = Grow(),
+                                         padding = UI_BUTTON_PAD, child_align.x = .RIGHT,
+                                         child_align.y = .CENTER, child_gap = UI_WINDOW_GAP},
+                              floating = .{attach_to = .PARENT, anchors = GetAnchor2(.RIGHT, .CENTER)},
+                              track_signal = .ALL});
+
+      Parent(x_button);
+      x_label := CreateText("X");
+      x_label.text.color = ifx x_button.signal & .HOVER then UI_RED2 else UI_RED1;
+
+      if x_button.signal & .CLICK
+      {
+        dev_window.to_be_closed = true;
+      }
+    }
+
   }
 
   Parent(CreateBox(.{layout = .{size.min.x = Fit(), size.pref = Grow2()}}));
