@@ -13,6 +13,9 @@ ServerState :: struct
 
   users: [NET_MAX_PLAYERS] SV_User;
 
+  //
+  // Simulation state
+  //
   objects: [] Object;
   creation_serials: [] u8;
 
@@ -21,6 +24,9 @@ ServerState :: struct
   last_sleeper_group_spawn: ServerTick;
   last_sleeper_spawn: ServerTick;
   sleepers_spawned_in_group_count: s64;
+
+  enemy0: OBJ_Key;
+  enemy1: OBJ_Key;
 }
 
 SV_LaunchServerThread :: ()

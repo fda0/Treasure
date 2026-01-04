@@ -216,7 +216,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     WALK_TO_RUN_COEFFICIENT :: 0.2;
 
     // idle_cycle
-    idle.t = WrapFloat(idle.t + G.dt, 0, 1);
+    idle.t = WrapFloat(idle.t + G.dt*0.4, 0, 1);
 
     // walk_cycle
     moved_distance := length(ghost.moved_dp);
@@ -241,10 +241,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
     {
       attack.t = WrapFloat01(attack.t);
       attack.t = clamp01(attack.t + G.dt * ghost.stats.attack_speed * BoolSign(attack.t > ghost.attack_landed_t));
-      attack.weight -= G.dt * 0.01;
-    }
-    if (ghost.key == G.player_key) {
-      log("attack.weight %", attack.weight);
+      attack.weight -= G.dt * 0.1;
     }
     attack.weight = clamp01(attack.weight);
 
@@ -293,9 +290,6 @@ AN_UpdateGhost :: (ghost: *Ghost)
           }
         }
       }
-    }
-
-    if (ghost.key == G.player_key) {
     }
   }
 }
@@ -357,29 +351,20 @@ AN_GetTracks :: (ghost: Ghost) -> tracks: [] AnimationTrack
     }
   }
 
-  // Remove no-op tracks
-  for tracks
+  // Mark weight as 0 (dead) if joints are all false.
+  for * tracks
   {
-    if it.weight == 0.0
-    {
-      remove it;
-      continue;
-    }
-
     all_joints_are_false := true;
     for it.joint_mask
     {
-      if it
+      if it == true
       {
         all_joints_are_false = false;
         break;
       }
     }
-
-    if all_joints_are_false
-    {
-      remove it;
-      continue;
+    if all_joints_are_false {
+      it.weight = 0.0;
     }
   }
 
@@ -390,20 +375,25 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
 {
   PerfFunc();
 
+  push_allocator(temp);
   result_matrices := NewArray(skeleton.joints_count, Mat4);
 
-  push_allocator(temp);
+  auto_release_temp();
   accumulated_scales       := array_copy(skeleton.bind_scales);
   accumulated_rotations    := array_copy(skeleton.bind_rotations);
   accumulated_translations := array_copy(skeleton.bind_translations);
 
   // mix default rest pose + animation channels using temporary memory
-  for track, track_index: tracks
+  first_loop := true;
+  for track: tracks
   {
+    if (track.weight == 0.0) continue;
+    defer first_loop = false;
+
     auto_release_temp();
-    scales := ifx track_index == 0 then accumulated_scales else array_copy(skeleton.bind_scales);
-    rotations := ifx track_index == 0 then accumulated_rotations else array_copy(skeleton.bind_rotations);
-    translations := ifx track_index == 0 then accumulated_translations else array_copy(skeleton.bind_translations);
+    scales := ifx first_loop then accumulated_scales else array_copy(skeleton.bind_scales);
+    rotations := ifx first_loop then accumulated_rotations else array_copy(skeleton.bind_rotations);
+    translations := ifx first_loop then accumulated_translations else array_copy(skeleton.bind_translations);
 
     // Overwrite translations, rotations, scales with values from animation
     clip := skeleton.tags[track.tag].clip;
@@ -465,7 +455,7 @@ AN_GetPoseTransforms :: (skeleton: Skeleton, tracks: [] AnimationTrack) -> [] Ma
       }
     }
 
-    if track_index > 0
+    if !first_loop
     {
       for MakeRange(skeleton.joints_count)
       {

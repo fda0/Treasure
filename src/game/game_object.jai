@@ -197,17 +197,18 @@ Object :: struct
 
 Action :: struct
 {
-  type: Type;
+  kind: Kind;
   tick: ActionTick;
 
   // We either use target or position. Both shouldn't be used at the same time.
   target: OBJ_Key; // if target == 0 -> use position
   position: V3;
 
-  Type :: enum u8
+  Kind :: enum u8
   {
     IDLE;
     PATHING;
+    STOP_PATHING;
     ATTACK;
     SKILL_0;
     SKILL_1;

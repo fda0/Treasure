@@ -494,7 +494,7 @@ G_ProcessInputAndSendToClient :: ()
     {
       action: Action;
       action.tick = G.action_tick;
-      action.type = xx (xx Action.Type.SKILL_0 + it_index);
+      action.kind = xx (xx Action.Kind.SKILL_0 + it_index);
 
       if skill.flags & .TARGETS_OBJECT {
         action.target = hover_target.key;
@@ -514,7 +514,7 @@ G_ProcessInputAndSendToClient :: ()
 
       action: Action;
       action.tick = G.action_tick;
-      action.type = .ATTACK;
+      action.kind = .ATTACK;
       action.target = G.hover_object;
       QueuePush(*G.action_queue, action);
     }
@@ -525,7 +525,7 @@ G_ProcessInputAndSendToClient :: ()
 
       action: Action;
       action.tick = G.action_tick;
-      action.type = .PATHING;
+      action.kind = .PATHING;
       action.position = G.world_mouse;
       QueuePush(*G.action_queue, action);
 
@@ -544,6 +544,14 @@ G_ProcessInputAndSendToClient :: ()
         }
       }
     }
+  }
+
+  if KEY_Pressed(.S)
+  {
+    action: Action;
+    action.tick = G.action_tick;
+    action.kind = .STOP_PATHING;
+    QueuePush(*G.action_queue, action);
   }
 
   G.action_tick += 1;

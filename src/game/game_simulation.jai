@@ -10,22 +10,6 @@ MINIMUM_MOVE_START_DISTANCE :: 0.05;
 MELEE_ATTACK_DISTANCE :: 0.8;
 PROJECTILE_HIT_DISTANCE :: 0.1;
 
-PlayerInput :: struct
-{
-  type: enum
-  {
-    IDLE;
-    PATHING;
-    ATTACK;
-  }
-
-  world_p: V3; // used by PATHING*
-  target_object: OBJ_Key; // used by ATTACK
-
-  skills: Skills;
-  Skills :: enum_flags u8 { Q; W; E; R; };
-}
-
 SIM_AdvanceByTick :: ()
 {
   PerfFunc();
@@ -63,8 +47,21 @@ SIM_AdvanceByTick :: ()
   {
     if OBJ_IsNil(obj) continue;
 
+    // Clear dead objects' activity
     if !OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP}) {
       obj.activity = .{};
+    }
+
+    // Apply AI (if alive)
+    if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP})
+    {
+      if obj.key == SV.enemy0 || obj.key == SV.enemy1
+      {
+        obj.activity.is_walking = true;
+        obj.activity.walking_to.x = 2.0;
+        obj.activity.walking_to.y = 2.0;
+        if (obj.key == SV.enemy1) obj.activity.walking_to.y += 1.0;
+      }
     }
 
     // Run UpdateStats
@@ -152,7 +149,7 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
     reset_attack := false;
 
     // ATTACK
-    if action.type == .ATTACK
+    if action.kind == .ATTACK
     {
       reset_pathing = true;
       obj.activity.wants_to_attack = true;
@@ -166,11 +163,16 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
     }
 
     // PATHING
-    if action.type == .PATHING
+    if action.kind == .PATHING
     {
       reset_attack = true;
       obj.activity.is_walking = true;
       obj.activity.walking_to = action.position.xy;
+    }
+
+    // STOP_PATHING
+    if action.kind == .STOP_PATHING {
+      reset_pathing = true;
     }
 
     // RESETING unused stuff (to be refactored in the future when skills are more complicated)
@@ -189,7 +191,7 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
 
     for * obj.skills
     {
-      action_skill_index := action.type - .SKILL_0;
+      action_skill_index := action.kind - .SKILL_0;
       if (xx it_index != action_skill_index) continue;
       if (it.cooldown_timer > 0.0) continue; // on cooldown
       if (obj.energy < it.energy_cost) continue; // not enough energy
@@ -673,17 +675,21 @@ SIM_InitObjects :: ()
 
   {
     hero := SV_CreateHero(.Dude, .RED);
+    SV.enemy0 = hero.key;
     if !OBJ_IsNil(hero)
     {
       hero.p.x = 3.0;
       hero.p.y = 1.0;
     }
+
     hero = SV_CreateHero(.Dude, .RED);
+    SV.enemy1 = hero.key;
     if !OBJ_IsNil(hero)
     {
       hero.p.x = 3.2;
       hero.p.y = 2.0;
     }
+
     hero = SV_CreateHero(.Dude, .BLUE);
     if !OBJ_IsNil(hero)
     {
