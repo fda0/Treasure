@@ -21,9 +21,9 @@ ServerState :: struct
 
   rng: Entropy;
 
-  last_sleeper_group_spawn: ServerTick;
-  last_sleeper_spawn: ServerTick;
-  sleepers_spawned_in_group_count: s64;
+  last_minon_group_spawn: ServerTick;
+  last_minon_spawn: ServerTick;
+  minons_spawned_in_group_count: s64;
 
   enemy0: OBJ_Key;
   enemy1: OBJ_Key;

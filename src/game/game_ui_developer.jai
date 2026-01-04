@@ -89,11 +89,7 @@ DEV_State :: struct // @todo serialize this struct to disk
   sun_camera: bool;
   show_colliders: bool;
   pause_ghosts_interpolation: bool;
-  mouse_picking: enum_flags
-  {
-    ENABLED;
-    ONE_PIXEL;
-  } = .ENABLED;
+  mouse_picking: enum_flags { ENABLED; ONE_PIXEL; } = .ENABLED;
 
   // objects
   show_joint_hierarchy := false;

@@ -311,6 +311,7 @@ OBJ_TestParams :: struct
   common: enum_flags u8 {
     IS_ALIVE; // (has HAS_HP flag) AND (health > 0.0)
     IS_ALIVE_OR_NO_HP; // (doesn't have HAS_HP flag) OR (health > 0.0)
+    IS_DEAD; // (has HAS_HP flag) AND (health <= 0.0)
   }
   common2: enum_flags u8 { // for 2 object tests
     ARE_ENEMIES;
@@ -330,6 +331,10 @@ OBJ_Test :: (obj: Object, using params: OBJ_TestParams) -> bool
   if common & .IS_ALIVE_OR_NO_HP
   {
     if !(!(obj.flags & .HAS_HP) || (obj.health > 0.0)) return false;
+  }
+  if common & .IS_DEAD
+  {
+    if !((obj.flags & .HAS_HP) && (obj.health <= 0.0)) return false;
   }
 
   if !filter(obj) return false;

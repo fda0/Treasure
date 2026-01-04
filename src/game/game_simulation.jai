@@ -14,18 +14,18 @@ SIM_AdvanceByTick :: ()
 {
   PerfFunc();
 
-  // Spawn sleepers
-  if SecondsBetweenTicks(SV.tick, SV.last_sleeper_group_spawn, false) >= 40.0
+  // Spawn minons
+  if SecondsBetweenTicks(SV.tick, SV.last_minon_group_spawn, false) >= 40.0
   {
-    SV.sleepers_spawned_in_group_count = 0;
-    SV.last_sleeper_group_spawn = SV.tick;
+    SV.minons_spawned_in_group_count = 0;
+    SV.last_minon_group_spawn = SV.tick;
   }
 
-  if SV.sleepers_spawned_in_group_count < 5 &&
-     SecondsBetweenTicks(SV.tick, SV.last_sleeper_spawn, false) >= 0.5
+  if SV.minons_spawned_in_group_count < 5 &&
+     SecondsBetweenTicks(SV.tick, SV.last_minon_spawn, false) >= 0.5
   {
-    SV.last_sleeper_spawn = SV.tick;
-    SV.sleepers_spawned_in_group_count += 1;
+    SV.last_minon_spawn = SV.tick;
+    SV.minons_spawned_in_group_count += 1;
 
     for team: BOTH_TEAMS
     {
@@ -42,13 +42,21 @@ SIM_AdvanceByTick :: ()
     }
   }
 
+  // User actions -> modify object's activity
+  for * user: SV.users
+  {
+    player_object := SV_GetObject(user.key);
+    if OBJ_IsNil(player_object) continue;
+    SIM_ConsumeActions(user, player_object);
+  }
+
   // Update things
   for *obj: SV.objects
   {
     if OBJ_IsNil(obj) continue;
 
     // Clear dead objects' activity
-    if !OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP}) {
+    if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
       obj.activity = .{};
     }
 
@@ -72,14 +80,6 @@ SIM_AdvanceByTick :: ()
 
     // Run UpdateStats
     SIM_UpdateStats(obj);
-  }
-
-  // User actions -> modify object's activity
-  for * user: SV.users
-  {
-    player_object := SV_GetObject(user.key);
-    if OBJ_IsNil(player_object) continue;
-    SIM_ConsumeActions(user, player_object);
   }
 
   // Advance state machine
@@ -144,8 +144,6 @@ SIM_UpdateRotation :: (obj: *Object)
 
 SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
 {
-  if !OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP}) return;
-
   while true
   {
     action, did_pop := QueuePop(*user.action_queue);
