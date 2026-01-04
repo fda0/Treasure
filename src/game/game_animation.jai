@@ -232,9 +232,21 @@ AN_UpdateGhost :: (ghost: *Ghost)
     run.weight = clamp01(run.weight);
 
     // attack weight
-    attack.t = activity.visual_attack_t;
-    attack.weight += G.dt * (ifx activity.is_attacking then 5.0 else -1.0 + (ifx meters_per_second > 0.0 then -2.0));
-    attack.weight = clamp(attack.weight, 0, 1);
+    if activity.is_attacking
+    {
+      attack.t = activity.visual_attack_t;
+      attack.weight += G.dt * 5.0;
+    }
+    else
+    {
+      attack.t = WrapFloat01(attack.t);
+      attack.t = clamp01(attack.t + G.dt * ghost.stats.attack_speed * BoolSign(attack.t > ghost.attack_landed_t));
+      attack.weight -= G.dt * 0.01;
+    }
+    if (ghost.key == G.player_key) {
+      log("attack.weight %", attack.weight);
+    }
+    attack.weight = clamp01(attack.weight);
 
     // death weight / time
     death.t = Elapsed(G.frame_timestamp, ghost.death_time);

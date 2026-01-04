@@ -219,7 +219,7 @@ ActionQueue :: #type Queue(8, Action);
 
 OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
 {
-  result := ifx t < 0.5 then prev else next;
+  result := next;
 
   #insert -> string {
     GenerateStructLerp :: (b: *String_Builder, struct_type: *Type_Info_Struct, prefix: string)
