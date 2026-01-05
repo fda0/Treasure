@@ -201,7 +201,7 @@ G_Iterate :: ()
   {
     PerfScope("Update ghosts scope");
 
-    worker_count := max(LaneCount() - 1, 1);
+    worker_count := LaneCount();
     if LaneIdx() < worker_count
     {
       per_lane := OBJ_ALL_COUNT / worker_count;
@@ -218,16 +218,6 @@ G_Iterate :: ()
       G_UpdateGhostsInRange(work_range);
     }
   }
-
-  // UI work
-  if LaneIdx() == LaneCount()-1 && !G.headless
-  {
-    PerfScope("UI workload");
-    UI_DeveloperKeyShortcuts();
-    UI_BeginBoxLayout();
-    UI_BuildDeveloperWindow();
-  }
-
   LaneSync();
 
   if IsLaneFromTaskIdx(0)
@@ -237,6 +227,11 @@ G_Iterate :: ()
 
   if IsLaneFromTaskIdx(1) && !G.headless
   {
+    PerfScope("UI workload");
+    UI_DeveloperKeyShortcuts();
+    UI_BeginBoxLayout();
+    UI_BuildDeveloperWindow();
+
     UI_BuildHUD();
     UI_FinishBoxLayout();
   }

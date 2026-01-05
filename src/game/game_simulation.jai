@@ -214,18 +214,21 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
         // projectile; fixed dp; set hp at something + negative hp regen... perfect!
         proj := SV_CreateObject(.MOVE | .DRAW_MODEL | .DISABLE_MOUSE | .HAS_HP |
                                 .UPDATE_STATS | .DIE_ON_CONTACT | .DELETE_ON_DEATH);
-        proj.p = obj.p;
-        proj.p.z = 0.5;
-        proj.model = .Carrot;
-        proj.team = obj.team;
-        proj.base_stats.max_health = 1;
-        proj.base_stats.health_regen = -1;
-        proj.health = proj.base_stats.max_health;
-        proj.collider = OBJ_ColliderFromRect(.{0.5, 0.5});
+        if !OBJ_IsNil(proj)
+        {
+          proj.p = obj.p;
+          proj.p.z = 0.5;
+          proj.model = .Carrot;
+          proj.team = obj.team;
+          proj.base_stats.max_health = 1;
+          proj.base_stats.health_regen = -1;
+          proj.health = proj.base_stats.max_health;
+          proj.collider = OBJ_ColliderFromRect(.{0.5, 0.5});
 
-        direction := normalize(action.position.xy - obj.p.xy);
-        speed := 5.0;
-        proj.desired_dp = .{direction.x, direction.y, 0} * TICK_FLOAT_STEP * speed;
+          direction := normalize(action.position.xy - obj.p.xy);
+          speed := 5.0;
+          proj.desired_dp = .{direction.x, direction.y, 0} * TICK_FLOAT_STEP * speed;
+        }
 
         case 1;
         array_add(*obj.effects, .{

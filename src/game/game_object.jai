@@ -255,6 +255,10 @@ OBJ_LerpObject :: (prev: Object, next: Object, t: float) -> Object
     result.activity.visual_attack_t = lerp( WrapFloat01(prev.activity.visual_attack_t), WrapFloat01(next.activity.visual_attack_t), t);
   }
 
+  if OBJ_Test(prev, .{common = .IS_DEAD}) && !OBJ_Test(next, .{common = .IS_DEAD}) {
+    result = next;
+  }
+
   return result;
 }
 

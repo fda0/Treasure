@@ -241,7 +241,7 @@ AST_TextureUploadThread :: (thread: *Thread) -> s64
     now := TimeNow();
 
     for *AST.materials {
-      if Elapsed(now, it.stream.last_touched) < 0.5 {
+      if Elapsed(now, it.stream.last_touched, true) < 0.5 {
         AST_LoadTextureFromPieToGPU(it, it_index);
       }
     }

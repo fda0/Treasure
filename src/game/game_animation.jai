@@ -243,7 +243,7 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
     // death weight / time
     death.t = Elapsed(G.frame_timestamp, ghost.death_time);
-    death.weight = clamp01(death.weight + G.dt*4.0*BoolSign(ghost.death_tick != 0));
+    death.weight = clamp01(death.weight + G.dt*4.0*BoolSign(death.t > 0.0));
 
     for ghost.animation_requests
     {

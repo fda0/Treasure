@@ -9,7 +9,7 @@ ToSeconds :: inline (t: Timestamp) -> float
 Elapsed :: (current: Timestamp, since: Timestamp, max_on_fail := false) -> float
 {
   delta := current - since;
-  if delta < 0 return FailTime(max_on_fail);
+  if !since || delta < 0 return FailTime(max_on_fail);
   return ToSeconds(delta);
 }
 

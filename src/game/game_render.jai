@@ -328,7 +328,6 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     start_y := -bar_height*2;
     alpha := 1.0;
 
-    if ghost.death_tick
     {
       death_t := Elapsed(G.frame_timestamp, ghost.death_time);
       death_t = clamp(death_t * 2.0, 0.0, 1.0);
