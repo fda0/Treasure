@@ -565,6 +565,11 @@ AN_Init :: ()
   }
 }
 
+NIL_AnimationNode :: AnimationNode.{}; // @todo alloc memory, setup self-ref ptrs, call VirtualProtect on it to make it read-only
+IsNil :: (node: *AnimationNode) -> bool {
+  return !node || node == *NIL_AnimationNode;
+}
+
 #scope_file;
 AN_WaterfallToChildren :: ($mode: enum { MULTIPLY; ASSIGN; },
   skeleton: Skeleton, joint_index: u32, values: [] $T, parent_value: T)
@@ -626,12 +631,6 @@ AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32
 //
 // AnimationNode
 //
-NIL_AnimationNode :: AnimationNode.{}; // @todo alloc memory, setup self-ref ptrs, call VirtualProtect on it to make it read-only
-
-IsNil :: (node: *AnimationNode) -> bool {
-  return !node || node == *NIL_AnimationNode;
-}
-
 AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
 {
   result: *AnimationNode;

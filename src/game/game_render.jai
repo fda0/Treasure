@@ -295,8 +295,10 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
     transform = transform * RotationMatrix(ghost.anim.rotation); // rotate first, translate second
 
     hover_color := ColorWhite();
-    if (ghost.key == G.hover_object)      hover_color.x   *= 0.25*Cos01(G.at*1.5);
-    if (ghost.key == DEV.selected_object) hover_color.xyz *= 0.5 + 0.5*Sin01(G.at*3.0);
+    if (ghost.key == G.hover_object) hover_color.x   *= 0.25*Cos01(G.at*1.5);
+    if (ghost.key == DEV.inspected_object) {
+      hover_color.xyz *= 0.2 + 0.8*Sin01(G.at*2.8);
+    }
 
     instance := RD_WorldInstance.{
       transform = transform,

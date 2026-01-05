@@ -54,8 +54,6 @@ DEV_State :: struct // @todo serialize this struct to disk
 {
   show := true;
 
-  selected_object: OBJ_Key;
-
   atlas_boxes: [FONT_ATLAS_LAYERS] *Box;
   atlas_clip_box: *Box;
 
@@ -66,6 +64,9 @@ DEV_State :: struct // @todo serialize this struct to disk
   show_colliders: bool;
   pause_ghosts_interpolation: bool;
   mouse_picking: enum_flags { ENABLED; ONE_PIXEL; } = .ENABLED;
+
+  // object
+  inspected_object: OBJ_Key;
 
   // window
   windows: DEV_Window;
@@ -80,7 +81,7 @@ DEV_Window :: struct
     ASSETS;
     NETWORK;
     SOUNDS;
-    OBJECTS;
+    OBJECT;
     FONTS;
   }
   CATEGORY_NAMES :: #run enum_names(Category);
@@ -92,6 +93,8 @@ DEV_Window :: struct
   category: Category;
   position: V2;
   size: V2;
+
+  selected: OBJ_Key;
 }
 
 DEV_Init :: ()
@@ -100,12 +103,17 @@ DEV_Init :: ()
   DEV.windows.next = *DEV.windows;
 }
 
-DEV_FindWindow :: (category: DEV_Window.Category) -> *DEV_Window
+DEV_FindWindow :: (category: DEV_Window.Category, selected := OBJ_Key.{}) -> *DEV_Window
 {
   window := DEV.windows.next;
   while window != *DEV.windows
   {
-    if window.category == category {
+    match := window.category == category;
+    if match && category == .OBJECT && !OBJ_KeyIsZero(selected) {
+      match = window.selected == selected;
+    }
+
+    if match {
       break;
     }
     window = window.next;
@@ -113,9 +121,9 @@ DEV_FindWindow :: (category: DEV_Window.Category) -> *DEV_Window
   return window;
 }
 
-DEV_OpenWindow :: (category: DEV_Window.Category) -> *DEV_Window, did_open: bool
+DEV_OpenWindow :: (category: DEV_Window.Category, selected := OBJ_Key.{}) -> *DEV_Window, did_open: bool
 {
-  window := DEV_FindWindow(category);
+  window := DEV_FindWindow(category, selected);
   did_open := false;
   if window == *DEV.windows
   {
@@ -132,6 +140,7 @@ DEV_OpenWindow :: (category: DEV_Window.Category) -> *DEV_Window, did_open: bool
     window.category = category;
     window.position = V2.{100, 100} + V2.{40, 20} * category.(float);
     window.size = .{400, 400};
+    window.selected = selected;
   }
   return window, did_open;
 }
@@ -146,16 +155,17 @@ DEV_CloseWindow :: (window: *DEV_Window)
 
 UI_DeveloperKeyShortcuts :: ()
 {
-  using DEV;
-  if (KEY_Pressed(.GRAVE)) then show = !show;
-  if (KEY_Pressed(.RETURN)) then noclip = !noclip;
-  if (KEY_Pressed(.BACKSPACE)) then sun_camera = !sun_camera;
+  if (KEY_Pressed(.GRAVE)) DEV.show = !DEV.show;
+  if (KEY_Pressed(.RETURN)) DEV.noclip = !DEV.noclip;
+  if (KEY_Pressed(.BACKSPACE)) DEV.sun_camera = !DEV.sun_camera;
 }
 
 UI_BuildDeveloperWindow :: ()
 {
   ArrayClear(DEV.atlas_boxes);
   DEV.atlas_clip_box = null;
+  inspected_object: OBJ_Key;
+  defer DEV.inspected_object = inspected_object;
 
   if !DEV.show return;
   PerfFunc();
@@ -176,12 +186,16 @@ UI_BuildDeveloperWindow :: ()
       if UI_Button(it)
       {
         window, did_open := DEV_OpenWindow(xx it_index);
-        if !did_open
-        {
+        if !did_open {
           window.to_be_closed = true;
         }
       }
     }
+  }
+
+  // Object window
+  if KEY_Pressed(.T) && !OBJ_KeyIsZero(G.hover_object) {
+    DEV_OpenWindow(.OBJECT, G.hover_object);
   }
 
   // Create window for each active category
@@ -321,16 +335,42 @@ UI_BuildDeveloperWindow :: ()
       }
       // @todo log recently finished sounds too
 
-      case .OBJECTS;
+      case .OBJECT;
       Layers(UI_MONO_TEXT);
-      if KEY_Pressed(.T) DEV.selected_object = G.hover_object; // @todo improve
-      CreateText(tprint("Seletected: % {index: %, serial: %}", DEV.selected_object, OBJ_IndexOfKey(DEV.selected_object), OBJ_SerialOfKey(DEV.selected_object)));
-      if UI_Button("reset selection") DEV.selected_object = .{};
+      CreateText(tprint("Seletected: % {index: %, serial: %}",
+        window.selected, OBJ_IndexOfKey(window.selected), OBJ_SerialOfKey(window.selected)));
 
-      obj := G_GetGhost(.ALL, DEV.selected_object);
-      if OBJ_IsNil(obj) CreateText("obj is nil");
+      {
+        _, signal := UI_Button("hover me", dont_grow = true);
+        if signal & .HOVER {
+          inspected_object = window.selected;
+        }
+      }
 
-      CreateText(tprint("ModelKey: %", obj.model));
+      ghost := G_GetGhost(.ALL, window.selected);
+      if OBJ_IsNil(ghost) CreateText("ghost is nil");
+
+      push_context{
+        push_allocator(temp);
+        context.print_style.default_format_struct.use_newlines_if_long_form = true;
+
+        builder: String_Builder;
+        print_to_builder(*builder, "%\nhandled_tick = %\ncreation_time = %\ndeath_time = %\nanim = %\n",
+          ghost.at.obj, ghost.handled_tick, ghost.creation_time, ghost.death_time, ghost.anim);
+
+        node := ghost.anim.node;
+        while !IsNil(node) {
+          print_to_builder(*builder, "%\n", node.*);
+          node = node.next;
+        }
+
+        txt := builder_to_string(*builder);
+        lines := String.split(txt, "\n");
+        for lines
+        {
+          CreateText(it);
+        }
+      }
 
       case .FONTS;
       CreateText(tprint("Active atlas layer: %/%", FONT.active_layer_index, FONT.layers.count));
@@ -392,9 +432,6 @@ UI_FloatingWindow :: (label: string, dev_window: *DEV_Window) -> content: *Box, 
 {
   Layer(.{seed = xx dev_window});
 
-  window_position := *dev_window.position;
-  window_size := *dev_window.size;
-
   window := Parent(CreateBox(.{is_persistent = true,
                                layout.child_order = .TOP_TO_BOTTOM,
                                floating.attach_to = .ROOT},
@@ -409,10 +446,10 @@ UI_FloatingWindow :: (label: string, dev_window: *DEV_Window) -> content: *Box, 
                                      corner_radius = UI_RADIUS,
                                      track_signal = .ALL}));
 
-    if (window_bar.signal & .DRAG) window_position.* += G.mouse_delta;
-    clamped_win_p := clamp(window_position.*, .{}, G.window_dim - window_size.*);
+    if (window_bar.signal & .DRAG) dev_window.position += G.mouse_delta;
+    clamped_win_p := clamp(dev_window.position, .{}, G.window_dim - dev_window.size);
     window.floating.offset = Px2(clamped_win_p);
-    if !(window_bar.signal & .DRAG) window_position.* = clamped_win_p;
+    if !(window_bar.signal & .DRAG) dev_window.position = clamped_win_p;
 
     CreateText(label, .{text.color = UI_BG});
 
@@ -545,9 +582,9 @@ UI_FloatingWindow :: (label: string, dev_window: *DEV_Window) -> content: *Box, 
                          corner_radius = UI_RADIUS});
 
   // Resize button signal
-  if (resize_button.signal & .DRAG) then window_size.* += G.mouse_delta;
-  clamped_window_size := clamp(window_size.*, .{200, 100}, .{2000, 2000});
-  if !(resize_button.signal & .DRAG) then window_size.* = clamped_window_size;
+  if (resize_button.signal & .DRAG) dev_window.size += G.mouse_delta;
+  clamped_window_size := clamp(dev_window.size, .{200, 100}, G.window_dim);
+  if !(resize_button.signal & .DRAG) dev_window.size = clamped_window_size;
   window.layout.size.min = Px2(clamped_window_size);
 
   return content, window;
@@ -677,7 +714,7 @@ UI_ButtonRadio :: (label: string, button_value: *$T, set_value: T)
   else label_box.text.color = UI_RED2;
 }
 
-UI_Button :: (label: string) -> clicked: bool
+UI_Button :: (label: string, dont_grow := false) -> clicked: bool, signal: SignalFlags
 {
   Layer(.{seed = Hash64Any(label)});
 
@@ -687,13 +724,14 @@ UI_Button :: (label: string) -> clicked: bool
                                    child_align.y = .CENTER,
                                    child_gap = UI_WINDOW_GAP},
                         track_signal = .ALL});
+  if (dont_grow) button.layout.size.pref.x = .{};
   Parent(button);
 
   button.bg_color = UI_BUTTON_BG;
   if button.signal & .HOVER then button.bg_color = UI_BUTTON_HOVER_BG;
 
   label_box := CreateText(label);
-  return !!(button.signal & .CLICK);
+  return !!(button.signal & .CLICK), button.signal;
 }
 
 UI_ScrollableContainer :: (scroll_x: *float, scroll_y: *float, spec := BoxSpec.{}) -> *Box

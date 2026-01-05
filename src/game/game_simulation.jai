@@ -193,6 +193,10 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
       obj.activity.target = .{};
     }
 
+    if OBJ_Test(obj, .{common = .IS_DEAD}) {
+      return;
+    }
+
     for * obj.skills
     {
       action_skill_index := action.kind - .SKILL_0;
