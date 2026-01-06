@@ -84,7 +84,7 @@ SIM_UpdateAI :: (obj: *Object)
     if (obj.key == SV.enemy1) obj.activity.walking_to.y += 1.0;
   }
 
-  if obj.key == SV.enemy1 && !OBJ_KeyIsZero(SV.users[0].key)
+  if obj.key == SV.enemy0 && !OBJ_KeyIsZero(SV.users[0].key)
   {
     obj.activity.wants_to_attack = true;
     obj.activity.target = SV.users[0].key;
@@ -251,16 +251,16 @@ SIM_UpdateActivity :: (obj: *Object)
 {
   if !OBJ_HasAnyFlag(obj, .HAS_ACTIVITY) return;
 
-  // Clear dead objects' activity
-  if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
-    obj.activity = .{};
-    return;
-  }
-
   // Reset desired_dp
   obj.desired_dp = .{};
 
   activity := *obj.activity;
+
+  // Clear dead objects' activity
+  if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
+    activity.* = .{};
+    return;
+  }
 
   // Find attack target (and invalidate if needed)
   target := OBJ_NilObject();
@@ -280,20 +280,19 @@ SIM_UpdateActivity :: (obj: *Object)
 
   // Check if attack is in range; if not start moving
   attack_is_out_of_range := true;
-  if !OBJ_IsNil(target) && activity.wants_to_attack
+  if !OBJ_IsNil(target) && activity.wants_to_attack || activity.is_attacking
   {
     obj_to_target := target.p.xy - obj.p.xy;
     distance_to_target := length(obj_to_target);
     attack_is_out_of_range = distance_to_target > MELEE_ATTACK_DISTANCE;
 
-    activity.is_walking = !activity.is_attacking && attack_is_out_of_range;
-    if activity.is_walking
-    {
+    activity.is_walking = attack_is_out_of_range;
+    if activity.is_walking {
       activity.walking_to = target.p.xy;
+      activity.is_attacking = false;
     }
 
-    if !attack_is_out_of_range
-    {
+    if !attack_is_out_of_range {
       activity.is_attacking = true;
     }
   }
@@ -329,7 +328,7 @@ SIM_UpdateActivity :: (obj: *Object)
     while activity.attack_t >= obj.attack_landed_t
     {
       activity.attack_t -= obj.attack_cooldown_t;
-      SIM_DealDamage(target, obj, 40.0);
+      SIM_DealDamage(target, obj, 20.0);
 
       stop_attacking := false;
       stop_attacking |= attack_is_out_of_range;
