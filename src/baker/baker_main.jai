@@ -37,6 +37,7 @@ B_ProcessAssets :: (thread: *Thread) -> s64
       .{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz},
       .{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz},
       .{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"},
+      .{file_path = "../res/models/Quaternius/Fantasy/Dummy.gltf", height = 2.0, rot = rot_xz},
       .{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"},
       .{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x},
       .{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"},
@@ -253,6 +254,7 @@ using,except(MSG) SDL :: #import "sdl3_base+image";
 #load "baker_gltf.jai";
 #load "baker_textures.jai";
 #load "baker_pie.jai";
+#load "../shared/base_system.jai";
 #load "../shared/base_lanes.jai";
 #load "../shared/base_utils.jai";
 #load "../shared/base_math.jai";

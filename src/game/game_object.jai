@@ -50,6 +50,7 @@ OBJ_Flags :: enum_flags u32
 
   HAS_HP;
   UPDATE_STATS;
+  UPDATE_AI;
   TARGETABLE;
   PLAY_SOUNDS;
   IS_TURRET;
@@ -61,7 +62,10 @@ OBJ_Flags :: enum_flags u32
   DIE_ON_CONTACT;
 
   RANGED_ATTACKS;
-};
+
+  // transient flags (move to a separate enum?)
+  UNTARGETABLE;
+}
 
 OBJ_Team :: enum u8
 {
@@ -346,11 +350,11 @@ OBJ_Test :: (obj: Object, using params: OBJ_TestParams) -> bool
   return true;
 }
 
-OBJ_Test2 :: (tested: Object, reference: Object, using params: OBJ_TestParams) -> bool
+OBJ_Test2 :: (tested: Object, reference: Object, params: OBJ_TestParams) -> bool
 {
   if !OBJ_Test(tested, params) return false;
 
-  if common2 & .ARE_ENEMIES
+  if params.common2 & .ARE_ENEMIES
   {
     if tested.team == reference.team return false;
   }

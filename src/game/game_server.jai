@@ -27,6 +27,12 @@ ServerState :: struct
 
   enemy0: OBJ_Key;
   enemy1: OBJ_Key;
+
+  teams: [2] struct
+  {
+    turrets: [3] OBJ_Key;
+    base: OBJ_Key;
+  };
 }
 
 SV_LaunchServerThread :: ()
@@ -110,7 +116,7 @@ SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
 SV_CreateMinion :: (team: OBJ_Team) -> *Object
 {
   obj := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS |
-                         .ANIMATE_ROTATION | .ANIMATE_TRACKS | .UPDATE_STATS |
+                         .ANIMATE_ROTATION | .ANIMATE_TRACKS | .UPDATE_AI | .UPDATE_STATS |
                          .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH | .POST_DEATH_DELAY);
   if !OBJ_IsNil(obj)
   {
@@ -118,6 +124,7 @@ SV_CreateMinion :: (team: OBJ_Team) -> *Object
     obj.team = team;
 
     obj.base_stats.max_health = 60.0;
+    obj.base_stats.move_speed = 1.0;
     obj.health = obj.base_stats.max_health;
 
     dim := 0.3;

@@ -17,6 +17,24 @@ SIM_AdvanceByTick :: ()
 
   SIM_SpawnObjects();
 
+  // Update buildings
+  for * team: SV.teams
+  {
+    prev_is_nil := true;
+    for team.turrets
+    {
+      turret := SV_GetObject(it);
+      if !OBJ_IsNil(turret)
+      {
+        if prev_is_nil
+        {
+          turret.flags &= ~(.UNTARGETABLE);
+        }
+      }
+      prev_is_nil = OBJ_IsNil(turret);
+    }
+  }
+
   // User actions -> modify object's activity
   for * user: SV.users
   {
@@ -30,7 +48,6 @@ SIM_AdvanceByTick :: ()
   {
     if OBJ_IsNil(obj) continue;
     SIM_UpdateAI(obj);
-    SIM_UpdateTurretAI(obj);
     SIM_UpdateStats(obj);
     SIM_UpdateActivity(obj);
     SIM_UpdateTargetedProjectile(obj);
@@ -73,7 +90,7 @@ SIM_SpawnObjects :: ()
 
 SIM_UpdateAI :: (obj: *Object)
 {
-  if !OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP}) {
+  if !OBJ_Test(obj, .{require_flags = .UPDATE_AI, common = .IS_ALIVE_OR_NO_HP}) {
     return;
   }
 
@@ -89,6 +106,40 @@ SIM_UpdateAI :: (obj: *Object)
   {
     obj.activity.wants_to_attack = true;
     obj.activity.target = SV.users[0].key;
+  }
+
+  if obj.model == .Zombie
+  {
+    target_params := OBJ_TestParams.{
+      require_flags = .IS_TURRET,
+      reject_flags = .UNTARGETABLE,
+      common = .IS_ALIVE,
+      common2 = .ARE_ENEMIES
+    };
+
+    obj.activity.target = SV_FindNearestToObject(obj, target_params).key;
+    obj.activity.wants_to_attack = !OBJ_KeyIsZero(obj.activity.target);
+  }
+
+  // Turrets
+  if OBJ_HasAnyFlag(obj, .IS_TURRET)
+  {
+    valid_enemy_test := OBJ_TestParams.{
+      require_flags = .TARGETABLE,
+      reject_flags = .IS_TURRET,
+      common = .IS_ALIVE,
+      common2 = .ARE_ENEMIES,
+    };
+
+    if !obj.activity.is_attacking
+    {
+      nearest_target := SV_FindNearestToObject(obj, valid_enemy_test);
+      if !OBJ_IsNil(nearest_target)
+      {
+        obj.activity.target = nearest_target.key;
+        obj.activity.wants_to_attack = true;
+      }
+    }
   }
 }
 
@@ -363,28 +414,6 @@ SIM_UpdateActivity :: (obj: *Object)
   }
 }
 
-SIM_UpdateTurretAI :: (turret: *Object)
-{
-  if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) return;
-
-  valid_enemy_test := OBJ_TestParams.{
-    require_flags = .TARGETABLE,
-    reject_flags = .IS_TURRET,
-    common = .IS_ALIVE,
-    common2 = .ARE_ENEMIES,
-  };
-
-  if !turret.activity.is_attacking
-  {
-    nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
-    if !OBJ_IsNil(nearest_target)
-    {
-      turret.activity.target = nearest_target.key;
-      turret.activity.wants_to_attack = true;
-    }
-  }
-}
-
 SIM_UpdateTargetedProjectile :: (projectile: *Object)
 {
   if !OBJ_HasAnyFlag(projectile, .TARGETED_PROJECTILE) return;
@@ -610,21 +639,20 @@ SIM_InitObjects :: ()
 {
   // Add turrets
   {
-    for team: BOTH_TEAMS
+    for team, team_index: BOTH_TEAMS
     {
       for tier: 0..2
       {
-        if tier != 0 continue;
-
         turret := SV_CreateObject(
-          .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .HAS_ACTIVITY | .MANUAL_ROTATION | .MANUAL_POSITION | .RANGED_ATTACKS);
+          .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_AI | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET | .HAS_ACTIVITY | .MANUAL_ROTATION | .MANUAL_POSITION | .RANGED_ATTACKS | .UNTARGETABLE | .DELETE_ON_DEATH);
+        SV.teams[team_index].turrets[tier] = turret.key;
 
         if !OBJ_IsNil(turret)
         {
           turret.team = team;
 
-          p := 6.0 + 10.0*tier;
+          p := 6.0 + 8.0*tier;
           if team == .RED then p = -p;
           turret.p = .{-p,p,0};
 
@@ -634,13 +662,29 @@ SIM_InitObjects :: ()
           turret.model = .Plank;
 
           turret.base_stats.max_health = 400;
-          turret.base_stats.attack_speed = 2.0;
+          turret.base_stats.attack_speed = 0.6;
           turret.base_stats.attack_range = 4.0;
           turret.base_stats.attack_landed_t = 0.5;
           turret.base_stats.attack_damage = 20.0;
 
           turret.health = turret.base_stats.max_health;
         }
+      }
+
+      base := SV_CreateObject(.COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS);
+      if !OBJ_IsNil(base)
+      {
+        base.team = team;
+
+        p := 6.0 + 22.0;
+        if team == .RED then p = -p;
+        base.p = .{-p,p,0};
+
+        dim := 0.5;
+        base.collider = OBJ_ColliderFromRect(.{dim,dim});
+        base.model = .Dummy;
+        base.base_stats.max_health = 400;
+        base.health = base.base_stats.max_health;
       }
     }
   }

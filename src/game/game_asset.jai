@@ -33,6 +33,7 @@ ModelAlias :: enum u16
   Tree;
   Zombie;
   Plank;
+  Dummy;
   Potion;
   Stool;
   Cross;
