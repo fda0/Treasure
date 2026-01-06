@@ -1,3 +1,5 @@
+// @todo Put glyph rasterization on a background thread. Consider that fonts/text could be used multithreaded.
+
 #scope_file;
 using,only(AST,G,GPU,FONT) COMPS;
 #scope_export;

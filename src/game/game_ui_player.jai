@@ -74,7 +74,7 @@ UI_BuildHUD :: ()
       cooldown := max(0.0, it.cooldown_timer);
 
       bg_color := PackedLerp(BUTTON_BG, BUTTON_BG_INACTIVE, min(cooldown*8, 1.0));
-      bg_color = PackedLerp(bg_color, BUTTON_BG_FLASH, Smoothstep(abs(it.cooldown_timer), 0.15, 0.0));
+      bg_color = PackedLerp(bg_color, BUTTON_BG_FLASH, Smoothstep(it.cooldown_timer, 0.2, 0.1) * Smoothstep(it.cooldown_timer, 0.0, 0.1));
 
       button := CreateBox(.{layout.size.min = Rem2(button_dim), bg_color = bg_color});
       Parent(button);
@@ -156,10 +156,6 @@ UI_BuildHUD :: ()
     Layer(.{layout.padding = PADDING});
     CreateText(tprint("MS: %", ff1n(player.stats.move_speed)));
     CreateText(tprint("AS: %", ff1n(player.stats.attack_speed)));
-
-    CreateText(tprint("p_a.t: %", ff1n(player.from.obj.activity.attack_t)));
-    CreateText(tprint("n_a.t: %", ff1n(player.dest.obj.activity.attack_t)));
-    CreateText(tprint("a.t: %", ff1n(player.activity.attack_t)));
   }
 
 }

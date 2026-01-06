@@ -14,6 +14,33 @@ SIM_AdvanceByTick :: ()
 {
   PerfFunc();
 
+  SIM_SpawnObjects();
+
+  // User actions -> modify object's activity
+  for * user: SV.users
+  {
+    user_object := SV_GetObject(user.key);
+    if OBJ_IsNil(user_object) continue;
+    SIM_ConsumeActions(user, user_object);
+  }
+
+  // Advance state machine
+  for *obj: SV.objects
+  {
+    if OBJ_IsNil(obj) continue;
+    SIM_UpdateAI(obj);
+    SIM_UpdateStats(obj);
+    SIM_UpdateActivity(obj);
+    SIM_UpdateTurret(obj);
+    SIM_UpdateTargetedProjectile(obj);
+    SIM_UpdateDeath(obj);
+    SIM_UpdateMove(obj);
+    SIM_UpdateRotation(obj);
+  }
+}
+
+SIM_SpawnObjects :: ()
+{
   // Spawn minons
   if SecondsBetweenTicks(SV.tick, SV.last_minon_group_spawn, false) >= 40.0
   {
@@ -41,57 +68,26 @@ SIM_AdvanceByTick :: ()
       }
     }
   }
+}
 
-  // User actions -> modify object's activity
-  for * user: SV.users
-  {
-    user_object := SV_GetObject(user.key);
-    if OBJ_IsNil(user_object) continue;
-    SIM_ConsumeActions(user, user_object);
+SIM_UpdateAI :: (obj: *Object)
+{
+  if !OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP}) {
+    return;
   }
 
-  // Update things
-  for *obj: SV.objects
+  if obj.key == SV.enemy0 || obj.key == SV.enemy1
   {
-    if OBJ_IsNil(obj) continue;
-
-    // Clear dead objects' activity
-    if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
-      obj.activity = .{};
-    }
-
-    // Apply AI (if alive)
-    if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_ALIVE_OR_NO_HP})
-    {
-      if obj.key == SV.enemy0 || obj.key == SV.enemy1
-      {
-        obj.activity.is_walking = true;
-        obj.activity.walking_to.x = 2.0;
-        obj.activity.walking_to.y = 2.0;
-        if (obj.key == SV.enemy1) obj.activity.walking_to.y += 1.0;
-      }
-
-      if obj.key == SV.enemy1 && !OBJ_KeyIsZero(SV.users[0].key)
-      {
-        obj.activity.wants_to_attack = true;
-        obj.activity.target = SV.users[0].key;
-      }
-    }
-
-    // Run UpdateStats
-    SIM_UpdateStats(obj);
+    obj.activity.is_walking = true;
+    obj.activity.walking_to.x = 2.0;
+    obj.activity.walking_to.y = 2.0;
+    if (obj.key == SV.enemy1) obj.activity.walking_to.y += 1.0;
   }
 
-  // Advance state machine
-  for *obj: SV.objects
+  if obj.key == SV.enemy1 && !OBJ_KeyIsZero(SV.users[0].key)
   {
-    if OBJ_IsNil(obj) continue;
-    inline SIM_UpdateActivity(obj);
-    inline SIM_UpdateTurret(obj);
-    inline SIM_UpdateTargetedProjectile(obj);
-    inline SIM_UpdateDeath(obj);
-    inline SIM_UpdateMove(obj);
-    inline SIM_UpdateRotation(obj);
+    obj.activity.wants_to_attack = true;
+    obj.activity.target = SV.users[0].key;
   }
 }
 
@@ -254,6 +250,12 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
 SIM_UpdateActivity :: (obj: *Object)
 {
   if !OBJ_HasAnyFlag(obj, .HAS_ACTIVITY) return;
+
+  // Clear dead objects' activity
+  if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
+    obj.activity = .{};
+    return;
+  }
 
   // Reset desired_dp
   obj.desired_dp = .{};
@@ -492,6 +494,7 @@ SIM_UpdateDeath :: (obj: *Object)
     {
       obj.p = .{};
       obj.health = obj.stats.max_health;
+      obj.energy = obj.stats.max_energy;
       obj.death_tick = 0;
     }
 
