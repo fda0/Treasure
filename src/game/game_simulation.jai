@@ -6,8 +6,9 @@ TICK_RATE :: 100;
 TICK_MILLISECONDS_STEP :: 1000 / TICK_RATE;
 TICK_FLOAT_STEP :: 1.0 / TICK_RATE;
 
+
+ATTACK_COOLDOWN_T :: 1.0;
 MINIMUM_MOVE_START_DISTANCE :: 0.05;
-MELEE_ATTACK_DISTANCE :: 0.8;
 PROJECTILE_HIT_DISTANCE :: 0.1;
 
 SIM_AdvanceByTick :: ()
@@ -29,9 +30,9 @@ SIM_AdvanceByTick :: ()
   {
     if OBJ_IsNil(obj) continue;
     SIM_UpdateAI(obj);
+    SIM_UpdateTurretAI(obj);
     SIM_UpdateStats(obj);
     SIM_UpdateActivity(obj);
-    SIM_UpdateTurret(obj);
     SIM_UpdateTargetedProjectile(obj);
     SIM_UpdateDeath(obj);
     SIM_UpdateMove(obj);
@@ -257,9 +258,13 @@ SIM_UpdateActivity :: (obj: *Object)
   activity := *obj.activity;
 
   // Clear dead objects' activity
-  if OBJ_Test(obj, .{require_flags = .HAS_ACTIVITY, common = .IS_DEAD}) {
+  if OBJ_Test(obj, .{common = .IS_DEAD}) {
     activity.* = .{};
     return;
+  }
+
+  if OBJ_HasAnyFlag(obj, .IS_TURRET) {
+    aa := 11;
   }
 
   // Find attack target (and invalidate if needed)
@@ -284,7 +289,7 @@ SIM_UpdateActivity :: (obj: *Object)
   {
     obj_to_target := target.p.xy - obj.p.xy;
     distance_to_target := length(obj_to_target);
-    attack_is_out_of_range = distance_to_target > MELEE_ATTACK_DISTANCE;
+    attack_is_out_of_range = distance_to_target > obj.stats.attack_range;
 
     activity.is_walking = attack_is_out_of_range;
     if activity.is_walking {
@@ -325,13 +330,30 @@ SIM_UpdateActivity :: (obj: *Object)
   {
     obj.rotation = DirectionXYToRotationZ(target.p - obj.p);
 
-    while activity.attack_t >= obj.attack_landed_t
+    while activity.attack_t >= obj.stats.attack_landed_t
     {
-      activity.attack_t -= obj.attack_cooldown_t;
-      SIM_DealDamage(target, obj, 20.0);
+      activity.attack_t -= ATTACK_COOLDOWN_T;
+
+      if OBJ_HasAnyFlag(obj, .RANGED_ATTACKS)
+      {
+        projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
+        if !OBJ_IsNil(projectile)
+        {
+          projectile.model = .Potion;
+          projectile.p.xy = obj.p.xy;
+          projectile.p.z = 4.1;
+          projectile.activity.target = activity.target;
+          projectile.base_stats.attack_damage = obj.stats.attack_damage;
+          activity.last_projectile = projectile.key;
+        }
+      }
+      else
+      {
+        SIM_DealDamage(target, obj, 20.0);
+      }
 
       stop_attacking := false;
-      stop_attacking |= attack_is_out_of_range;
+      stop_attacking |= attack_is_out_of_range; // @todo not needed here anymore?
       stop_attacking |= !OBJ_Test(target, .{common = .IS_ALIVE});
       if stop_attacking
       {
@@ -347,11 +369,9 @@ SIM_UpdateActivity :: (obj: *Object)
   }
 }
 
-SIM_UpdateTurret :: (turret: *Object)
+SIM_UpdateTurretAI :: (turret: *Object)
 {
   if !OBJ_Test(turret, .{require_flags = .IS_TURRET, common = .IS_ALIVE_OR_NO_HP}) return;
-
-  activity := *turret.activity;
 
   valid_enemy_test := OBJ_TestParams.{
     require_flags = .TARGETABLE,
@@ -360,70 +380,15 @@ SIM_UpdateTurret :: (turret: *Object)
     common2 = .ARE_ENEMIES,
   };
 
-  attack_target := SV_GetObject(activity.target);
-  nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
-
-  SHOOT_RANGE :: 4.0;
-
-  if !OBJ_Test(attack_target, valid_enemy_test)
+  if !turret.activity.is_attacking
   {
-    attack_target = OBJ_NilObject();
-  }
-  if !OBJ_IsNil(attack_target)
-  {
-    dist_sq := OBJ_Distance2DSquared(turret, attack_target);
-    if square(SHOOT_RANGE) < dist_sq then attack_target = OBJ_NilObject();
-  }
-  if OBJ_IsNil(attack_target) && !OBJ_IsNil(nearest_target)
-  {
-    dist_sq := OBJ_Distance2DSquared(turret, nearest_target);
-    if square(SHOOT_RANGE) >= dist_sq then attack_target = nearest_target;
-  }
-
-  activity.target = attack_target.key;
-  activity.is_attacking = !OBJ_IsNil(attack_target);
-
-  attack_t_delta := TICK_FLOAT_STEP * turret.stats.attack_speed;
-  if OBJ_IsNil(SV_GetObject(activity.last_projectile))
-  {
-    additional_delta := TICK_FLOAT_STEP * 100.0;
-    // delta is applied only if turret is on cooldown
-    additional_delta = min(additional_delta, -activity.attack_t);
-    additional_delta = max(additional_delta, 0.0);
-    attack_t_delta += additional_delta;
-  }
-
-  activity.attack_t += attack_t_delta;
-  activity.visual_attack_t += attack_t_delta;
-
-  if activity.is_attacking
-  {
-    attack_damage := 16.0;
-
-    while activity.attack_t >= turret.attack_landed_t
+    nearest_target := SV_FindNearestToObject(turret, valid_enemy_test);
+    if !OBJ_IsNil(nearest_target)
     {
-      activity.attack_t -= turret.attack_cooldown_t;
-      // attack_target.health -= attack_damage;
-
-      projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
-      if !OBJ_IsNil(projectile)
-      {
-        projectile.model = .Potion;
-        projectile.p.xy = turret.p.xy;
-        projectile.p.z = 4.1;
-        projectile.activity.target = attack_target.key;
-
-        turret.activity.last_projectile = projectile.key;
-      }
-
-      SIM_PlaySound(attack_target, RngEnum_MinMaxClosed(*SV.rng, AUDIO_SoundType.SWISH01, .SWISH05));
+      turret.activity.target = nearest_target.key;
+      turret.activity.wants_to_attack = true;
     }
   }
-  else
-  {
-    activity.attack_t = min(activity.attack_t, 0.0);
-    activity.target = .{};
-  };
 }
 
 SIM_UpdateTargetedProjectile :: (projectile: *Object)
@@ -658,8 +623,8 @@ SIM_InitObjects :: ()
         if tier != 0 continue;
 
         turret := SV_CreateObject(
-          .COLLIDE | .DRAW_MODEL | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .MANUAL_ROTATION | .MANUAL_POSITION);
+          .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
+          .IS_TURRET | .HAS_ACTIVITY | .MANUAL_ROTATION | .MANUAL_POSITION | .RANGED_ATTACKS);
 
         if !OBJ_IsNil(turret)
         {
@@ -675,10 +640,11 @@ SIM_InitObjects :: ()
           turret.model = .Plank;
 
           turret.base_stats.max_health = 400;
-          turret.base_stats.attack_speed = 2.5;
+          turret.base_stats.attack_speed = 2.0;
+          turret.base_stats.attack_range = 4.0;
+          turret.base_stats.attack_landed_t = 0.5;
+
           turret.health = turret.base_stats.max_health;
-          turret.attack_landed_t = 0.1;
-          turret.attack_cooldown_t = 5.0;
         }
       }
     }

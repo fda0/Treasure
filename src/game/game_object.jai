@@ -59,6 +59,8 @@ OBJ_Flags :: enum_flags u32
   RESPAWN;
   DELETE_ON_DEATH;
   DIE_ON_CONTACT;
+
+  RANGED_ATTACKS;
 };
 
 OBJ_Team :: enum u8
@@ -93,6 +95,9 @@ OBJ_StatType :: enum u8
   ENERGY_REGEN;
   MOVE_SPEED;
   ATTACK_SPEED;
+  ATTACK_RANGE;
+  ATTACK_DAMAGE;
+  ATTACK_LANDED_T;
 }
 
 OBJ_Stats :: struct
@@ -170,10 +175,6 @@ Object :: struct
   energy: float; @lerp
 
   skills: [4] OBJ_Skill;
-
-  // attack timers
-  attack_landed_t := 0.25; @lerp
-  attack_cooldown_t := 1.0; @lerp
 
   // projectile life left timer
   projectile_t: float; // projectile is destroyed when time reaches 0

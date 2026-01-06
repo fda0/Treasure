@@ -103,12 +103,10 @@ AN_UpdateGhost :: (ghost: *Ghost)
 
   if OBJ_HasAnyFlag(ghost, .IS_TURRET)
   {
-    t := WrapFloat(activity.attack_t, 0.0, ghost.attack_cooldown_t);
-    max_t := min(1.25, ghost.attack_cooldown_t);
-    t = min(t, max_t) / max_t;
+    t := WrapFloat01(activity.attack_t);
 
-    pos_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
-    rot_t := EasingInOut(t, ghost.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
+    pos_t := EasingInOut(t, ghost.stats.attack_landed_t, .IN_SINE, .OUT_BOUNCE);
+    rot_t := EasingInOut(t, ghost.stats.attack_landed_t, .IN_SINE, .OUT_BOUNCE, in_scale = 3.0, out_scale = -1.0);
 
     ghost.anim.position.xy = ghost.p.xy;
     if activity.is_attacking || activity.attack_t < 0.0
