@@ -97,9 +97,7 @@ SIM_UpdateStats :: (obj: *Object)
   if !(obj.flags & .UPDATE_STATS) return;
 
   // init stats with base_stats
-  for * obj.stats.all {
-    it.* = obj.base_stats.all[it_index];
-  }
+  memcpy(*obj.stats, *obj.base_stats, size_of(type_of(obj.stats)));
 
   // apply effects
   for * obj.effects
@@ -263,10 +261,6 @@ SIM_UpdateActivity :: (obj: *Object)
     return;
   }
 
-  if OBJ_HasAnyFlag(obj, .IS_TURRET) {
-    aa := 11;
-  }
-
   // Find attack target (and invalidate if needed)
   target := OBJ_NilObject();
   if activity.wants_to_attack || activity.is_attacking
@@ -336,7 +330,7 @@ SIM_UpdateActivity :: (obj: *Object)
 
       if OBJ_HasAnyFlag(obj, .RANGED_ATTACKS)
       {
-        projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .MANUAL_ROTATION);
+        projectile := SV_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .UPDATE_STATS | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
         {
           projectile.model = .Potion;
@@ -429,7 +423,7 @@ SIM_UpdateTargetedProjectile :: (projectile: *Object)
 
     if apply_hit
     {
-      SIM_DealDamage(target, projectile, 25.0);
+      SIM_DealDamage(target, projectile, projectile.stats.attack_damage);
       SV_DeleteObject(projectile); // @todo deletion happening instantly is dumb actually
     }
   }
@@ -643,6 +637,7 @@ SIM_InitObjects :: ()
           turret.base_stats.attack_speed = 2.0;
           turret.base_stats.attack_range = 4.0;
           turret.base_stats.attack_landed_t = 0.5;
+          turret.base_stats.attack_damage = 20.0;
 
           turret.health = turret.base_stats.max_health;
         }
