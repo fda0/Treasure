@@ -64,7 +64,7 @@ OBJ_Flags :: enum_flags u32
   RANGED_ATTACKS;
 
   // transient flags (move to a separate enum?)
-  UNTARGETABLE;
+  CANT_DAMAGE;
 }
 
 OBJ_Team :: enum u8

@@ -124,7 +124,7 @@ SV_CreateMinion :: (team: OBJ_Team) -> *Object
     obj.team = team;
 
     obj.base_stats.max_health = 60.0;
-    obj.base_stats.move_speed = 1.0;
+    obj.base_stats.move_speed = 10.0;
     obj.health = obj.base_stats.max_health;
 
     dim := 0.3;

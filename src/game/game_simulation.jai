@@ -20,18 +20,17 @@ SIM_AdvanceByTick :: ()
   // Update buildings
   for * team: SV.teams
   {
-    prev_is_nil := true;
+    prev_turret_is_dead := true;
     for team.turrets
     {
       turret := SV_GetObject(it);
       if !OBJ_IsNil(turret)
       {
-        if prev_is_nil
-        {
-          turret.flags &= ~(.UNTARGETABLE);
+        if prev_turret_is_dead {
+          turret.flags &= ~(.CANT_DAMAGE);
         }
       }
-      prev_is_nil = OBJ_IsNil(turret);
+      prev_turret_is_dead = OBJ_IsNil(turret) || OBJ_Test(turret, .{common = .IS_DEAD});
     }
   }
 
@@ -79,10 +78,6 @@ SIM_SpawnObjects :: ()
       {
         sign := ifx team == .RED then -1.0 else 1.0;
         minion.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
-        minion.activity = .{
-          wants_to_attack = true,
-          target = SV_FindNearestToObject(minion, .{require_flags = .IS_TURRET, common2 = .ARE_ENEMIES}).key,
-        };
       }
     }
   }
@@ -112,7 +107,7 @@ SIM_UpdateAI :: (obj: *Object)
   {
     target_params := OBJ_TestParams.{
       require_flags = .IS_TURRET,
-      reject_flags = .UNTARGETABLE,
+      reject_flags = .CANT_DAMAGE,
       common = .IS_ALIVE,
       common2 = .ARE_ENEMIES
     };
@@ -319,7 +314,7 @@ SIM_UpdateActivity :: (obj: *Object)
     activity.is_walking = false;
 
     target = SV_GetObject(activity.target);
-    target_is_valid_enemy := OBJ_Test2(target, obj, .{common = .IS_ALIVE, common2 = .ARE_ENEMIES});
+    target_is_valid_enemy := OBJ_Test2(target, obj, .{reject_flags = .CANT_DAMAGE, common = .IS_ALIVE, common2 = .ARE_ENEMIES});
     if !target_is_valid_enemy
     {
       target = OBJ_NilObject();
@@ -645,7 +640,7 @@ SIM_InitObjects :: ()
       {
         turret := SV_CreateObject(
           .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_AI | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS |
-          .IS_TURRET | .HAS_ACTIVITY | .MANUAL_ROTATION | .MANUAL_POSITION | .RANGED_ATTACKS | .UNTARGETABLE | .DELETE_ON_DEATH);
+          .IS_TURRET | .HAS_ACTIVITY | .MANUAL_ROTATION | .MANUAL_POSITION | .RANGED_ATTACKS | .CANT_DAMAGE);
         SV.teams[team_index].turrets[tier] = turret.key;
 
         if !OBJ_IsNil(turret)
