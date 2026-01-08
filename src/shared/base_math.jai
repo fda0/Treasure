@@ -220,6 +220,15 @@ Snap01 :: (t: float, margin: float) -> float
   return t;
 }
 
+// if dist between a and b is smaller than epsilon then snap towards a/b
+LerpWithSnap :: (a: float, b: float, t: float, epsilon := 0.01) -> float
+{
+  if abs(a - b) < epsilon {
+    return ifx t < 0.5 then a else b;
+  }
+  return lerp(a, b, t);
+}
+
 EasingType :: enum u32
 {
   IN_SINE;

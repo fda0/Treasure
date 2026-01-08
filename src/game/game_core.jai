@@ -56,7 +56,8 @@ GameState :: struct
 
   // camera inputs
   camera_shift: V2;
-  camera_zoom: float;
+  camera_zoom_target_t: float;
+  camera_zoom_animated_t: float;
   // camera results
   camera_p: V3 = .{-10, 0, 1};
   camera_angles: V3;
@@ -337,11 +338,12 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 
 G_CalculateCameraAndMouseInput :: ()
 {
-  G.camera_zoom = clamp01(G.camera_zoom + G.mouse_scroll.y*0.1);
+  G.camera_zoom_target_t = clamp01(G.camera_zoom_target_t + G.mouse_scroll.y*0.25);
 
   if DEV.noclip
   {
-    G.camera_zoom = 0.0;
+    G.camera_zoom_target_t = 0.0;
+    G.camera_zoom_animated_t = 0.0;
 
     if KEY_Held(.MOUSE_LEFT)
     {
@@ -393,8 +395,9 @@ G_CalculateCameraAndMouseInput :: ()
 
     zoom_far := V3.{-8.5, 0.0, 12.5};
     zoom_near := V3.{-2.75, 0.0, 4.0};
+    G.camera_zoom_animated_t = LerpWithSnap(G.camera_zoom_animated_t, G.camera_zoom_target_t, G.dt*10.0);
 
-    G.camera_p = lerp(zoom_far, zoom_near, G.camera_zoom);
+    G.camera_p = lerp(zoom_far, zoom_near, G.camera_zoom_animated_t);
     G.camera_p.xy += G.camera_shift;
     G.camera_angles = V3.{0, -0.138, 0};
   }
