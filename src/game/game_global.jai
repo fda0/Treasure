@@ -17,6 +17,7 @@ ComponentState :: struct
   LOG: LOG_State;
   NET: NET_State;
   RD: RenderState;
+  SIM: SimulationState;
   STATS: STATS_State;
   SV: ServerState;
 }

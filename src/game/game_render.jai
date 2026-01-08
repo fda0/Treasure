@@ -296,10 +296,8 @@ RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
 
     hover_color := ColorWhite();
     if OBJ_HasAnyFlag(ghost, .CANT_DAMAGE) hover_color.y *= 0.2 + 0.6*Sin01(G.at*1.9);
-    if (ghost.key == G.hover_object) hover_color.x   *= 0.25*Cos01(G.at*1.5);
-    if (ghost.key == DEV.inspected_object) {
-      hover_color.xyz *= 0.2 + 0.8*Sin01(G.at*2.8);
-    }
+    if (ghost.key == G.hover_object) hover_color.x *= 0.25*Cos01(G.at*1.5);
+    if (ghost.key == DEV.inspected_object) hover_color.xyz *= 0.2 + 0.8*Sin01(G.at*2.8);
 
     instance := RD_WorldInstance.{
       transform = transform,

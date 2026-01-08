@@ -1,5 +1,5 @@
 #scope_file;
-using,only(SV) COMPS;
+using,only(SIM,SV) COMPS;
 #scope_export;
 
 ServerState :: struct
@@ -12,27 +12,6 @@ ServerState :: struct
   last_broadcasted_tick: ServerTick;
 
   users: [NET_MAX_PLAYERS] SV_User;
-
-  //
-  // Simulation state
-  //
-  objects: [] Object;
-  creation_serials: [] u8;
-
-  rng: Entropy;
-
-  last_minon_group_spawn: ServerTick;
-  last_minon_spawn: ServerTick;
-  minons_spawned_in_group_count: s64;
-
-  enemy0: OBJ_Key;
-  enemy1: OBJ_Key;
-
-  teams: [2] struct
-  {
-    turrets: [3] OBJ_Key;
-    base: OBJ_Key;
-  };
 }
 
 SV_LaunchServerThread :: ()
@@ -41,132 +20,6 @@ SV_LaunchServerThread :: ()
   SV.thread.starting_context = context;
   thread_init(*SV.thread, SV_ThreadEntry);
   thread_start(*SV.thread);
-}
-
-SV_GetObject :: (key: OBJ_Key) -> *Object
-{
-  result := OBJ_NilObject();
-  key_index := OBJ_IndexOfKey(key);
-
-  if key_index < SV.objects.count
-  {
-    obj := *SV.objects[key_index];
-    if (obj.key == key) result = obj;
-  }
-  return result;
-}
-
-SV_DeleteObject :: (obj: *Object)
-{
-  obj.* = .{};
-}
-
-SV_CreateObject :: (flags: OBJ_Flags) -> *Object
-{
-  obj: *Object;
-  index: u32;
-
-  for *SV.objects
-  {
-    if !OBJ_HasData(it)
-    {
-      obj = it;
-      index = xx it_index;
-      break;
-    }
-  }
-
-  if (!obj) return OBJ_NilObject();
-
-  Initialize(obj);
-
-  SV.creation_serials[index] = max(SV.creation_serials[index] + 1, 1);
-  obj.key = OBJ_CreateKey(index, SV.creation_serials[index]);
-
-  obj.creation_tick = SV.tick;
-  obj.flags = flags;
-
-  for * obj.base_stats.all { it.* = 1.0; }
-  obj.base_stats.health_regen = 0;
-  obj.base_stats.energy_regen = 0;
-  return obj;
-}
-
-SV_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
-{
-  nearest := OBJ_NilObject();
-  nearest_distsq := FLOAT32_MAX;
-
-  for *candidate: SV.objects
-  {
-    if (candidate == obj) continue;
-    if !OBJ_Test2(candidate, obj, params) continue;
-
-    distsq := OBJ_Distance2DSquared(obj, candidate);
-    if distsq < nearest_distsq
-    {
-      nearest = candidate;
-      nearest_distsq = distsq;
-    }
-  }
-
-  return nearest;
-}
-
-SV_CreateMinion :: (team: OBJ_Team) -> *Object
-{
-  obj := SV_CreateObject(.MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS |
-                         .ANIMATE_ROTATION | .ANIMATE_TRACKS | .UPDATE_AI | .UPDATE_STATS |
-                         .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .DELETE_ON_DEATH | .POST_DEATH_DELAY);
-  if !OBJ_IsNil(obj)
-  {
-    obj.model = .Zombie;
-    obj.team = team;
-
-    obj.base_stats.max_health = 60.0;
-    obj.base_stats.move_speed = 10.0;
-    obj.health = obj.base_stats.max_health;
-
-    dim := 0.3;
-    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
-  }
-  return obj;
-}
-
-SV_CreateHero :: (model: ModelAlias, team: OBJ_Team) -> *Object
-{
-  obj := SV_CreateObject(
-    .MOVE | .COLLIDE | .DRAW_MODEL | .DRAW_BARS | .ANIMATE_ROTATION | .ANIMATE_TRACKS |
-    .UPDATE_STATS | .HAS_HP | .TARGETABLE | .PLAY_SOUNDS | .HAS_ACTIVITY | .RESPAWN | .POST_DEATH_DELAY);
-
-  if !OBJ_IsNil(obj)
-  {
-    dim := 0.4;
-    obj.collider = OBJ_ColliderFromRect(.{dim,dim});
-    obj.height = dim;
-    obj.model = model;
-    obj.color = PackedWhite();
-    obj.rotation = RotationAroundAxis(AxisV3(.Z), -0.5);
-    obj.team = team;
-
-    obj.base_stats.max_health = 60;
-    obj.base_stats.health_regen = 5;
-    obj.base_stats.max_energy = 50;
-    obj.base_stats.energy_regen = 2;
-    obj.base_stats.move_speed = 1.5;
-    obj.base_stats.attack_speed = 0.4;
-    obj.base_stats.attack_range = 0.8;
-    obj.base_stats.attack_landed_t = 0.25;
-
-    obj.health = obj.base_stats.max_health;
-    obj.energy = obj.base_stats.max_energy;
-
-    obj.skills[0] = .{energy_cost = 5, cooldown_cost = 1, flags = .TARGETS_POSITION};
-    obj.skills[1] = .{energy_cost = 20, cooldown_cost = 10};
-    obj.skills[2] = .{energy_cost = 30, cooldown_cost = 15};
-    obj.skills[3] = .{energy_cost = 60, cooldown_cost = 20};
-  }
-  return obj;
 }
 
 SV_User :: struct
@@ -255,7 +108,7 @@ SV_IterateSend :: ()
 
         model := models[user_index % models.count];
         team := (user_index % 2 + 1).(OBJ_Team);
-        player := SV_CreateHero(model, team);
+        player := SIM_CreateHero(model, team);
         if !OBJ_IsNil(player)
         {
           player.p.y = -1.5 + user_index * 0.7;
@@ -273,7 +126,7 @@ SV_IterateSend :: ()
   }
 
   // iterate over network objects
-  for SV.objects
+  for SIM.objects
   {
     packet: Packet;
     if OBJ_HasData(it) PK_AddPair(*packet, .ObjUpdate, it);
@@ -458,10 +311,10 @@ SV_Init :: ()
 
   // Allocate data
   {
-    SV.objects = NewArray(OBJ_SHARED_COUNT, Object);
-    SV.creation_serials = NewArray(OBJ_SHARED_COUNT, u8);
+    SIM.objects = NewArray(OBJ_SHARED_COUNT, Object);
+    SIM.creation_serials = NewArray(OBJ_SHARED_COUNT, u8);
   }
-  SV.rng = .{0xdeadbeef_12349876, 0xfda0fda0_87654321};
+  SIM.rng = .{0xdeadbeef_12349876, 0xfda0fda0_87654321};
   SIM_InitObjects();
 
   if GLOBAL.is_client

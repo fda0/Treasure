@@ -323,6 +323,7 @@ OBJ_TestParams :: struct
     IS_DEAD; // (has HAS_HP flag) AND (health <= 0.0)
   }
   common2: enum_flags u8 { // for 2 object tests
+    ARE_TEAMMATES;
     ARE_ENEMIES;
   }
 }
@@ -333,16 +334,13 @@ OBJ_Test :: (obj: Object, using params: OBJ_TestParams) -> bool
   if OBJ_HasAnyFlag(obj, reject_flags) return false;
   if !OBJ_HasAllFlags(obj, require_flags) return false;
 
-  if common & .IS_ALIVE
-  {
+  if common & .IS_ALIVE {
     if !((obj.flags & .HAS_HP) && (obj.health > 0.0)) return false;
   }
-  if common & .IS_ALIVE_OR_NO_HP
-  {
+  if common & .IS_ALIVE_OR_NO_HP {
     if !(!(obj.flags & .HAS_HP) || (obj.health > 0.0)) return false;
   }
-  if common & .IS_DEAD
-  {
+  if common & .IS_DEAD {
     if !((obj.flags & .HAS_HP) && (obj.health <= 0.0)) return false;
   }
 
@@ -354,8 +352,10 @@ OBJ_Test2 :: (tested: Object, reference: Object, params: OBJ_TestParams) -> bool
 {
   if !OBJ_Test(tested, params) return false;
 
-  if params.common2 & .ARE_ENEMIES
-  {
+  if params.common2 & .ARE_TEAMMATES {
+    if tested.team != reference.team return false;
+  }
+  if params.common2 & .ARE_ENEMIES {
     if tested.team == reference.team return false;
   }
   return true;
