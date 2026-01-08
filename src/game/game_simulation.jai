@@ -15,6 +15,7 @@ SimulationState :: struct
   objects: [] Object;
   creation_serials: [] u8;
 
+  tick: ServerTick;
   rng: Entropy;
 
   last_minon_group_spawn: ServerTick;
@@ -29,6 +30,21 @@ SimulationState :: struct
     turrets: [3] OBJ_Key;
     base: OBJ_Key;
   };
+
+  transactions: Queue(1024, SIM_Transaction);
+}
+
+SIM_Transaction :: struct
+{
+  tick: ServerTick;
+  src: OBJ_Key;
+  dst: OBJ_Key;
+  kind: enum u8
+  {
+    DEAL_DAMAGE;
+  }
+
+  value: float;
 }
 
 SIM_AdvanceByTick :: ()
@@ -66,29 +82,66 @@ SIM_AdvanceByTick :: ()
   for *obj: SIM.objects
   {
     if OBJ_IsNil(obj) continue;
+    SIM_UpdateDeath(obj);
     SIM_UpdateAI(obj);
     SIM_UpdateStats(obj);
     SIM_UpdateActivity(obj);
     SIM_UpdateTargetedProjectile(obj);
-    SIM_UpdateDeath(obj);
     SIM_UpdateMove(obj);
     SIM_UpdateRotation(obj);
+  }
+
+  SIM_ProcessTransactions();
+}
+
+SIM_ProcessTransactions :: ()
+{
+  while true
+  {
+    trans, did_pop := QueuePop(*SIM.transactions);
+    if !did_pop break;
+
+    dst := SIM_GetObject(trans.dst);
+    src := SIM_GetObject(trans.src);
+    src_owner := src;
+    while true
+    {
+      next := SIM_GetObject(src_owner.owned_by);
+      if OBJ_IsNil(next) break;
+      src_owner = next;
+    }
+
+    SIM_GetObject(trans.src);
+
+    if #complete trans.kind ==
+    {
+      case .DEAL_DAMAGE;
+      if OBJ_Test(dst, .{common = .IS_ALIVE})
+      {
+        SIM_PlaySound(dst, .HIT);
+        SIM_PlayAnimation(dst, .HIT);
+        dst.health -= trans.value;
+        if dst.health <= 0.0 && !OBJ_IsNil(src_owner) {
+          src_owner.gold += 1.0;
+        }
+      }
+    }
   }
 }
 
 SIM_SpawnObjects :: ()
 {
   // Spawn minons
-  if SecondsBetweenTicks(SV.tick, SIM.last_minon_group_spawn, false) >= 40.0
+  if SecondsBetweenTicks(SIM.tick, SIM.last_minon_group_spawn, false) >= 40.0
   {
     SIM.minons_spawned_in_group_count = 0;
-    SIM.last_minon_group_spawn = SV.tick;
+    SIM.last_minon_group_spawn = SIM.tick;
   }
 
   if SIM.minons_spawned_in_group_count < 5 &&
-     SecondsBetweenTicks(SV.tick, SIM.last_minon_spawn, false) >= 0.5
+     SecondsBetweenTicks(SIM.tick, SIM.last_minon_spawn, false) >= 0.5
   {
-    SIM.last_minon_spawn = SV.tick;
+    SIM.last_minon_spawn = SIM.tick;
     SIM.minons_spawned_in_group_count += 1;
 
     for team: BOTH_TEAMS
@@ -97,7 +150,7 @@ SIM_SpawnObjects :: ()
       if !OBJ_IsNil(minion)
       {
         sign := ifx team == .RED then -1.0 else 1.0;
-        minion.p.xy = V2.{-sign, sign} * V2.{28, 28}/3;
+        minion.p = SIM_GetBase(minion.team).p;
       }
     }
   }
@@ -123,26 +176,36 @@ SIM_UpdateAI :: (obj: *Object)
     obj.activity.target = SV.users[0].key;
   }
 
-  if obj.model == .Zombie
+  if obj.model == .Zombie && !obj.activity.is_attacking
   {
-    tests := OBJ_TestParams.[
-      // enemy minion
-      {filter = (o: Object) -> bool { return o.model == .Zombie; },
-       reject_flags = .CANT_DAMAGE, common = .IS_ALIVE, common2 = .ARE_ENEMIES},
+    // enemy minion or turret or base - whatever is nearest
+    near_test := OBJ_TestParams.{
+      filter = (o: Object) -> bool {
+        is_enemy := false;
+        is_enemy |= o.model == .Zombie;
+        is_enemy |= o.model == .Dude;
+        is_enemy |= o.model == .Dummy;
+        is_enemy |= OBJ_HasAnyFlag(o, .IS_TURRET);
+        return is_enemy;
+      },
+      reject_flags = .CANT_DAMAGE,
+      common = .IS_ALIVE,
+      common2 = .ARE_ENEMIES
+    };
 
-      // turret
-      {require_flags = .IS_TURRET, reject_flags = .CANT_DAMAGE, common = .IS_ALIVE, common2 = .ARE_ENEMIES},
+    far_test := OBJ_TestParams.{
+      require_flags = .IS_TURRET,
+      reject_flags = .CANT_DAMAGE,
+      common = .IS_ALIVE,
+      common2 = .ARE_ENEMIES
+    };
 
-      // base
-      {filter = (o: Object) -> bool { return o.model == .Dummy; },
-       reject_flags = .CANT_DAMAGE, common = .IS_ALIVE, common2 = .ARE_ENEMIES},
-    ];
-
-    for tests
+    obj.activity.target = SIM_FindNearestToObject(obj, near_test, 6.0).key;
+    obj.activity.wants_to_attack = !OBJ_KeyIsZero(obj.activity.target);
+    if !obj.activity.wants_to_attack
     {
-      obj.activity.target = SIM_FindNearestToObject(obj, it).key;
+      obj.activity.target = SIM_FindNearestToObject(obj, far_test).key;
       obj.activity.wants_to_attack = !OBJ_KeyIsZero(obj.activity.target);
-      if (obj.activity.wants_to_attack) break;
     }
   }
 
@@ -284,8 +347,10 @@ SIM_ConsumeActions :: (user: *SV_User, obj: *Object)
       if it_index == {
         case 0;
         // projectile; fixed dp; set hp at something + negative hp regen... perfect!
-        proj := SIM_CreateObject(.MOVE | .DRAW_MODEL | .DISABLE_MOUSE | .HAS_HP |
-                                .UPDATE_STATS | .DIE_ON_CONTACT | .DELETE_ON_DEATH);
+
+        proj := SIM_CreateProjectile(obj,
+          .MOVE | .DRAW_MODEL | .DISABLE_MOUSE | .HAS_HP |
+          .UPDATE_STATS | .DIE_ON_CONTACT | .DELETE_ON_DEATH);
         if !OBJ_IsNil(proj)
         {
           proj.p = obj.p;
@@ -408,7 +473,7 @@ SIM_UpdateActivity :: (obj: *Object)
 
       if OBJ_HasAnyFlag(obj, .RANGED_ATTACKS)
       {
-        projectile := SIM_CreateObject(.DRAW_MODEL | .TARGETED_PROJECTILE | .UPDATE_STATS | .MANUAL_ROTATION);
+        projectile := SIM_CreateProjectile(obj, .DRAW_MODEL | .TARGETED_PROJECTILE | .UPDATE_STATS | .MANUAL_ROTATION);
         if !OBJ_IsNil(projectile)
         {
           projectile.model = .Potion;
@@ -416,7 +481,6 @@ SIM_UpdateActivity :: (obj: *Object)
           projectile.p.z = 4.1;
           projectile.activity.target = activity.target;
           projectile.base_stats.attack_damage = obj.stats.attack_damage;
-          activity.last_projectile = projectile.key;
         }
       }
       else
@@ -462,7 +526,7 @@ SIM_UpdateTargetedProjectile :: (projectile: *Object)
     gap := target_p - projectile.p;
     gap_length := length(gap);
 
-    fly_speed := 1.0 + 5.0*min(1.0, SecondsBetweenTicks(SV.tick, projectile.creation_tick));
+    fly_speed := 1.0 + 5.0*min(1.0, SecondsBetweenTicks(SIM.tick, projectile.creation_tick));
     fly_speed *= TICK_FLOAT_STEP;
 
     if gap_length > 0.0
@@ -493,9 +557,9 @@ SIM_UpdateDeath :: (obj: *Object)
   }
   else // IS_DEAD
   {
-    if !obj.death_tick then obj.death_tick = SV.tick;
+    if !obj.death_tick then obj.death_tick = SIM.tick;
 
-    death_t := SecondsBetweenTicks(SV.tick, obj.death_tick);
+    death_t := SecondsBetweenTicks(SIM.tick, obj.death_tick);
 
     max_death_time := 0.0;
     if OBJ_HasAnyFlag(obj, .POST_DEATH_DELAY)
@@ -649,22 +713,26 @@ SIM_UpdateMove :: (obj: *Object)
 
 SIM_PlaySound :: (obj: *Object, type: AUDIO_SoundType)
 {
-  QueuePush(*obj.sound_requests, .{SV.tick, type});
+  QueuePush(*obj.sound_requests, .{SIM.tick, type});
 }
 SIM_PlayAnimation :: (obj: *Object, tag: AnimationTag)
 {
-  QueuePush(*obj.animation_requests, .{SV.tick, tag});
+  QueuePush(*obj.animation_requests, .{SIM.tick, tag});
 }
 
-SIM_DealDamage :: (target: *Object, source: *Object, damage: float = -1.0)
+SIM_DealDamage :: (dst: Object, src: Object, damage: float = -1.0)
 {
   if damage < 0.0 {
-    damage = source.stats.attack_damage;
+    damage = src.stats.attack_damage;
   }
+  QueuePush(*SIM.transactions, .{
+    kind = .DEAL_DAMAGE,
+    tick = SIM.tick,
+    src = src.key,
+    dst = dst.key,
+    value = damage,
+  });
 
-  target.health -= damage;
-  SIM_PlaySound(target, .HIT);
-  SIM_PlayAnimation(target, .HIT);
 }
 
 SIM_InitObjects :: ()
@@ -704,6 +772,8 @@ SIM_InitObjects :: ()
       }
 
       base := SIM_CreateObject(.COLLIDE | .DRAW_MODEL | .DRAW_BARS | .HAS_HP | .UPDATE_STATS | .TARGETABLE | .PLAY_SOUNDS);
+      SIM.teams[team_index].base = base.key;
+
       if !OBJ_IsNil(base)
       {
         base.team = team;
@@ -747,9 +817,10 @@ SIM_InitObjects :: ()
   }
 }
 
-//
-//
-//
+// // // // // // // // // // // // // //
+// // // // // // // // // // // // // //
+// // // // // // // // // // // // // //
+
 SIM_GetObject :: (key: OBJ_Key) -> *Object
 {
   result := OBJ_NilObject();
@@ -790,7 +861,7 @@ SIM_CreateObject :: (flags: OBJ_Flags) -> *Object
   SIM.creation_serials[index] = max(SIM.creation_serials[index] + 1, 1);
   obj.key = OBJ_CreateKey(index, SIM.creation_serials[index]);
 
-  obj.creation_tick = SV.tick;
+  obj.creation_tick = SIM.tick;
   obj.flags = flags;
 
   for * obj.base_stats.all { it.* = 1.0; }
@@ -799,8 +870,22 @@ SIM_CreateObject :: (flags: OBJ_Flags) -> *Object
   return obj;
 }
 
-SIM_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
+SIM_CreateProjectile :: (owner: *Object, flags: OBJ_Flags) -> *Object
 {
+  projectile := SIM_CreateObject(flags);
+  if !OBJ_IsNil(projectile)
+  {
+    projectile.owned_by = owner.key;
+    owner.activity.last_projectile = projectile.key;
+  }
+  return projectile;
+}
+
+SIM_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams, max_dist := -1.0) -> *Object
+{
+  max_distsq := max_dist*max_dist;
+  if (max_dist < 0.0) max_distsq = FLOAT32_MAX;
+
   nearest := OBJ_NilObject();
   nearest_distsq := FLOAT32_MAX;
 
@@ -810,7 +895,7 @@ SIM_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
     if !OBJ_Test2(candidate, obj, params) continue;
 
     distsq := OBJ_Distance2DSquared(obj, candidate);
-    if distsq < nearest_distsq
+    if distsq < nearest_distsq && distsq <= max_distsq
     {
       nearest = candidate;
       nearest_distsq = distsq;
@@ -818,6 +903,13 @@ SIM_FindNearestToObject :: (obj: *Object, params: OBJ_TestParams) -> *Object
   }
 
   return nearest;
+}
+
+SIM_GetBase :: (team: OBJ_Team) -> *Object
+{
+  if team == .NO_TEAM return OBJ_NilObject();
+  team_idx := ifx team == .BLUE then 0 else 1;
+  return SIM_GetObject(SIM.teams[team_idx].base);
 }
 
 SIM_CreateMinion :: (team: OBJ_Team) -> *Object

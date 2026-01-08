@@ -156,6 +156,7 @@ UI_BuildHUD :: ()
     Layer(.{layout.padding = PADDING});
     CreateText(tprint("MS: %", ff1n(player.stats.move_speed)));
     CreateText(tprint("AS: %", ff1n(player.stats.attack_speed)));
+    CreateText(tprint("GOLD: %", ff0(player.gold)));
   }
 
 }

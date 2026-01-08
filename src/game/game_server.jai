@@ -8,7 +8,6 @@ ServerState :: struct
 
   iteration_timestamp: Timestamp;
   timestamp_accumulator: Timestamp;
-  tick: ServerTick;
   last_broadcasted_tick: ServerTick;
 
   users: [NET_MAX_PLAYERS] SV_User;
@@ -56,7 +55,7 @@ SV_ThreadEntry :: (thread: *Thread) -> s64
 
     for MakeRange(simulation_tick_count)
     {
-      SV.tick += 1;
+      SIM.tick += 1;
       SIM_AdvanceByTick();
 
       if it >= 2
@@ -78,11 +77,11 @@ SV_ThreadEntry :: (thread: *Thread) -> s64
 SV_IterateSend :: ()
 {
   if NET_HasError() return;
-  if SV.tick <= SV.last_broadcasted_tick return;
+  if SIM.tick <= SV.last_broadcasted_tick return;
   if NET_HackyRatelimitting(UniqueTimestamp(), 0.001) return;
 
   PerfFunc();
-  SV.last_broadcasted_tick = SV.tick;
+  SV.last_broadcasted_tick = SIM.tick;
 
   client_count := 0;
   for SV.users if it.connection.type  client_count += 1;
@@ -120,7 +119,7 @@ SV_IterateSend :: ()
         user.key = player.key;
       }
 
-      packet := PK_Create(SV.tick, PK_Kind.AssignPlayerKey, user.key);
+      packet := PK_Create(SIM.tick, PK_Kind.AssignPlayerKey, user.key);
       NET_SendPacket(packet, user.connection, true);
     }
   }
@@ -131,7 +130,7 @@ SV_IterateSend :: ()
     packet: Packet;
     if OBJ_HasData(it) PK_AddPair(*packet, .ObjUpdate, it);
     else               PK_AddPair(*packet, .ObjEmpty, it_index.(ObjIdx));
-    PK_FinalizeHeader(SV.tick, *packet);
+    PK_FinalizeHeader(SIM.tick, *packet);
 
     for SV.users {
       if !it.connection.type continue;

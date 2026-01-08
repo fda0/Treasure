@@ -177,11 +177,11 @@ Object :: struct
   stats: OBJ_Stats;
   health: float; @lerp
   energy: float; @lerp
+  gold: float; @lerp
 
   skills: [4] OBJ_Skill;
 
-  // projectile life left timer
-  projectile_t: float; // projectile is destroyed when time reaches 0
+  owned_by: OBJ_Key;
 
   // game state
   activity: OBJ_Activity; @lerp_recurse
