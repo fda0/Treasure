@@ -54,7 +54,10 @@ GameState :: struct
   sun_camera_p: V3;
   sun_camera_transform: Mat4;
 
-  // camera
+  // camera inputs
+  camera_shift: V2;
+  camera_zoom: float;
+  // camera results
   camera_p: V3 = .{-10, 0, 1};
   camera_angles: V3;
   camera_fov_y: float = 0.111;
@@ -334,8 +337,12 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 
 G_CalculateCameraAndMouseInput :: ()
 {
+  G.camera_zoom = clamp01(G.camera_zoom + G.mouse_scroll.y*0.1);
+
   if DEV.noclip
   {
+    G.camera_zoom = 0.0;
+
     if KEY_Held(.MOUSE_LEFT)
     {
       rot_speed := 0.0004;
@@ -358,9 +365,6 @@ G_CalculateCameraAndMouseInput :: ()
   }
   else
   {
-    G.camera_p.z = 12.5;
-    G.camera_angles = V3.{0, -0.138, 0};
-
     // Mouse window edge camera scroll
     if G.grab_mouse
     {
@@ -378,15 +382,21 @@ G_CalculateCameraAndMouseInput :: ()
 
       dir_len := length(dir);
       if dir_len > 1.0 then dir /= dir_len;
-      G.camera_p.xy += dir * G.dt * 16.0;
+      G.camera_shift += dir * G.dt * 16.0;
     }
 
-    player := G_GetGhost(.SHARED, G.player_key);
     if KEY_Held(.SPACE) || G.frame_number < 10 // temp hack to center camera on player on startup
     {
-      G.camera_p.xy = player.p.xy;
-      G.camera_p.x -= 8.5;
+      player := G_GetGhost(.SHARED, G.player_key);
+      G.camera_shift = player.p.xy;
     }
+
+    zoom_far := V3.{-8.5, 0.0, 12.5};
+    zoom_near := V3.{-2.75, 0.0, 4.0};
+
+    G.camera_p = lerp(zoom_far, zoom_near, G.camera_zoom);
+    G.camera_p.xy += G.camera_shift;
+    G.camera_angles = V3.{0, -0.138, 0};
   }
 
   // calculate camera transform matrices
@@ -395,6 +405,7 @@ G_CalculateCameraAndMouseInput :: ()
     rot := RotationMatrixAroundAxis(AxisV3(.X), G.camera_angles.x);
     rot = RotationMatrixAroundAxis(AxisV3(.Z), G.camera_angles.z) * rot;
     rot = RotationMatrixAroundAxis(AxisV3(.Y), G.camera_angles.y) * rot;
+
     aspect := G.window_dim.x / G.window_dim.y;
     projection := PerspectiveMatrix(G.camera_fov_y, aspect, 0.25, 250.0);
     G.camera_transform = projection * (rot * transl);
