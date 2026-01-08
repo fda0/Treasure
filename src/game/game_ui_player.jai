@@ -85,7 +85,7 @@ UI_BuildHUD :: ()
                  .{floating.attach_to = .PARENT, floating.offset = Rem2(.{0.25, -0.25}),
                    floating.anchors = GetAnchor2(.LEFT, .BOTTOM)});
 
-      cooldown_color := PackedSetAlphaF(TEXT_FG, Smoothstep(it.cooldown_timer, -0.1, 0.2));
+      cooldown_color := PackedSetAlphaF(TEXT_FG, Smoothstep(it.cooldown_timer, 0.0, 0.2));
       CreateText(tprint("%", ceil(cooldown)),
                  .{text.color = cooldown_color,
                    text.font_size = Rem(1.4),

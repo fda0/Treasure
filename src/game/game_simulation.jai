@@ -796,6 +796,7 @@ SIM_InitObjects :: ()
     SIM.enemy0 = hero.key;
     if !OBJ_IsNil(hero)
     {
+      hero.flags |= .UPDATE_AI;
       hero.p.x = 3.0;
       hero.p.y = 1.0;
     }
@@ -804,6 +805,7 @@ SIM_InitObjects :: ()
     SIM.enemy1 = hero.key;
     if !OBJ_IsNil(hero)
     {
+      hero.flags |= .UPDATE_AI;
       hero.p.x = 3.2;
       hero.p.y = 2.0;
     }
