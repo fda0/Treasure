@@ -9,11 +9,7 @@ RenderState :: struct
   ui_shapes3d: Fixed(RD_UIShapeIn3D, 1024 * 2);
 
   lanes: [] RD_Lane; // count = LaneCount(); indexed by LaneIdx()
-
-  all_stagings: [] RD_Staging;
-  transforms_staging: *RD_Staging;
-  models_stagings: [] RD_Staging; // count = AST.models.count
-  meshes_stagings: [] RD_Staging; // count = AST.materials.count
+  stagings: [RD_TARGET_COUNT] RD_StagingGroup;
 }
 
 RD_Staging :: struct
@@ -24,6 +20,14 @@ RD_Staging :: struct
 
   buffer_handle: *SDL_GPUBuffer;
   buffer_capacity: s64;
+}
+
+RD_StagingGroup :: struct
+{
+  all: [] RD_Staging;
+  transforms: *RD_Staging;
+  models: [] RD_Staging; // count = AST.models.count
+  meshes: [] RD_Staging; // count = AST.materials.count
 }
 
 RD_WorldUniform :: struct
@@ -79,14 +83,19 @@ RD_Lane :: struct
 RD_Init :: ()
 {
   RD.lanes = NewArray(GLOBAL.core_count, RD_Lane);
-  RD.all_stagings = NewArray(1 + AST.models.count + AST.materials.count, RD_Staging);
-  RD.transforms_staging = *RD.all_stagings[0];
-  RD.models_stagings = Subarray(RD.all_stagings, 1, AST.models.count);
-  RD.meshes_stagings = Subarray(RD.all_stagings, 1 + AST.models.count, AST.materials.count);
 
-  for * RD.all_stagings {
-    it.buffer_handle = GPU.dummy_instance_buffer;
+  for * RD.stagings
+  {
+    it.all = NewArray(1 + AST.models.count + AST.materials.count, RD_Staging);
+    it.transforms = *it.all[0];
+    it.models = Subarray(it.all, 1, AST.models.count);
+    it.meshes = Subarray(it.all, 1 + AST.models.count, AST.materials.count);
+
+    for * it.all {
+      it.buffer_handle = GPU.dummy_instance_buffer;
+    }
   }
+
 }
 
 RD_InitLane :: ()
@@ -138,7 +147,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   {
     sum := transforms_sum;
 
-    staging := RD.transforms_staging;
+    staging := RD.stagings[target].transforms;
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(Mat4);
     if staging.bytes > 0
@@ -168,7 +177,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Upload models to GPU
   for sum, slot: models_sums
   {
-    staging := *RD.models_stagings[slot];
+    staging := *RD.stagings[target].models[slot];
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(RD_WorldInstance);
     if staging.bytes == 0 continue;
@@ -197,7 +206,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Upload meshes to GPU
   for sum, slot: meshes_sums
   {
-    staging := *RD.meshes_stagings[slot];
+    staging := *RD.stagings[target].meshes[slot];
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(RD_WorldVertex);
     if staging.bytes == 0 continue;
@@ -233,38 +242,41 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
 
 RD_CopyFromTransferBuffersToBuffers :: (copy_pass: *SDL_GPUCopyPass)
 {
-  for * RD.all_stagings
+  for * staging: RD.stagings
   {
-    if it.bytes == 0 continue;
-
-    if it.buffer_capacity < it.bytes
+    for * staging.all
     {
-      if it.buffer_handle && it.buffer_handle != GPU.dummy_instance_buffer // @todo collapse it into "nil buffer" concept
+      if it.bytes == 0 continue;
+
+      if it.buffer_capacity < it.bytes
       {
-        SDL_ReleaseGPUBuffer(GPU.device, it.buffer_handle);
-        it.buffer_handle = null;
+        if it.buffer_handle && it.buffer_handle != GPU.dummy_instance_buffer // @todo collapse it into "nil buffer" concept
+        {
+          SDL_ReleaseGPUBuffer(GPU.device, it.buffer_handle);
+          it.buffer_handle = null;
+        }
+        it.buffer_capacity = 0;
       }
-      it.buffer_capacity = 0;
+
+      if !it.buffer_handle || it.buffer_handle == GPU.dummy_instance_buffer
+      {
+        it.buffer_capacity = xx CeilPow2(xx (it.bytes * 2));
+
+        info := SDL_GPUBufferCreateInfo.{size = xx it.buffer_capacity};
+        if is_pointer_in_bounds(staging.meshes, it) info.usage |= SDL_GPU_BUFFERUSAGE_VERTEX;
+        else info.usage |= SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
+
+        it.buffer_handle = SDL_CreateGPUBuffer(GPU.device, *info);
+      }
+
+      src := SDL_GPUTransferBufferLocation.{transfer_buffer = it.transfer_handle};
+      dst := SDL_GPUBufferRegion.{buffer = it.buffer_handle, size = xx it.bytes};
+      SDL_UploadToGPUBuffer(copy_pass, *src, *dst, true); // @todo can this be false instead? does copy_pass part take care of cycling?
+
+      // Release transfer buffer
+      SDL_ReleaseGPUTransferBuffer(GPU.device, it.transfer_handle);
+      it.transfer_handle = null;
     }
-
-    if !it.buffer_handle || it.buffer_handle == GPU.dummy_instance_buffer
-    {
-      it.buffer_capacity = xx CeilPow2(xx (it.bytes * 2));
-
-      info := SDL_GPUBufferCreateInfo.{size = xx it.buffer_capacity};
-      if is_pointer_in_bounds(RD.meshes_stagings, it) info.usage |= SDL_GPU_BUFFERUSAGE_VERTEX;
-      else info.usage |= SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
-
-      it.buffer_handle = SDL_CreateGPUBuffer(GPU.device, *info);
-    }
-
-    src := SDL_GPUTransferBufferLocation.{transfer_buffer = it.transfer_handle};
-    dst := SDL_GPUBufferRegion.{buffer = it.buffer_handle, size = xx it.bytes};
-    SDL_UploadToGPUBuffer(copy_pass, *src, *dst, true); // @todo can this be false instead? does copy_pass part take care of cycling?
-
-    // Release transfer buffer
-    SDL_ReleaseGPUTransferBuffer(GPU.device, it.transfer_handle);
-    it.transfer_handle = null;
   }
 }
 
