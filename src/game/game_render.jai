@@ -242,9 +242,9 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (group: RD_WorldGroup)
 
 RD_CopyFromTransferBuffersToBuffers :: (copy_pass: *SDL_GPUCopyPass)
 {
-  for * staging: RD.stagings
+  for * group: RD.stagings
   {
-    for * staging.all
+    for * group.all
     {
       if it.bytes == 0 continue;
 
@@ -263,7 +263,7 @@ RD_CopyFromTransferBuffersToBuffers :: (copy_pass: *SDL_GPUCopyPass)
         it.buffer_capacity = xx CeilPow2(xx (it.bytes * 2));
 
         info := SDL_GPUBufferCreateInfo.{size = xx it.buffer_capacity};
-        if is_pointer_in_bounds(staging.meshes, it) info.usage |= SDL_GPU_BUFFERUSAGE_VERTEX;
+        if is_pointer_in_bounds(group.meshes, it) info.usage |= SDL_GPU_BUFFERUSAGE_VERTEX;
         else info.usage |= SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
 
         it.buffer_handle = SDL_CreateGPUBuffer(GPU.device, *info);
@@ -323,6 +323,7 @@ RD_DrawGhost :: (ghost: Ghost)
   batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.REGULAR];
   outline_batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.OUTLINE];
 
+  draw_outline := false;
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
@@ -335,8 +336,11 @@ RD_DrawGhost :: (ghost: Ghost)
 
     hover_color := ColorWhite();
     if OBJ_HasAnyFlag(ghost, .CANT_DAMAGE) hover_color.y *= 0.2 + 0.6*Sin01(G.at*1.9);
-    if (ghost.key == G.hover_object) hover_color.x *= 0.25*Cos01(G.at*1.5);
     if (ghost.key == DEV.inspected_object) hover_color.xyz *= 0.2 + 0.8*Sin01(G.at*2.8);
+    if (ghost.key == G.hover_object) {
+      hover_color.x *= 0.25*Cos01(G.at*1.5);
+      draw_outline = true;
+    }
 
     instance := RD_WorldInstance.{
       transform = transform,
@@ -344,19 +348,32 @@ RD_DrawGhost :: (ghost: Ghost)
       color_mask = ColorPack(hover_color),
       picking_color = ifx ghost.flags & .DISABLE_MOUSE then (0).(Color32) else OBJ_KeyToColor(ghost.key),
     };
+    batch_pose_offset: s64;
+    outline_pose_offset: s64;
 
     model := ModelFromAlias(ghost.model);
     if model.is_skinned
     {
+      batch_pose_offset = batch.transforms.count;
+      outline_pose_offset = outline_batch.transforms.count;
+
       skeleton := SkeletonFromSlot(model.skeleton_slot);
-      instance.pose_offset = xx batch.transforms.count;
       tracks := AN_GetTracks(ghost);
       transforms := AN_GetPoseTransforms(skeleton, tracks);
       array_add_from_another_array(*batch.transforms, transforms);
+      if (draw_outline) array_add_from_another_array(*outline_batch.transforms, transforms);
     }
 
     model_slot := ModelSlotFromAlias(ghost.model);
+
+    instance.pose_offset = xx batch_pose_offset;
     array_add(*batch.models[model_slot].buf, instance);
+
+    if (draw_outline)
+    {
+      instance.pose_offset = xx outline_pose_offset;
+      array_add(*outline_batch.models[model_slot].buf, instance);
+    }
   }
 
   if draw_bars
@@ -521,6 +538,7 @@ RD_DrawGhost :: (ghost: Ghost)
     // Transfer verts to GPU
     material_slot := MaterialSlotFromAlias(material);
     array_add_many(*batch.meshes[material_slot].buf, mesh_verts.data, mesh_verts_count);
+    if (draw_outline) array_add_many(*outline_batch.meshes[material_slot].buf, mesh_verts.data, mesh_verts_count);
   }
 }
 

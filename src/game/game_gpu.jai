@@ -358,34 +358,35 @@ GPU_InitPipelines :: ()
 
 
 
-GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: GPU_RenderWorldMode)
+GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: GPU_RenderWorldMode, group: RD_WorldGroup)
 {
-  render_group := RD_WorldGroup.REGULAR;
   simplified_pipeline := ifx mode == .RENDER then false else true;
   pipeline_index := ifx simplified_pipeline then 1 else 0;
   SDL_BindGPUGraphicsPipeline(pass, GPU.world_pipelines[pipeline_index]);
 
   // Bind shadow texture sampler to fragment shader
   {
-    binding_sampl := SDL_GPUTextureSamplerBinding.{
-      texture = ifx simplified_pipeline then GPU.dummy_shadow_tex else GPU.shadow_tex,
-      sampler = GPU.shadow_sampler,
-    };
-    SDL_BindGPUFragmentSamplers(pass, 0, *binding_sampl, 1);
+    binding_sampl := SDL_GPUTextureSamplerBinding.[
+      .{texture = ifx simplified_pipeline then GPU.dummy_shadow_tex else GPU.shadow_tex,
+        sampler = GPU.shadow_sampler},
+      .{texture = MaterialFromSlot(0).texture_handle,
+        sampler = GPU.mesh_tex_sampler},
+    ];
+    SDL_BindGPUFragmentSamplers(pass, 0, binding_sampl.data, binding_sampl.count);
   }
 
   // Bind dummy buffers
   {
     storage_bufs := *SDL_GPUBuffer.[
       GPU.dummy_instance_buffer,
-      RD.stagings[render_group].transforms.buffer_handle,
+      RD.stagings[group].transforms.buffer_handle,
     ];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
   }
   //
   // Dynamic meshes
   //
-  for staging, material_slot: RD.stagings[render_group].meshes
+  for staging, material_slot: RD.stagings[group].meshes
   {
     if staging.element_count == 0 continue;
 
@@ -422,7 +423,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
   //
   // Models
   //
-  for staging, model_slot: RD.stagings[render_group].models
+  for staging, model_slot: RD.stagings[group].models
   {
     if staging.element_count == 0 continue;
 
@@ -431,7 +432,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
     // bind instance storage buffer
     storage_bufs := *SDL_GPUBuffer.[
       staging.buffer_handle,
-      RD.stagings[render_group].transforms.buffer_handle,
+      RD.stagings[group].transforms.buffer_handle,
     ];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
 
@@ -515,7 +516,7 @@ GPU_Iterate :: ()
   {
     depth_target.texture = GPU.shadow_tex;
     pass := SDL_BeginGPURenderPass(cmd, null, 0, *depth_target);
-    GPU_RenderWorld(cmd, pass, .DEPTH);
+    GPU_RenderWorld(cmd, pass, .DEPTH, .OUTLINE);
     SDL_EndGPURenderPass(pass);
   }
 
@@ -540,7 +541,7 @@ GPU_Iterate :: ()
     };
 
     pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, *depth_target);
-    GPU_RenderWorld(cmd, pass, .MOUSE_PICKING);
+    GPU_RenderWorld(cmd, pass, .MOUSE_PICKING, .REGULAR);
     SDL_EndGPURenderPass(pass);
   }
 
@@ -573,7 +574,7 @@ GPU_Iterate :: ()
     }
 
     pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, *depth_target);
-    GPU_RenderWorld(cmd, pass, .RENDER);
+    GPU_RenderWorld(cmd, pass, .RENDER, .REGULAR);
     SDL_EndGPURenderPass(pass);
   }
 
