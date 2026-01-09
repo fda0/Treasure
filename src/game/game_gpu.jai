@@ -491,14 +491,19 @@ GPU_Iterate :: ()
     SDL_EndGPUCopyPass(copy_pass);
   }
 
-  depth_target := SDL_GPUDepthStencilTargetInfo.{
-    clear_depth = GPU_CLEAR_DEPTH_FLOAT,
-    load_op = .SDL_GPU_LOADOP_CLEAR,
-    store_op = .SDL_GPU_STOREOP_DONT_CARE,
-    stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
-    stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
-    cycle = true,
-  };
+  CreateDepthTargetInfo :: (texture: *SDL_GPUTexture) -> SDL_GPUDepthStencilTargetInfo
+  {
+    depth_target := SDL_GPUDepthStencilTargetInfo.{
+      texture = texture,
+      clear_depth = GPU_CLEAR_DEPTH_FLOAT,
+      load_op = .SDL_GPU_LOADOP_CLEAR,
+      store_op = .SDL_GPU_STOREOP_DONT_CARE,
+      stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
+      stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
+      cycle = true,
+    };
+    return depth_target;
+  }
 
   GPU.world_uniform = RD_WorldUniform.{
     camera_transform = G.sun_camera_transform,
@@ -514,9 +519,9 @@ GPU_Iterate :: ()
 
   // Sun shadow map render pass
   {
-    depth_target.texture = GPU.shadow_tex;
+    depth_target := CreateDepthTargetInfo(GPU.shadow_tex);
     pass := SDL_BeginGPURenderPass(cmd, null, 0, *depth_target);
-    GPU_RenderWorld(cmd, pass, .DEPTH, .OUTLINE);
+    GPU_RenderWorld(cmd, pass, .DEPTH, .VISIBLE);
     SDL_EndGPURenderPass(pass);
   }
 
@@ -531,7 +536,7 @@ GPU_Iterate :: ()
   // Mouse picking pass
   if DEV.mouse_picking & .ENABLED
   {
-    depth_target.texture = GPU.tex_mouse_picking_depth;
+    depth_target := CreateDepthTargetInfo(GPU.tex_mouse_picking_depth);
 
     color_target := SDL_GPUColorTargetInfo.{
       load_op = .SDL_GPU_LOADOP_CLEAR,
@@ -541,13 +546,13 @@ GPU_Iterate :: ()
     };
 
     pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, *depth_target);
-    GPU_RenderWorld(cmd, pass, .MOUSE_PICKING, .REGULAR);
+    GPU_RenderWorld(cmd, pass, .MOUSE_PICKING, .VISIBLE);
     SDL_EndGPURenderPass(pass);
   }
 
-  // World render pass
+  // Main visible world render pass
   {
-    depth_target.texture = GPU.tex_world_depth;
+    depth_target := CreateDepthTargetInfo(GPU.tex_world_depth);
 
     color_target := SDL_GPUColorTargetInfo.{
       clear_color = .{
@@ -574,10 +579,44 @@ GPU_Iterate :: ()
     }
 
     pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, *depth_target);
-    GPU_RenderWorld(cmd, pass, .RENDER, .REGULAR);
+    GPU_RenderWorld(cmd, pass, .RENDER, .VISIBLE);
     SDL_EndGPURenderPass(pass);
   }
 
+  // Outlines
+  {
+    // color_target := SDL_GPUColorTargetInfo.{
+    //   clear_color = .{
+    //     r = GPU_CLEAR_COLOR_R,
+    //     g = GPU_CLEAR_COLOR_G,
+    //     b = GPU_CLEAR_COLOR_B,
+    //     a = GPU_CLEAR_COLOR_A,
+    //   },
+    //   load_op = .SDL_GPU_LOADOP_CLEAR,
+    //   store_op = .SDL_GPU_STOREOP_STORE,
+    // };
+
+    // if GPU.tex_msaa
+    // {
+    //   color_target.store_op = .SDL_GPU_STOREOP_RESOLVE;
+    //   color_target.texture = GPU.tex_msaa;
+    //   color_target.resolve_texture = GPU.tex_resolve;
+    //   color_target.cycle = true;
+    //   color_target.cycle_resolve_texture = true;
+    // }
+    // else
+    // {
+    //   color_target.texture = swapchain_tex;
+    // }
+
+    // pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
+    // GPU_RenderWorld(cmd, pass, .RENDER, .VISIBLE);
+    // SDL_EndGPURenderPass(pass);
+  }
+
+  //
+  // WORLD blit (with msaa) to native resolution
+  //
   if GPU.sample_count > .SDL_GPU_SAMPLECOUNT_1
   {
     blit := SDL_GPUBlitInfo.{
@@ -757,20 +796,78 @@ GPU_ResizeFramebuffer :: ()
 
   window_width := cast(u32) G.window_dim.x;
   window_height := cast(u32) G.window_dim.y;
-  GPU.tex_msaa = GPU_CreateMSAATexture(window_width, window_height);
-  GPU.tex_resolve = GPU_CreateResolveTexture(window_width, window_height);
+
+  // Color textures
+  GPU.tex_msaa = null;
+  if GPU.sample_count > .SDL_GPU_SAMPLECOUNT_1
+  {
+    info := SDL_GPUTextureCreateInfo.{
+      type = .SDL_GPU_TEXTURETYPE_2D,
+      format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window),
+      width = window_width,
+      height = window_height,
+      layer_count_or_depth = 1,
+      num_levels = 1,
+      sample_count = GPU.sample_count,
+      usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+      props = GPU.clear_color_props,
+    };
+
+    GPU.tex_msaa = SDL_CreateGPUTexture(GPU.device, *info);
+    assert(GPU.tex_msaa != null);
+  }
+
+  GPU.tex_resolve = null;
+  if GPU.sample_count > .SDL_GPU_SAMPLECOUNT_1
+  {
+    info := SDL_GPUTextureCreateInfo.{
+      type = .SDL_GPU_TEXTURETYPE_2D,
+      format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window),
+      width = window_width,
+      height = window_height,
+      layer_count_or_depth = 1,
+      num_levels = 1,
+      sample_count = .SDL_GPU_SAMPLECOUNT_1,
+      usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER, // @todo remove SAMPLER?
+      props = GPU.clear_color_props,
+    };
+
+    GPU.tex_resolve = SDL_CreateGPUTexture(GPU.device, *info);
+    assert(GPU.tex_resolve != null);
+  }
+
+  GPU.tex_mouse_picking = null;
+  {
+    info := SDL_GPUTextureCreateInfo.{
+      type = .SDL_GPU_TEXTURETYPE_2D,
+      format = .B8G8R8A8_UNORM, // @todo Pick this from swapchain texture format? But be careful when reading from it?
+      width = window_width,
+      height = window_height,
+      layer_count_or_depth = 1,
+      num_levels = 1,
+      sample_count = .SDL_GPU_SAMPLECOUNT_1,
+      usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+      props = GPU.clear_mouse_picking_props,
+    };
+
+    GPU.tex_mouse_picking = SDL_CreateGPUTexture(GPU.device, *info);
+    assert(GPU.tex_mouse_picking != null);
+    SDL_SetGPUTextureName(GPU.device, GPU.tex_mouse_picking, "MousePickingTexture");
+  }
+
+  // Depth textures
   GPU.tex_world_depth = GPU_CreateDepthTexture(window_width, window_height, false, false);
   GPU.tex_mouse_picking_depth = GPU_CreateDepthTexture(window_width, window_height, false, true);
-  GPU.tex_mouse_picking = GPU_CreateMousePickingTexture(window_width, window_height);
 }
 
 GPU_CreateBuffer :: (usage: SDL_GPUBufferUsageFlags, size: u32, name: string) -> *SDL_GPUBuffer
 {
   desc := SDL_GPUBufferCreateInfo.{usage = usage, size = size};
   result := SDL_CreateGPUBuffer(GPU.device, *desc);
-  assert(!!result);
-  if (name.count)
-  SDL_SetGPUBufferName(GPU.device, result, temp_c_string(name));
+  assert(result != null);
+  if (name) {
+    SDL_SetGPUBufferName(GPU.device, result, temp_c_string(name));
+  }
   return result;
 }
 
@@ -793,68 +890,6 @@ GPU_CreateDepthTexture :: (width: u32, height: u32, used_in_sampler: bool, sampl
 
   result := SDL_CreateGPUTexture(GPU.device, *info);
   assert(!!result); // @todo report err
-  return result;
-}
-
-GPU_CreateMSAATexture :: (width: u32, height: u32) -> *SDL_GPUTexture
-{
-  if GPU.sample_count == .SDL_GPU_SAMPLECOUNT_1 return null;
-
-  info := SDL_GPUTextureCreateInfo.{
-    type = .SDL_GPU_TEXTURETYPE_2D,
-    format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window),
-    width = width,
-    height = height,
-    layer_count_or_depth = 1,
-    num_levels = 1,
-    sample_count = GPU.sample_count,
-    usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
-    props = GPU.clear_color_props,
-  };
-
-  result := SDL_CreateGPUTexture(GPU.device, *info);
-  assert(!!result); // @todo report err
-  return result;
-}
-
-GPU_CreateResolveTexture :: (width: u32, height: u32) -> *SDL_GPUTexture
-{
-  if GPU.sample_count == .SDL_GPU_SAMPLECOUNT_1 return null;
-
-  info := SDL_GPUTextureCreateInfo.{
-    type = .SDL_GPU_TEXTURETYPE_2D,
-    format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window),
-    width = width,
-    height = height,
-    layer_count_or_depth = 1,
-    num_levels = 1,
-    sample_count = .SDL_GPU_SAMPLECOUNT_1,
-    usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER, // @todo remove SAMPLER?
-    props = GPU.clear_color_props,
-  };
-
-  result := SDL_CreateGPUTexture(GPU.device, *info);
-  assert(!!result); // @todo report err
-  return result;
-}
-
-GPU_CreateMousePickingTexture :: (width: u32, height: u32) -> *SDL_GPUTexture
-{
-  info := SDL_GPUTextureCreateInfo.{
-    type = .SDL_GPU_TEXTURETYPE_2D,
-    format = .B8G8R8A8_UNORM, // @todo Pick this from swapchain texture format? But be careful when reading from it?
-    width = width,
-    height = height,
-    layer_count_or_depth = 1,
-    num_levels = 1,
-    sample_count = .SDL_GPU_SAMPLECOUNT_1,
-    usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
-    props = GPU.clear_mouse_picking_props,
-  };
-
-  result := SDL_CreateGPUTexture(GPU.device, *info);
-  assert(!!result); // @todo report err
-  SDL_SetGPUTextureName(GPU.device, result, "MousePickingTexture");
   return result;
 }
 

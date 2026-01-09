@@ -60,7 +60,7 @@ RD_WorldInstance :: struct
 
 RD_WorldGroup :: enum
 {
-  REGULAR;
+  VISIBLE;
   OUTLINE;
 }
 RD_WORLD_GROUP_COUNT :: #run EnumCount(RD_WorldGroup);
@@ -320,7 +320,7 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
 
 RD_DrawGhost :: (ghost: Ghost)
 {
-  batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.REGULAR];
+  batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.VISIBLE];
   outline_batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.OUTLINE];
 
   draw_outline := false;
