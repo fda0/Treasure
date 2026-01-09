@@ -9,7 +9,7 @@ RenderState :: struct
   ui_shapes3d: Fixed(RD_UIShapeIn3D, 1024 * 2);
 
   lanes: [] RD_Lane; // count = LaneCount(); indexed by LaneIdx()
-  stagings: [RD_TARGET_COUNT] RD_StagingGroup;
+  stagings: [RD_WORLD_GROUP_COUNT] RD_StagingGroup;
 }
 
 RD_Staging :: struct
@@ -58,12 +58,12 @@ RD_WorldInstance :: struct
   pose_offset: u32; // in indices; unused for rigid
 };
 
-RD_Target :: enum
+RD_WorldGroup :: enum
 {
   REGULAR;
   OUTLINE;
 }
-RD_TARGET_COUNT :: #run EnumCount(RD_Target);
+RD_WORLD_GROUP_COUNT :: #run EnumCount(RD_WorldGroup);
 
 RD_WorldBatch :: struct
 {
@@ -77,7 +77,7 @@ RD_WorldBatch :: struct
 
 RD_Lane :: struct
 {
-  batches: [RD_TARGET_COUNT] RD_WorldBatch;
+  batches: [RD_WORLD_GROUP_COUNT] RD_WorldBatch;
 }
 
 RD_Init :: ()
@@ -108,7 +108,7 @@ RD_InitLane :: ()
   }
 }
 
-RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
+RD_UploadWorldBatchesToGPUTransferBuffers :: (group: RD_WorldGroup)
 {
   AssertThatOnlyOneLaneEverReachedThisCodepath();
 
@@ -121,7 +121,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Count all transforms, models, meshes + patch model's pose_offset
   for lane: RD.lanes
   {
-    batch := *lane.batches[target];
+    batch := *lane.batches[group];
 
     for batch.models {
       models_sums[it_index] += it.buf.count;
@@ -147,7 +147,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   {
     sum := transforms_sum;
 
-    staging := RD.stagings[target].transforms;
+    staging := RD.stagings[group].transforms;
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(Mat4);
     if staging.bytes > 0
@@ -162,7 +162,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
       mapped_dst := mapped_memory;
       for lane: RD.lanes
       {
-        batch := *lane.batches[target];
+        batch := *lane.batches[group];
 
         src := *batch.transforms;
         size := array_size_bytes(src.*);
@@ -177,7 +177,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Upload models to GPU
   for sum, slot: models_sums
   {
-    staging := *RD.stagings[target].models[slot];
+    staging := *RD.stagings[group].models[slot];
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(RD_WorldInstance);
     if staging.bytes == 0 continue;
@@ -192,7 +192,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
     mapped_dst := mapped_memory;
     for lane: RD.lanes
     {
-      batch := *lane.batches[target];
+      batch := *lane.batches[group];
 
       src := *batch.models[slot].buf;
       size := array_size_bytes(src.*);
@@ -206,7 +206,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Upload meshes to GPU
   for sum, slot: meshes_sums
   {
-    staging := *RD.stagings[target].meshes[slot];
+    staging := *RD.stagings[group].meshes[slot];
     staging.element_count = sum;
     staging.bytes = staging.element_count * size_of(RD_WorldVertex);
     if staging.bytes == 0 continue;
@@ -221,7 +221,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
     mapped_dst := mapped_memory;
     for lane: RD.lanes
     {
-      batch := *lane.batches[target];
+      batch := *lane.batches[group];
 
       src := *batch.meshes[slot].buf;
       size := array_size_bytes(src.*);
@@ -235,7 +235,7 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
   // Clear world batch CPU arrays
   for lane: RD.lanes
   {
-    batch := *lane.batches[target];
+    batch := *lane.batches[group];
     RD_ResetWorldBatch(batch);
   }
 }
@@ -320,7 +320,8 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
 
 RD_DrawGhost :: (ghost: Ghost)
 {
-  batch := *RD.lanes[LaneIdx()].batches[RD_Target.REGULAR];
+  batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.REGULAR];
+  outline_batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.OUTLINE];
 
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);

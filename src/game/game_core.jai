@@ -226,7 +226,10 @@ G_Iterate :: ()
 
   if IsLaneFromTaskIdx(0)
   {
-    RD_UploadWorldBatchesToGPUTransferBuffers(.REGULAR);
+    for enum_values_as_enum(RD_WorldGroup)
+    {
+      RD_UploadWorldBatchesToGPUTransferBuffers(it);
+    }
   }
 
   if IsLaneFromTaskIdx(1) && !G.headless

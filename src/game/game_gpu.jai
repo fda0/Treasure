@@ -360,7 +360,7 @@ GPU_InitPipelines :: ()
 
 GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: GPU_RenderWorldMode)
 {
-  render_target := RD_Target.REGULAR;
+  render_group := RD_WorldGroup.REGULAR;
   simplified_pipeline := ifx mode == .RENDER then false else true;
   pipeline_index := ifx simplified_pipeline then 1 else 0;
   SDL_BindGPUGraphicsPipeline(pass, GPU.world_pipelines[pipeline_index]);
@@ -378,14 +378,14 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
   {
     storage_bufs := *SDL_GPUBuffer.[
       GPU.dummy_instance_buffer,
-      RD.stagings[render_target].transforms.buffer_handle,
+      RD.stagings[render_group].transforms.buffer_handle,
     ];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
   }
   //
   // Dynamic meshes
   //
-  for staging, material_slot: RD.stagings[render_target].meshes
+  for staging, material_slot: RD.stagings[render_group].meshes
   {
     if staging.element_count == 0 continue;
 
@@ -422,7 +422,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
   //
   // Models
   //
-  for staging, model_slot: RD.stagings[render_target].models
+  for staging, model_slot: RD.stagings[render_group].models
   {
     if staging.element_count == 0 continue;
 
@@ -431,7 +431,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
     // bind instance storage buffer
     storage_bufs := *SDL_GPUBuffer.[
       staging.buffer_handle,
-      RD.stagings[render_target].transforms.buffer_handle,
+      RD.stagings[render_group].transforms.buffer_handle,
     ];
     SDL_BindGPUVertexStorageBuffers(pass, 0, storage_bufs.data, storage_bufs.count);
 
