@@ -226,7 +226,7 @@ G_Iterate :: ()
 
   if IsLaneFromTaskIdx(0)
   {
-    RD_UploadWorldBatchesToGPUTransferBuffers();
+    RD_UploadWorldBatchesToGPUTransferBuffers(.REGULAR);
   }
 
   if IsLaneFromTaskIdx(1) && !G.headless
@@ -322,7 +322,6 @@ G_Iterate :: ()
 
 G_UpdateGhostsInRange :: (range: Range(ObjIdx))
 {
-  batch := *RD.world_batches[LaneIdx()];
   for ghost_index: range
   {
     ghost := *G.all_ghosts[ghost_index];
@@ -332,7 +331,7 @@ G_UpdateGhostsInRange :: (range: Range(ObjIdx))
       G_InterpolateSnapshotsForGhost(ghost, ghost_index);
     }
     AN_UpdateGhost(ghost);
-    RD_DrawGhost(ghost, batch);
+    RD_DrawGhost(ghost);
   }
 }
 

@@ -4,12 +4,12 @@ using,only(AN,AST,G) COMPS;
 
 AnimationState :: struct
 {
-  per_lane: [] Lane;
+  lanes: [] AnimationLane;
+}
 
-  Lane :: struct
-  {
-    free_nodes: *AnimationNode;
-  }
+AnimationLane :: struct
+{
+  free_nodes: *AnimationNode;
 }
 
 Skeleton :: struct
@@ -485,7 +485,7 @@ AN_Init :: ()
 {
   PerfFunc();
 
-  AN.per_lane = NewArray(GLOBAL.core_count, AnimationState.Lane);
+  AN.lanes = NewArray(GLOBAL.core_count, AnimationLane);
 
   SetMask :: (joint_name: string, value: bool) #expand
   {
@@ -632,7 +632,7 @@ AN_JointNameToIndex :: (skeleton: Skeleton, name: string) -> index: u32
 AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
 {
   result: *AnimationNode;
-  l := *AN.per_lane[LaneIdx()];
+  l := *AN.lanes[LaneIdx()];
   if l.free_nodes
   {
     result = l.free_nodes;
@@ -655,7 +655,7 @@ AN_AllocNode :: (prev_node: *AnimationNode = null) -> *AnimationNode
 AN_FreeNode :: (node: *AnimationNode)
 {
   AN_UnlinkNode(node);
-  l := *AN.per_lane[LaneIdx()];
+  l := *AN.lanes[LaneIdx()];
   node.next = l.free_nodes;
   l.free_nodes = node;
 }

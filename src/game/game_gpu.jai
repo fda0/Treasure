@@ -676,7 +676,9 @@ GPU_Iterate :: ()
           src.y = xx G.mouse.y;
         }
         else
+        {
           readback.out_of_screen = true;
+        }
       }
 
       dst := SDL_GPUTextureTransferInfo.{

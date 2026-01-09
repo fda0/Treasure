@@ -8,7 +8,7 @@ RenderState :: struct
   ui_shapes: Fixed(RD_UIShape, 1024 * 16);
   ui_shapes3d: Fixed(RD_UIShapeIn3D, 1024 * 2);
 
-  world_batches: [] RD_WorldBatch; // count = LaneCount(); indexed by LaneIdx()
+  lanes: [] RD_Lane; // count = LaneCount(); indexed by LaneIdx()
 
   all_stagings: [] RD_Staging;
   transforms_staging: *RD_Staging;
@@ -54,6 +54,13 @@ RD_WorldInstance :: struct
   pose_offset: u32; // in indices; unused for rigid
 };
 
+RD_Target :: enum
+{
+  REGULAR;
+  OUTLINE;
+}
+RD_TARGET_COUNT :: #run EnumCount(RD_Target);
+
 RD_WorldBatch :: struct
 {
   models: [] ModelBatch #align CACHELINE_SIZE; // indexed with ModelSlot
@@ -64,9 +71,14 @@ RD_WorldBatch :: struct
   MeshBatch :: struct { buf: [..] RD_WorldVertex; }
 }
 
+RD_Lane :: struct
+{
+  batches: [RD_TARGET_COUNT] RD_WorldBatch;
+}
+
 RD_Init :: ()
 {
-  RD.world_batches = NewArray(GLOBAL.core_count, RD_WorldBatch);
+  RD.lanes = NewArray(GLOBAL.core_count, RD_Lane);
   RD.all_stagings = NewArray(1 + AST.models.count + AST.materials.count, RD_Staging);
   RD.transforms_staging = *RD.all_stagings[0];
   RD.models_stagings = Subarray(RD.all_stagings, 1, AST.models.count);
@@ -77,16 +89,19 @@ RD_Init :: ()
   }
 }
 
-RD_InitializeWorldBatch :: (batch: *RD_WorldBatch)
+RD_InitLane :: ()
 {
-  batch.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);
-  batch.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
+  lane := *RD.lanes[LaneIdx()];
+  for * lane.batches
+  {
+    it.models = NewArray(AST.models.count, RD_WorldBatch.ModelBatch);
+    it.meshes = NewArray(AST.materials.count, RD_WorldBatch.MeshBatch);
+  }
 }
 
-RD_UploadWorldBatchesToGPUTransferBuffers :: ()
+RD_UploadWorldBatchesToGPUTransferBuffers :: (target: RD_Target)
 {
   AssertThatOnlyOneLaneEverReachedThisCodepath();
-  if RD.world_batches.count == 0 return;
 
   // @todo counting could be done directly on staging
   auto_release_temp();
@@ -95,8 +110,10 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
   meshes_sums := NewArray(AST.materials.count, s64,, temp);
 
   // Count all transforms, models, meshes + patch model's pose_offset
-  for batch: RD.world_batches
+  for lane: RD.lanes
   {
+    batch := *lane.batches[target];
+
     for batch.models {
       models_sums[it_index] += it.buf.count;
       for * it.buf { // patch pose_offsets with cumulative lane offset
@@ -134,8 +151,10 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
       // CPU -> GPU transfer buffer
       mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
       mapped_dst := mapped_memory;
-      for batch: RD.world_batches
+      for lane: RD.lanes
       {
+        batch := *lane.batches[target];
+
         src := *batch.transforms;
         size := array_size_bytes(src.*);
         memcpy(mapped_dst, src.data, size);
@@ -162,8 +181,10 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
     // CPU -> GPU transfer buffer
     mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
     mapped_dst := mapped_memory;
-    for batch: RD.world_batches
+    for lane: RD.lanes
     {
+      batch := *lane.batches[target];
+
       src := *batch.models[slot].buf;
       size := array_size_bytes(src.*);
       memcpy(mapped_dst, src.data, size);
@@ -189,8 +210,10 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
     // CPU -> GPU transfer buffer
     mapped_memory := SDL_MapGPUTransferBuffer(GPU.device, staging.transfer_handle, false).(*u8);
     mapped_dst := mapped_memory;
-    for batch: RD.world_batches
+    for lane: RD.lanes
     {
+      batch := *lane.batches[target];
+
       src := *batch.meshes[slot].buf;
       size := array_size_bytes(src.*);
       memcpy(mapped_dst, src.data, size);
@@ -201,8 +224,9 @@ RD_UploadWorldBatchesToGPUTransferBuffers :: ()
   }
 
   // Clear world batch CPU arrays
-  for * batch: RD.world_batches
+  for lane: RD.lanes
   {
+    batch := *lane.batches[target];
     RD_ResetWorldBatch(batch);
   }
 }
@@ -282,8 +306,10 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
   }
 }
 
-RD_DrawGhost :: (ghost: Ghost, batch: *RD_WorldBatch)
+RD_DrawGhost :: (ghost: Ghost)
 {
+  batch := *RD.lanes[LaneIdx()].batches[RD_Target.REGULAR];
+
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;

@@ -26,7 +26,7 @@ G_LoopThreadEntry :: (thread: *Thread) -> s64
   thread_name := sprint("Client_%", LaneIdx());
   PerfThreadName(thread_name);
 
-  RD_InitializeWorldBatch(*RD.world_batches[LaneIdx()]);
+  RD_InitLane();
   LaneSync();
 
   while !GLOBAL.in_shutdown
