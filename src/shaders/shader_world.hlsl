@@ -25,25 +25,25 @@ cbuffer PixelUniformBuf  : register(b0, space3) { WORLD_DX_Uniform UP; };
 
 struct WORLD_DX_Vertex
 {
-  float3  p              : TEXCOORD0;
-  float3  normal         : TEXCOORD1;
-  float2  uv             : TEXCOORD2;
-  uint color          : TEXCOORD3;
-  uint joints_packed4 : TEXCOORD4;
-  float4  joint_weights  : TEXCOORD5;
-  uint instance_index : SV_InstanceID;
+  float3 p             : TEXCOORD0;
+  float3 normal        : TEXCOORD1;
+  float2 uv            : TEXCOORD2;
+  uint color           : TEXCOORD3;
+  uint joints_packed4  : TEXCOORD4;
+  float4 joint_weights : TEXCOORD5;
+  uint instance_index  : SV_InstanceID;
 };
 
 struct WORLD_DX_Fragment
 {
-  float4   shadow_p       : TEXCOORD0; // position in shadow space
-  float3   world_p        : TEXCOORD1;
-  uint  color_mask     : TEXCOORD2;
-  float hue_shift     : TEXCOORD3;
-  uint  picking_color  : TEXCOORD4;
-  float2   uv             : TEXCOORD5;
-  Mat3 normal_rot     : TEXCOORD6;
-  float4   vertex_p       : SV_Position;
+  float4 shadow_p    : TEXCOORD0; // position in shadow space
+  float3 world_p     : TEXCOORD1;
+  uint color_mask    : TEXCOORD2;
+  float hue_shift    : TEXCOORD3;
+  uint picking_color : TEXCOORD4;
+  float2 uv          : TEXCOORD5;
+  Mat3 normal_rot    : TEXCOORD6;
+  float4 vertex_p    : SV_Position;
 };
 
 struct WORLD_DX_InstanceModel
@@ -143,6 +143,11 @@ SamplerState MaterialSampler : register(s1, space2);
 
 float4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
 {
+  if (UP.flags & WORLD_FLAG_OutlineEarlyExit)
+  {
+    return frag.vertex_p;
+  }
+
   float3 fog_color = UnpackColor(UP.fog_color).xyz;
   float3 material_diffuse = UnpackColor(UP.material_diffuse).xyz;
   float3 color_mask = UnpackColor(frag.color_mask).xyz;

@@ -291,7 +291,7 @@ RD_ResetWorldBatch :: (batch: *RD_WorldBatch)
   array_reset_keeping_memory(*batch.transforms);
 }
 
-RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mode: GPU_RenderWorldMode)
+RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mode: GPU_RenderWorldMode, group: RD_WorldGroup)
 {
   uniform.material_loaded_t = material.stream.loaded_t;
   uniform.material_diffuse = xx material.diffuse;
@@ -315,6 +315,11 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
     if material.tex.layers >= 1  uniform.flags |= .SampleTexDiffuse;
     if material.tex.layers >= 2  uniform.flags |= .SampleTexNormal;
     if material.tex.layers >= 3  uniform.flags |= .SampleTexRoughness;
+  }
+
+  if group == .OUTLINE
+  {
+    uniform.flags |= .OutlineEarlyExit;
   }
 }
 

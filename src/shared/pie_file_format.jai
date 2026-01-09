@@ -29,6 +29,7 @@ RD_WorldFlags :: enum_flags u32
   EnableHueShift;
   DiscardColorPickZero;
   PixelEarlyExit;
+  OutlineEarlyExit;
 }
 
 AnimationClip :: struct
