@@ -25,9 +25,17 @@ SamplerState Sampler : register(s0, space2);
 
 float4 FragmentShader(Fragment frag) : SV_Target0
 {
-  float2 outline_uv = Texture.Load(int3(frag.vertex_p.xy, 0));
-  if (outline_uv.x < 0.0 || outline_uv.y < 0.0) {
+  float2 outline_xy = Texture.Load(int3(frag.vertex_p.xy, 0));
+  if (outline_xy.x < 0.0) {
     discard;
   }
-  return float4(max(float2(0.0, 0.0), outline_uv), 0.0, 1.0);
+
+  float2 frag_xy = frag.vertex_p.xy;
+  float dist = length(frag_xy - outline_xy);
+
+  float4 color = float4(0.5, 0.5, 0.5, 1.0);
+  color.g = dist < 0.0 ? 1.0 : 0.0;
+  color.b = dist > 0.0 ? 1.0 : 0.0;
+  color.r = dist > 1.0 ? 1.0 : 0.0;
+  return color;
 }
