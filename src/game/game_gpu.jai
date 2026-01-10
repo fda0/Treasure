@@ -137,13 +137,12 @@ GPU_Init :: ()
     GPU.material_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
-  GPU.dummy_instance_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-    xx Kilobyte(1), "Dummy instance storage buffer");
+  GPU.dummy_instance_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ, xx Kilobyte(1), "dummy_instance_buffer");
 
   // Shadow map
   {
-    GPU.shadow_tex = GPU_CreateDepthTexture(GPU_SHADOW_MAP_DIM, GPU_SHADOW_MAP_DIM, true, true);
-    GPU.dummy_shadow_tex = GPU_CreateDepthTexture(16, 16, true, true);
+    GPU.shadow_tex = GPU_CreateDepthTexture("shadow_tex", GPU_SHADOW_MAP_DIM, GPU_SHADOW_MAP_DIM, true, true);
+    GPU.dummy_shadow_tex = GPU_CreateDepthTexture("dummy_shadow_tex", 16, 16, true, true);
 
     sampler_info := SDL_GPUSamplerCreateInfo.{
       min_filter = .LINEAR,
@@ -185,9 +184,9 @@ GPU_Init :: ()
   // UI buffers
   {
     GPU.ui_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX,
-      RD.ui_indices.DATA_SIZE, "UI Index Buffer");
+      RD.ui_indices.DATA_SIZE, "ui_indices");
     GPU.ui_shape_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-      RD.ui_shapes.DATA_SIZE, "UI Shapes Storage Buffer");
+      RD.ui_shapes.DATA_SIZE, "ui_shape_buffer");
   }
 
   GPU_InitPipelines();
@@ -903,6 +902,14 @@ GPU_ResizeFramebuffer :: ()
   window_width := cast(u32) G.window_dim.x;
   window_height := cast(u32) G.window_dim.y;
 
+  CreateTextureAndName :: (info: SDL_GPUTextureCreateInfo, name: string) -> *SDL_GPUTexture
+  {
+    tex := SDL_CreateGPUTexture(GPU.device, *info);
+    assert(tex != null);
+    SDL_SetGPUTextureName(GPU.device, tex, temp_c_string(name));
+    return tex;
+  }
+
   //
   // Color textures
   //
@@ -923,9 +930,7 @@ GPU_ResizeFramebuffer :: ()
     info.format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window);
     info.sample_count = GPU.sample_count;
     info.props = GPU.clear_color_props;
-
-    GPU.tex_msaa = SDL_CreateGPUTexture(GPU.device, *info);
-    assert(GPU.tex_msaa != null);
+    GPU.tex_msaa = CreateTextureAndName(info, "tex_msaa");
   }
 
   GPU.tex_resolve = null;
@@ -935,9 +940,7 @@ GPU_ResizeFramebuffer :: ()
     info.format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window);
     info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER; // @todo remove SAMPLER?
     info.props = GPU.clear_color_props;
-
-    GPU.tex_resolve = SDL_CreateGPUTexture(GPU.device, *info);
-    assert(GPU.tex_resolve != null);
+    GPU.tex_resolve = CreateTextureAndName(info, "tex_resolve");
   }
 
   // tex_mouse_picking
@@ -945,10 +948,7 @@ GPU_ResizeFramebuffer :: ()
     info := base_info;
     info.format = .B8G8R8A8_UNORM; // @todo Pick this from swapchain texture format? But be careful when reading from it?
     info.props = GPU.clear_mouse_picking_props;
-
-    GPU.tex_mouse_picking = SDL_CreateGPUTexture(GPU.device, *info);
-    assert(GPU.tex_mouse_picking != null);
-    SDL_SetGPUTextureName(GPU.device, GPU.tex_mouse_picking, "tex_mouse_picking");
+    GPU.tex_mouse_picking = CreateTextureAndName(info, "tex_mouse_picking");
   }
 
   // tex_outline
@@ -958,17 +958,14 @@ GPU_ResizeFramebuffer :: ()
     info.format = .R32G32_FLOAT;
     info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER;
     info.props = GPU.clear_outline_props;
-
-    it.* = SDL_CreateGPUTexture(GPU.device, *info);
-    assert(it.* != null);
-    SDL_SetGPUTextureName(GPU.device, it.*, "tex_outline");
+    it.* = CreateTextureAndName(info, tprint("tex_outline%", it_index));
   }
 
   //
   // Depth textures
   //
-  GPU.tex_world_depth = GPU_CreateDepthTexture(window_width, window_height, false, false);
-  GPU.tex_mouse_picking_depth = GPU_CreateDepthTexture(window_width, window_height, false, true);
+  GPU.tex_world_depth = GPU_CreateDepthTexture("tex_world_depth", window_width, window_height, false, false);
+  GPU.tex_mouse_picking_depth = GPU_CreateDepthTexture("tex_mouse_picking_depth", window_width, window_height, false, true);
 }
 
 GPU_CreateBuffer :: (usage: SDL_GPUBufferUsageFlags, size: u32, name: string) -> *SDL_GPUBuffer
@@ -982,7 +979,7 @@ GPU_CreateBuffer :: (usage: SDL_GPUBufferUsageFlags, size: u32, name: string) ->
   return result;
 }
 
-GPU_CreateDepthTexture :: (width: u32, height: u32, used_in_sampler: bool, sample_count_1: bool) -> *SDL_GPUTexture
+GPU_CreateDepthTexture :: (name: string, width: u32, height: u32, used_in_sampler: bool, sample_count_1: bool) -> *SDL_GPUTexture
 {
   info := SDL_GPUTextureCreateInfo.{
     type = .SDL_GPU_TEXTURETYPE_2D,
@@ -999,9 +996,10 @@ GPU_CreateDepthTexture :: (width: u32, height: u32, used_in_sampler: bool, sampl
   if used_in_sampler then info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER;
   if sample_count_1 then info.sample_count = .SDL_GPU_SAMPLECOUNT_1;
 
-  result := SDL_CreateGPUTexture(GPU.device, *info);
-  assert(!!result); // @todo report err
-  return result;
+  tex := SDL_CreateGPUTexture(GPU.device, *info);
+  assert(tex != null);
+  SDL_SetGPUTextureName(GPU.device, tex, temp_c_string(name));
+  return tex;
 }
 
 GPU_TransferBuffer :: (cmd: *SDL_GPUCommandBuffer, gpu_buffer: *SDL_GPUBuffer, data: *void, data_size: u32)
@@ -1055,31 +1053,4 @@ GPU_UpdateUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: $T, vertex: bool, fra
     GPU.bound_fragment_uniform_hash = uniform_hash;
     SDL_PushGPUFragmentUniformData(cmd, 0, *uniform, size_of(T));
   }
-}
-
-GPU_Deinit :: ()
-{
-  for GPU.world_pipelines {
-    SDL_ReleaseGPUGraphicsPipeline(GPU.device, it);
-  }
-  SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.ui_pipeline);
-
-  // SDL_ReleaseGPUTexture(GPU.device, GPU.tex_depth);
-  SDL_ReleaseGPUTexture(GPU.device, GPU.tex_msaa);
-  SDL_ReleaseGPUTexture(GPU.device, GPU.tex_resolve);
-
-  SDL_ReleaseGPUTexture(GPU.device, GPU.shadow_tex);
-  SDL_ReleaseGPUSampler(GPU.device, GPU.sampl_shadow);
-
-  SDL_ReleaseGPUTexture(GPU.device, GPU.dummy_shadow_tex);
-  SDL_ReleaseGPUBuffer(GPU.device, GPU.dummy_instance_buffer);
-
-  // Mesh
-  SDL_ReleaseGPUSampler(GPU.device, GPU.material_sampler);
-
-  // UI
-  SDL_ReleaseGPUTexture(GPU.device, GPU.ui_atlas_texture);
-  SDL_ReleaseGPUSampler(GPU.device, GPU.ui_atlas_sampler);
-  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_indices);
-  SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_shape_buffer);
 }

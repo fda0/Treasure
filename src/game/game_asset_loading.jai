@@ -501,8 +501,8 @@ AST_LoadModelsAndUploadToGPU :: ()
 
 AST_UploadVerticesAndIndices :: ()
 {
-  AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.vertices), "WORLD vertices");
-  AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.indices), "Model indices");
+  AST.model_vertices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_VERTEX, xx array_size_bytes(AST.vertices), "model_vertices");
+  AST.model_indices = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_INDEX, xx array_size_bytes(AST.indices), "model_indices");
 
   cmd := SDL_AcquireGPUCommandBuffer(GPU.device);
   GPU_TransferBuffer(cmd, AST.model_vertices, AST.vertices.data, xx array_size_bytes(AST.vertices));
