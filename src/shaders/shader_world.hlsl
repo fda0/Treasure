@@ -136,7 +136,7 @@ WORLD_DX_Fragment WORLD_DxShaderVS(WORLD_DX_Vertex vert)
   return frag;
 }
 
-Texture2DArray<half> ShadowTexture : register(t0, space2);
+Texture2D<half> ShadowTexture : register(t0, space2);
 SamplerState ShadowSampler : register(s0, space2);
 Texture2DArray<float4> MaterialTexture : register(t1, space2);
 SamplerState MaterialSampler : register(s1, space2);
@@ -218,9 +218,9 @@ float4 WORLD_DxShaderPS(WORLD_DX_Fragment frag) : SV_Target0
     shadow_proj.x = shadow_proj.x * 0.5f + 0.5f;
     shadow_proj.y = shadow_proj.y * -0.5f + 0.5f;
 
-    float3 shadow_dim = 0.f;
-    ShadowTexture.GetDimensions(shadow_dim.x, shadow_dim.y, shadow_dim.z);
-    float2 texel_size = 1.f / shadow_dim.xy;
+    float2 shadow_dim = 0.f;
+    ShadowTexture.GetDimensions(shadow_dim.x, shadow_dim.y);
+    float2 texel_size = 1.f / shadow_dim;
 
     int sample_radius = 1;
     for (int x = -sample_radius; x <= sample_radius; x++)

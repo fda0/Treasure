@@ -164,11 +164,14 @@ GPU_Init :: ()
       min_filter = .NEAREST,
       mag_filter = .NEAREST,
       mipmap_mode = .NEAREST,
-      address_mode_u = .CLAMP_TO_EDGE,
-      address_mode_v = .CLAMP_TO_EDGE,
-      address_mode_w = .CLAMP_TO_EDGE,
+      // address_mode_u = .CLAMP_TO_EDGE,
+      // address_mode_v = .CLAMP_TO_EDGE,
+      // address_mode_w = .CLAMP_TO_EDGE,
+      address_mode_u = .REPEAT,
+      address_mode_v = .REPEAT,
+      address_mode_w = .REPEAT,
       min_lod = 0,
-      max_lod = 0,
+      max_lod = 1,
     };
     GPU.outline_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
@@ -582,15 +585,15 @@ GPU_Iterate :: ()
     SDL_EndGPUCopyPass(copy_pass);
   }
 
-  CreateDepthTargetInfo :: (texture: *SDL_GPUTexture) -> SDL_GPUDepthStencilTargetInfo
+  CreateDepthTargetInfo :: (texture: *SDL_GPUTexture, store_results: bool) -> SDL_GPUDepthStencilTargetInfo
   {
     depth_target := SDL_GPUDepthStencilTargetInfo.{
       texture = texture,
       clear_depth = GPU_CLEAR_DEPTH_FLOAT,
-      load_op = .SDL_GPU_LOADOP_CLEAR,
-      store_op = .SDL_GPU_STOREOP_DONT_CARE,
-      stencil_load_op = .SDL_GPU_LOADOP_DONT_CARE,
-      stencil_store_op = .SDL_GPU_STOREOP_DONT_CARE,
+      load_op = .CLEAR,
+      store_op = ifx store_results then .STORE else .DONT_CARE,
+      stencil_load_op = .DONT_CARE,
+      stencil_store_op = .DONT_CARE,
       cycle = true,
     };
     return depth_target;
@@ -610,7 +613,7 @@ GPU_Iterate :: ()
 
   // Sun shadow map render pass
   {
-    depth_target := CreateDepthTargetInfo(GPU.shadow_tex);
+    depth_target := CreateDepthTargetInfo(GPU.shadow_tex, true);
     pass := SDL_BeginGPURenderPass(cmd, null, 0, *depth_target);
     GPU_RenderWorld(cmd, pass, .DEPTH, .VISIBLE);
     SDL_EndGPURenderPass(pass);
@@ -627,7 +630,7 @@ GPU_Iterate :: ()
   // Mouse picking pass
   if DEV.mouse_picking & .ENABLED
   {
-    depth_target := CreateDepthTargetInfo(GPU.tex_mouse_picking_depth);
+    depth_target := CreateDepthTargetInfo(GPU.tex_mouse_picking_depth, false);
 
     color_target := SDL_GPUColorTargetInfo.{
       load_op = .SDL_GPU_LOADOP_CLEAR,
@@ -669,8 +672,8 @@ GPU_Iterate :: ()
   }
 
   // Main visible world render pass
-  {
-    depth_target := CreateDepthTargetInfo(GPU.tex_world_depth);
+  if 0 {
+    depth_target := CreateDepthTargetInfo(GPU.tex_world_depth, false);
     pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, *depth_target);
     GPU_RenderWorld(cmd, pass, .RENDER, .VISIBLE);
     SDL_EndGPURenderPass(pass);
@@ -682,8 +685,8 @@ GPU_Iterate :: ()
     {
       color_target := SDL_GPUColorTargetInfo.{
         clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
-        load_op = .SDL_GPU_LOADOP_CLEAR,
-        store_op = .SDL_GPU_STOREOP_STORE,
+        load_op = .CLEAR,
+        store_op = .STORE,
         texture = GPU.outline_textures[0],
         cycle = true,
       };
@@ -694,16 +697,17 @@ GPU_Iterate :: ()
 
     // Background outline texture -> WORLD
     {
-      pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, null);
+      depth_target := CreateDepthTargetInfo(GPU.tex_world_depth, false);
+      pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, *depth_target);
       SDL_BindGPUGraphicsPipeline(pass, GPU.outline_pipeline);
+
+      GPU_UpdateUniform(cmd, G.window_dim, vertex=false, fragment=true);
 
       samplers := SDL_GPUTextureSamplerBinding.[
         .{texture = GPU.outline_textures[0],
           sampler = GPU.outline_sampler},
       ];
       SDL_BindGPUFragmentSamplers(pass, 0, samplers.data, samplers.count);
-
-      GPU_UpdateUniform(cmd, G.window_dim, vertex=false, fragment=true);
 
       SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
       SDL_EndGPURenderPass(pass);
@@ -924,7 +928,7 @@ GPU_ResizeFramebuffer :: ()
   {
     info := base_info;
     info.format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window);
-    info.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER; // @todo remove SAMPLER?
+    info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER; // @todo remove SAMPLER?
     info.props = GPU.clear_color_props;
 
     GPU.tex_resolve = SDL_CreateGPUTexture(GPU.device, *info);
@@ -947,6 +951,7 @@ GPU_ResizeFramebuffer :: ()
   {
     info := base_info;
     info.format = .R32G32_FLOAT;
+    info.usage |= SDL_GPU_TEXTUREUSAGE_SAMPLER;
     info.props = GPU.clear_outline_props;
 
     it.* = SDL_CreateGPUTexture(GPU.device, *info);

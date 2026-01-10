@@ -326,6 +326,8 @@ RD_DrawGhost :: (ghost: Ghost)
   outline_batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.OUTLINE];
 
   draw_outline := false;
+  if ghost.key == G.player_key then draw_outline = true;
+
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
   debug_colliders := DEV.show_colliders;
