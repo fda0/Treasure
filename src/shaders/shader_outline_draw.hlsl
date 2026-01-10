@@ -20,7 +20,15 @@ Fragment VertexShader(Vertex vert)
   return frag;
 }
 
+Texture2DArray<float4> Texture : register(t0, space2);
+SamplerState Sampler : register(s0, space2);
+cbuffer FragmentUniform : register(b0, space3)
+{
+  float2 Resolution;
+};
+
 float4 FragmentShader(Fragment frag) : SV_Target0
 {
-  return frag.vertex_p * 0.001;
+  float2 uv = frag.vertex_p / Resolution;
+  return float4(uv, 0.0, 1.0);
 }

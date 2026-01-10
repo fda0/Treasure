@@ -31,7 +31,8 @@ GPU_State :: struct
 
   // Currently bound uniform
   world_uniform: RD_WorldUniform;
-  bound_uniform_hash: u64;
+  bound_vertex_uniform_hash: u64;
+  bound_fragment_uniform_hash: u64;
 
   // Pipeline, sample settings
   sample_count: SDL_GPUSampleCount;
@@ -41,7 +42,7 @@ GPU_State :: struct
   tex_msaa: *SDL_GPUTexture;
   tex_resolve: *SDL_GPUTexture;
   tex_world_depth: *SDL_GPUTexture;
-  sampl_material: *SDL_GPUSampler;
+  material_sampler: *SDL_GPUSampler;
   dummy_instance_buffer: *SDL_GPUBuffer;
 
   // World sun target
@@ -50,23 +51,23 @@ GPU_State :: struct
   sampl_shadow: *SDL_GPUSampler;
 
   // Mouse picking target
-  readback_queue: Queue(8, GPU_FrameReadback);
+  mouse_picking_readback_queue: Queue(8, GPU_FrameReadback);
   tex_mouse_picking: *SDL_GPUTexture;
   tex_mouse_picking_depth: *SDL_GPUTexture;
 
   //
   // Outline pass
   //
-  pipeline_outline: *SDL_GPUGraphicsPipeline;
-  tex_outlines: [2] *SDL_GPUTexture;
-  sampl_outline: *SDL_GPUSampler;
+  outline_pipeline: *SDL_GPUGraphicsPipeline;
+  outline_textures: [2] *SDL_GPUTexture;
+  outline_sampler: *SDL_GPUSampler;
 
   //
   // UI pass
   //
   ui_pipeline: *SDL_GPUGraphicsPipeline;
   ui_atlas_texture: *SDL_GPUTexture;
-  sampl_ui_atlas: *SDL_GPUSampler;
+  ui_atlas_sampler: *SDL_GPUSampler;
   ui_indices: *SDL_GPUBuffer;
   ui_shape_buffer: *SDL_GPUBuffer;
 
@@ -133,7 +134,7 @@ GPU_Init :: ()
       min_lod = 0,
       max_lod = 100,
     };
-    GPU.sampl_material = SDL_CreateGPUSampler(GPU.device, *sampler_info);
+    GPU.material_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
   GPU.dummy_instance_buffer = GPU_CreateBuffer(SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
@@ -169,7 +170,7 @@ GPU_Init :: ()
       min_lod = 0,
       max_lod = 0,
     };
-    GPU.sampl_outline = SDL_CreateGPUSampler(GPU.device, *sampler_info);
+    GPU.outline_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
   // UI sampler
@@ -178,7 +179,7 @@ GPU_Init :: ()
       min_filter = .LINEAR,
       mag_filter = .LINEAR,
     };
-    GPU.sampl_ui_atlas = SDL_CreateGPUSampler(GPU.device, *sampler_info);
+    GPU.ui_atlas_sampler = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
   // UI buffers
@@ -200,7 +201,7 @@ GPU_InitPipelines :: ()
     for GPU.world_pipelines {
       SDL_ReleaseGPUGraphicsPipeline(GPU.device, it);
     }
-    SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.pipeline_outline);
+    SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.outline_pipeline);
     SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.ui_pipeline);
   }
 
@@ -351,7 +352,8 @@ GPU_InitPipelines :: ()
     {
       create_info := SDL_GPUShaderCreateInfo.{
         stage = .FRAGMENT,
-        num_samplers = 0,
+        num_samplers = 1,
+        num_uniform_buffers = 1,
         format = SDL_GPU_SHADERFORMAT_DXIL,
         code = binary_ps.data,
         code_size = xx binary_ps.count,
@@ -369,7 +371,7 @@ GPU_InitPipelines :: ()
         color_target_descriptions = *color_desc,
       },
     };
-    GPU.pipeline_outline = SDL_CreateGPUGraphicsPipeline(GPU.device, *pipeline);
+    GPU.outline_pipeline = SDL_CreateGPUGraphicsPipeline(GPU.device, *pipeline);
 
     SDL_ReleaseGPUShader(GPU.device, vertex_shader);
     SDL_ReleaseGPUShader(GPU.device, fragment_shader);
@@ -458,7 +460,7 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
       .{texture = ifx simplified_pipeline then GPU.dummy_shadow_tex else GPU.shadow_tex,
         sampler = GPU.sampl_shadow},
       .{texture = MaterialFromSlot(0).texture_handle,
-        sampler = GPU.sampl_material},
+        sampler = GPU.material_sampler},
 
     ];
     SDL_BindGPUFragmentSamplers(pass, 0, binding_sampl.data, binding_sampl.count);
@@ -489,12 +491,12 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
     if material_slot == MaterialSlotFromAlias(.Clay002) || material_slot == MaterialSlotFromAlias(.Grass004) {
       GPU.world_uniform.flags |= .DrawBorderAtUVEdge;
     }
-    GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
+    GPU_UpdateUniform(cmd, GPU.world_uniform, vertex=true, fragment=true);
 
     // Bind texture
     binding_sampl := SDL_GPUTextureSamplerBinding.{
       texture = material.texture_handle,
-      sampler = GPU.sampl_material,
+      sampler = GPU.material_sampler,
     };
     SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
 
@@ -537,14 +539,14 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
       if model_slot == ModelSlotFromAlias(.Tree) {
         //GPU.world_uniform.flags |= .LessShadows;
       }
-      GPU_UpdateWorldUniform(cmd, GPU.world_uniform);
+      GPU_UpdateUniform(cmd, GPU.world_uniform, vertex=true, fragment=true);
 
       // Bind texture
       if material.tex.format
       {
         binding_sampl := SDL_GPUTextureSamplerBinding.{
           texture = material.texture_handle,
-          sampler = GPU.sampl_material,
+          sampler = GPU.material_sampler,
         };
         SDL_BindGPUFragmentSamplers(pass, 1, *binding_sampl, 1);
       }
@@ -682,7 +684,7 @@ GPU_Iterate :: ()
         clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
         load_op = .SDL_GPU_LOADOP_CLEAR,
         store_op = .SDL_GPU_STOREOP_STORE,
-        texture = GPU.tex_outlines[0],
+        texture = GPU.outline_textures[0],
         cycle = true,
       };
       pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
@@ -693,7 +695,16 @@ GPU_Iterate :: ()
     // Background outline texture -> WORLD
     {
       pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, null);
-      SDL_BindGPUGraphicsPipeline(pass, GPU.pipeline_outline);
+      SDL_BindGPUGraphicsPipeline(pass, GPU.outline_pipeline);
+
+      samplers := SDL_GPUTextureSamplerBinding.[
+        .{texture = GPU.outline_textures[0],
+          sampler = GPU.outline_sampler},
+      ];
+      SDL_BindGPUFragmentSamplers(pass, 0, samplers.data, samplers.count);
+
+      GPU_UpdateUniform(cmd, G.window_dim, vertex=false, fragment=true);
+
       SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
       SDL_EndGPURenderPass(pass);
     }
@@ -729,7 +740,7 @@ GPU_Iterate :: ()
       window_dim = G.window_dim,
       texture_dim = V2.{xx FONT.texture_dim, xx FONT.texture_dim},
     };
-    GPU_UpdateUIUniform(cmd, uniform);
+    GPU_UpdateUniform(cmd, uniform, vertex=false, fragment=true);
     GPU_TransferBuffer(cmd, GPU.ui_indices, RD.ui_indices.buf.data, xx array_size_bytes(RD.ui_indices));
 
     if RD.ui_shapes.count > 0 {
@@ -750,7 +761,7 @@ GPU_Iterate :: ()
     // Bind texture & sampler
     sampler_binding := SDL_GPUTextureSamplerBinding.{
       texture = GPU.ui_atlas_texture,
-      sampler = GPU.sampl_ui_atlas,
+      sampler = GPU.ui_atlas_sampler,
     };
     SDL_BindGPUFragmentSamplers(pass, 0, *sampler_binding, 1);
 
@@ -774,9 +785,9 @@ GPU_Iterate :: ()
 
   if DEV.mouse_picking & .ENABLED
   {
-    if !QueueIsFull(GPU.readback_queue)
+    if !QueueIsFull(GPU.mouse_picking_readback_queue)
     {
-      readback := QueuePush(*GPU.readback_queue);
+      readback := QueuePush(*GPU.mouse_picking_readback_queue);
       readback.dim = Vec2(s32).{xx G.window_dim.x, xx G.window_dim.y};
       if DEV.mouse_picking & .ONE_PIXEL
         readback.dim = .{1,1};
@@ -830,23 +841,23 @@ GPU_Iterate :: ()
 
 GPU_ReadbackMousePickingTexture :: ()
 {
-  using,only(readback_queue, device) GPU;
-  if !QueueIsEmpty(readback_queue)
+  if !QueueIsEmpty(GPU.mouse_picking_readback_queue)
   {
-    if QueueCount(readback_queue) > 3 {
-      log("GPU readback queue count = %. Interesting... Should we try to catch up?", QueueCount(readback_queue), flags=.VERBOSE_ONLY);
+    if QueueCount(GPU.mouse_picking_readback_queue) > 3 {
+      log("GPU readback queue count = %. Interesting... Should we try to catch up?",
+        QueueCount(GPU.mouse_picking_readback_queue), flags=.VERBOSE_ONLY);
     }
 
-    peeked := QueuePeek(readback_queue);
-    if SDL_QueryGPUFence(device, peeked.fence)
+    peeked := QueuePeek(GPU.mouse_picking_readback_queue);
+    if SDL_QueryGPUFence(GPU.device, peeked.fence)
     {
-      QueuePop(*readback_queue);
-      SDL_ReleaseGPUFence(device, peeked.fence);
+      QueuePop(*GPU.mouse_picking_readback_queue);
+      SDL_ReleaseGPUFence(GPU.device, peeked.fence);
       downloaded_color: u32;
 
       if !peeked.out_of_screen
       {
-        downloaded_data: *u32 = SDL_MapGPUTransferBuffer(device, peeked.download_transfer_buffer, false);
+        downloaded_data: *u32 = SDL_MapGPUTransferBuffer(GPU.device, peeked.download_transfer_buffer, false);
 
         if peeked.dim.x == 1 && peeked.dim.y == 1
         {
@@ -862,11 +873,11 @@ GPU_ReadbackMousePickingTexture :: ()
           }
         }
 
-        SDL_UnmapGPUTransferBuffer(device, peeked.download_transfer_buffer);
+        SDL_UnmapGPUTransferBuffer(GPU.device, peeked.download_transfer_buffer);
       }
 
       G.hover_object = OBJ_ColorToKey(xx downloaded_color);
-      SDL_ReleaseGPUTransferBuffer(device, peeked.download_transfer_buffer);
+      SDL_ReleaseGPUTransferBuffer(GPU.device, peeked.download_transfer_buffer);
     }
   }
 }
@@ -876,7 +887,7 @@ GPU_ResizeFramebuffer :: ()
   SDL_ReleaseGPUTexture(GPU.device, GPU.tex_msaa);
   SDL_ReleaseGPUTexture(GPU.device, GPU.tex_resolve);
   SDL_ReleaseGPUTexture(GPU.device, GPU.tex_mouse_picking);
-  for GPU.tex_outlines SDL_ReleaseGPUTexture(GPU.device, it);
+  for GPU.outline_textures SDL_ReleaseGPUTexture(GPU.device, it);
   SDL_ReleaseGPUTexture(GPU.device, GPU.tex_world_depth);
   SDL_ReleaseGPUTexture(GPU.device, GPU.tex_mouse_picking_depth);
 
@@ -932,7 +943,7 @@ GPU_ResizeFramebuffer :: ()
   }
 
   // tex_outline
-  for * GPU.tex_outlines
+  for * GPU.outline_textures
   {
     info := base_info;
     info.format = .R32G32_FLOAT;
@@ -1021,25 +1032,18 @@ GPU_TransferBuffer :: (cmd: *SDL_GPUCommandBuffer, gpu_buffer: *SDL_GPUBuffer, d
   SDL_ReleaseGPUTransferBuffer(GPU.device, buf_transfer);
 }
 
-GPU_UpdateWorldUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: RD_WorldUniform)
+GPU_UpdateUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: $T, vertex: bool, fragment: bool)
 {
   uniform_hash := Hash64Any(uniform);
-  if GPU.bound_uniform_hash != uniform_hash
+  if vertex && GPU.bound_vertex_uniform_hash != uniform_hash
   {
-    GPU.bound_uniform_hash = uniform_hash;
-    SDL_PushGPUVertexUniformData(cmd, 0, *uniform, size_of(type_of(uniform)));
-    SDL_PushGPUFragmentUniformData(cmd, 0, *uniform, size_of(type_of(uniform)));
+    GPU.bound_vertex_uniform_hash = uniform_hash;
+    SDL_PushGPUVertexUniformData(cmd, 0, *uniform, size_of(T));
   }
-}
-
-GPU_UpdateUIUniform :: (cmd: *SDL_GPUCommandBuffer, uniform: RD_UIUniform)
-{
-  uniform_hash := Hash64Any(uniform);
-  if (GPU.bound_uniform_hash != uniform_hash)
+  if fragment && GPU.bound_fragment_uniform_hash != uniform_hash
   {
-    GPU.bound_uniform_hash = uniform_hash;
-    SDL_PushGPUVertexUniformData(cmd, 0, *uniform, size_of(type_of(uniform)));
-    // SDL_PushGPUFragmentUniformData(cmd, 0, *uniform, size_of(type_of(uniform)));
+    GPU.bound_fragment_uniform_hash = uniform_hash;
+    SDL_PushGPUFragmentUniformData(cmd, 0, *uniform, size_of(T));
   }
 }
 
@@ -1061,11 +1065,11 @@ GPU_Deinit :: ()
   SDL_ReleaseGPUBuffer(GPU.device, GPU.dummy_instance_buffer);
 
   // Mesh
-  SDL_ReleaseGPUSampler(GPU.device, GPU.sampl_material);
+  SDL_ReleaseGPUSampler(GPU.device, GPU.material_sampler);
 
   // UI
   SDL_ReleaseGPUTexture(GPU.device, GPU.ui_atlas_texture);
-  SDL_ReleaseGPUSampler(GPU.device, GPU.sampl_ui_atlas);
+  SDL_ReleaseGPUSampler(GPU.device, GPU.ui_atlas_sampler);
   SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_indices);
   SDL_ReleaseGPUBuffer(GPU.device, GPU.ui_shape_buffer);
 }
