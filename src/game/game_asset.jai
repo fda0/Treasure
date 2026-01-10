@@ -10,6 +10,8 @@ ShaderType :: enum
   UI_PS;
   OUTLINE_DRAW_VS;
   OUTLINE_DRAW_PS;
+  OUTLINE_PROPAGATE_VS;
+  OUTLINE_PROPAGATE_PS;
 }
 
 AssetStream :: struct

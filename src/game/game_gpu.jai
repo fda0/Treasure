@@ -164,12 +164,9 @@ GPU_Init :: ()
       min_filter = .NEAREST,
       mag_filter = .NEAREST,
       mipmap_mode = .NEAREST,
-      // address_mode_u = .CLAMP_TO_EDGE,
-      // address_mode_v = .CLAMP_TO_EDGE,
-      // address_mode_w = .CLAMP_TO_EDGE,
-      address_mode_u = .REPEAT,
-      address_mode_v = .REPEAT,
-      address_mode_w = .REPEAT,
+      address_mode_u = .CLAMP_TO_EDGE,
+      address_mode_v = .CLAMP_TO_EDGE,
+      address_mode_w = .CLAMP_TO_EDGE,
       min_lod = 0,
       max_lod = 1,
     };
@@ -356,7 +353,6 @@ GPU_InitPipelines :: ()
       create_info := SDL_GPUShaderCreateInfo.{
         stage = .FRAGMENT,
         num_samplers = 1,
-        num_uniform_buffers = 1,
         format = SDL_GPU_SHADERFORMAT_DXIL,
         code = binary_ps.data,
         code_size = xx binary_ps.count,
@@ -672,46 +668,11 @@ GPU_Iterate :: ()
   }
 
   // Main visible world render pass
-  if 0 {
+  {
     depth_target := CreateDepthTargetInfo(GPU.tex_world_depth, false);
     pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, *depth_target);
     GPU_RenderWorld(cmd, pass, .RENDER, .VISIBLE);
     SDL_EndGPURenderPass(pass);
-  }
-
-  // Outlines
-  {
-    // WORLD -> Background outline texture
-    {
-      color_target := SDL_GPUColorTargetInfo.{
-        clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
-        load_op = .CLEAR,
-        store_op = .STORE,
-        texture = GPU.outline_textures[0],
-        cycle = true,
-      };
-      pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
-      GPU_RenderWorld(cmd, pass, .RENDER, .OUTLINE);
-      SDL_EndGPURenderPass(pass);
-    }
-
-    // Background outline texture -> WORLD
-    {
-      depth_target := CreateDepthTargetInfo(GPU.tex_world_depth, false);
-      pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, *depth_target);
-      SDL_BindGPUGraphicsPipeline(pass, GPU.outline_pipeline);
-
-      GPU_UpdateUniform(cmd, G.window_dim, vertex=false, fragment=true);
-
-      samplers := SDL_GPUTextureSamplerBinding.[
-        .{texture = GPU.outline_textures[0],
-          sampler = GPU.outline_sampler},
-      ];
-      SDL_BindGPUFragmentSamplers(pass, 0, samplers.data, samplers.count);
-
-      SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
-      SDL_EndGPURenderPass(pass);
-    }
   }
 
   //
@@ -736,7 +697,51 @@ GPU_Iterate :: ()
     SDL_BlitGPUTexture(cmd, *blit);
   }
 
+  //
+  // Outlines
+  //
+  {
+    // @todo doing this "post blit" is a bit problematic - we would like to render outlines at world resolution?
+
+    // WORLD -> Background outline texture
+    {
+      color_target := SDL_GPUColorTargetInfo.{
+        clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
+        load_op = .CLEAR,
+        store_op = .STORE,
+        texture = GPU.outline_textures[0],
+        cycle = true,
+      };
+      pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
+      GPU_RenderWorld(cmd, pass, .RENDER, .OUTLINE);
+      SDL_EndGPURenderPass(pass);
+    }
+
+    // Background outline texture -> WORLD
+    {
+      color_target := SDL_GPUColorTargetInfo.{
+        load_op = .SDL_GPU_LOADOP_LOAD,
+        store_op = .SDL_GPU_STOREOP_STORE,
+        texture = swapchain_tex,
+      };
+
+      pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
+      SDL_BindGPUGraphicsPipeline(pass, GPU.outline_pipeline);
+
+      samplers := SDL_GPUTextureSamplerBinding.[
+        .{texture = GPU.outline_textures[0],
+          sampler = GPU.outline_sampler},
+      ];
+      SDL_BindGPUFragmentSamplers(pass, 0, samplers.data, samplers.count);
+
+      SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+      SDL_EndGPURenderPass(pass);
+    }
+  }
+
+  //
   // UI render pass
+  //
   if RD.ui_indices.count > 0
   {
     // Upload uniform
@@ -744,7 +749,7 @@ GPU_Iterate :: ()
       window_dim = G.window_dim,
       texture_dim = V2.{xx FONT.texture_dim, xx FONT.texture_dim},
     };
-    GPU_UpdateUniform(cmd, uniform, vertex=false, fragment=true);
+    GPU_UpdateUniform(cmd, uniform, vertex=true, fragment=false);
     GPU_TransferBuffer(cmd, GPU.ui_indices, RD.ui_indices.buf.data, xx array_size_bytes(RD.ui_indices));
 
     if RD.ui_shapes.count > 0 {
