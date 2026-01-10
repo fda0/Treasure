@@ -300,13 +300,11 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
 
   uniform.flags = .ApplyShadows;
 
-  if mode != .RENDER
-  {
+  if mode != .RENDER {
     uniform.flags |= .PixelEarlyExit;
   }
 
-  if mode == .MOUSE_PICKING
-  {
+  if mode == .MOUSE_PICKING {
     uniform.flags |= .DiscardColorPickZero;
   }
 
@@ -317,8 +315,7 @@ RD_WorldMaterialToUniform :: (uniform: *RD_WorldUniform, material: Material, mod
     if material.tex.layers >= 3  uniform.flags |= .SampleTexRoughness;
   }
 
-  if group == .OUTLINE
-  {
+  if group == .OUTLINE {
     uniform.flags |= .OutlineEarlyExit;
   }
 }

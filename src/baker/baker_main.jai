@@ -127,11 +127,15 @@ B_ProcessAssets :: (thread: *Thread) -> s64
     world_ps := DXC_Compile(GetArgs("shader_world.hlsl", "WORLD_DxShaderPS", .Fragment));
     ui_vs := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderVS", .Vertex));
     ui_ps := DXC_Compile(GetArgs("shader_ui.hlsl", "UI_DxShaderPS", .Fragment));
+    outline_vs := DXC_Compile(GetArgs("shader_outline_draw.hlsl", "VertexShader", .Vertex));
+    outline_ps := DXC_Compile(GetArgs("shader_outline_draw.hlsl", "FragmentShader", .Fragment));
     // @todo Things like entrypoint name could be saved into .pie file too.
     array_add(*context.pie.shaders).buffer = xx B_CopyArray(world_vs);
     array_add(*context.pie.shaders).buffer = xx B_CopyArray(world_ps);
     array_add(*context.pie.shaders).buffer = xx B_CopyArray(ui_vs);
     array_add(*context.pie.shaders).buffer = xx B_CopyArray(ui_ps);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(outline_vs);
+    array_add(*context.pie.shaders).buffer = xx B_CopyArray(outline_ps);
     Timer("Shaders compiled");
   }
 

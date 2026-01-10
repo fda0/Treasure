@@ -28,15 +28,15 @@ struct UI_DX_Shape
 
 struct UI_DX_Fragment
 {
-  float4 color               : TEXCOORD0;
-  float4 border_widths       : TEXCOORD1;
-  float3 tex_uv              : TEXCOORD2;
-  float2 pos                 : TEXCOORD3;
-  float2 center              : TEXCOORD4;
-  float2 half_dim            : TEXCOORD5;
-  float corner_radius    : TEXCOORD6;
-  float edge_softness    : TEXCOORD7;
-  float4 vertex_p            : SV_Position;
+  float4 color         : TEXCOORD0;
+  float4 border_widths : TEXCOORD1;
+  float3 tex_uv        : TEXCOORD2;
+  float2 pos           : TEXCOORD3;
+  float2 center        : TEXCOORD4;
+  float2 half_dim      : TEXCOORD5;
+  float corner_radius  : TEXCOORD6;
+  float edge_softness  : TEXCOORD7;
+  float4 vertex_p      : SV_Position;
 };
 
 // Dx resources

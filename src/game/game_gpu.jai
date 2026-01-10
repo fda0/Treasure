@@ -25,9 +25,17 @@ GPU_State :: struct
   // GPU device
   device: *SDL_GPUDevice;
 
+  //
+  // World pass
+  //
+
   // Currently bound uniform
   world_uniform: RD_WorldUniform;
   bound_uniform_hash: u64;
+
+  // Pipeline, sample settings
+  sample_count: SDL_GPUSampleCount;
+  world_pipelines: [2] *SDL_GPUGraphicsPipeline; // 0: 4xMSAA; 1: no AA (for shadow mapping)
 
   // World target
   tex_msaa: *SDL_GPUTexture;
@@ -46,22 +54,25 @@ GPU_State :: struct
   tex_mouse_picking: *SDL_GPUTexture;
   tex_mouse_picking_depth: *SDL_GPUTexture;
 
-  // Outlines
+  //
+  // Outline pass
+  //
+  pipeline_outline: *SDL_GPUGraphicsPipeline;
   tex_outlines: [2] *SDL_GPUTexture;
   sampl_outline: *SDL_GPUSampler;
 
-  // pipeline, sample settings
-  sample_count: SDL_GPUSampleCount;
-  world_pipelines: [2] *SDL_GPUGraphicsPipeline; // 0: 4xMSAA; 1: no AA (for shadow mapping)
-
-  // UI
+  //
+  // UI pass
+  //
   ui_pipeline: *SDL_GPUGraphicsPipeline;
   ui_atlas_texture: *SDL_GPUTexture;
   sampl_ui_atlas: *SDL_GPUSampler;
   ui_indices: *SDL_GPUBuffer;
   ui_shape_buffer: *SDL_GPUBuffer;
 
+  //
   // SDL properties
+  //
   clear_color_props: SDL_PropertiesID;
   clear_mouse_picking_props: SDL_PropertiesID;
   clear_outline_props: SDL_PropertiesID;
@@ -146,7 +157,7 @@ GPU_Init :: ()
     GPU.sampl_shadow = SDL_CreateGPUSampler(GPU.device, *sampler_info);
   }
 
-  // Outline sampler
+  // Outline sampler + index buffer
   {
     sampler_info := SDL_GPUSamplerCreateInfo.{
       min_filter = .NEAREST,
@@ -189,6 +200,7 @@ GPU_InitPipelines :: ()
     for GPU.world_pipelines {
       SDL_ReleaseGPUGraphicsPipeline(GPU.device, it);
     }
+    SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.pipeline_outline);
     SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.ui_pipeline);
   }
 
@@ -204,7 +216,7 @@ GPU_InitPipelines :: ()
     vertex_shader: *SDL_GPUShader;
     {
       create_info := SDL_GPUShaderCreateInfo.{
-        stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+        stage = .VERTEX,
         num_samplers = 0,
         num_storage_buffers = 2,
         num_storage_textures = 0,
@@ -221,8 +233,8 @@ GPU_InitPipelines :: ()
     fragment_shader: *SDL_GPUShader;
     {
       create_info := SDL_GPUShaderCreateInfo.{
-        stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
-        num_samplers = 3,
+        stage = .FRAGMENT,
+        num_samplers = 2,
         num_storage_buffers = 0,
         num_storage_textures = 0,
         num_uniform_buffers = 1,
@@ -318,6 +330,51 @@ GPU_InitPipelines :: ()
     SDL_ReleaseGPUShader(GPU.device, fragment_shader);
   }
 
+  // Outline pipeline
+  {
+    binary_vs := AST.shaders[ShaderType.OUTLINE_DRAW_VS].buffer;
+    binary_ps := AST.shaders[ShaderType.OUTLINE_DRAW_PS].buffer;
+
+    vertex_shader: *SDL_GPUShader;
+    {
+      create_info := SDL_GPUShaderCreateInfo.{
+        stage = .VERTEX,
+        format = SDL_GPU_SHADERFORMAT_DXIL,
+        code = binary_vs.data,
+        code_size = xx binary_vs.count,
+        entrypoint = "VertexShader",
+      };
+      vertex_shader = SDL_CreateGPUShader(GPU.device, *create_info);
+    }
+
+    fragment_shader: *SDL_GPUShader;
+    {
+      create_info := SDL_GPUShaderCreateInfo.{
+        stage = .FRAGMENT,
+        num_samplers = 0,
+        format = SDL_GPU_SHADERFORMAT_DXIL,
+        code = binary_ps.data,
+        code_size = xx binary_ps.count,
+        entrypoint = "FragmentShader",
+      };
+      fragment_shader = SDL_CreateGPUShader(GPU.device, *create_info);
+    }
+
+    pipeline := SDL_GPUGraphicsPipelineCreateInfo.{
+      vertex_shader = vertex_shader,
+      fragment_shader = fragment_shader,
+      primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+      target_info = .{
+        num_color_targets = 1,
+        color_target_descriptions = *color_desc,
+      },
+    };
+    GPU.pipeline_outline = SDL_CreateGPUGraphicsPipeline(GPU.device, *pipeline);
+
+    SDL_ReleaseGPUShader(GPU.device, vertex_shader);
+    SDL_ReleaseGPUShader(GPU.device, fragment_shader);
+  }
+
   // UI pipeline
   {
     binary_vs := AST.shaders[ShaderType.UI_VS].buffer;
@@ -326,7 +383,7 @@ GPU_InitPipelines :: ()
     vertex_shader: *SDL_GPUShader;
     {
       create_info := SDL_GPUShaderCreateInfo.{
-        stage = .SDL_GPU_SHADERSTAGE_VERTEX,
+        stage = .VERTEX,
         num_samplers = 0,
         num_storage_buffers = 1,
         num_storage_textures = 0,
@@ -343,7 +400,7 @@ GPU_InitPipelines :: ()
     fragment_shader: *SDL_GPUShader;
     {
       create_info := SDL_GPUShaderCreateInfo.{
-        stage = .SDL_GPU_SHADERSTAGE_FRAGMENT,
+        stage = .FRAGMENT,
         num_samplers = 1,
         num_storage_buffers = 0,
         num_storage_textures = 0,
@@ -402,8 +459,6 @@ GPU_RenderWorld :: (cmd: *SDL_GPUCommandBuffer, pass: *SDL_GPURenderPass, mode: 
         sampler = GPU.sampl_shadow},
       .{texture = MaterialFromSlot(0).texture_handle,
         sampler = GPU.sampl_material},
-      .{texture = GPU.tex_outlines[1],
-        sampler = GPU.sampl_outline},
 
     ];
     SDL_BindGPUFragmentSamplers(pass, 0, binding_sampl.data, binding_sampl.count);
@@ -584,11 +639,9 @@ GPU_Iterate :: ()
     SDL_EndGPURenderPass(pass);
   }
 
-  // Main visible world render pass
+  screen_color_target: SDL_GPUColorTargetInfo;
   {
-    depth_target := CreateDepthTargetInfo(GPU.tex_world_depth);
-
-    color_target := SDL_GPUColorTargetInfo.{
+    screen_color_target = .{
       clear_color = .{
         r = GPU_CLEAR_COLOR_R,
         g = GPU_CLEAR_COLOR_G,
@@ -601,35 +654,49 @@ GPU_Iterate :: ()
 
     if GPU.tex_msaa
     {
-      color_target.store_op = .SDL_GPU_STOREOP_RESOLVE;
-      color_target.texture = GPU.tex_msaa;
-      color_target.resolve_texture = GPU.tex_resolve;
-      color_target.cycle = true;
-      color_target.cycle_resolve_texture = true;
+      screen_color_target.store_op = .SDL_GPU_STOREOP_RESOLVE;
+      screen_color_target.texture = GPU.tex_msaa;
+      screen_color_target.resolve_texture = GPU.tex_resolve;
+      screen_color_target.cycle = true;
+      screen_color_target.cycle_resolve_texture = true;
     }
     else
     {
-      color_target.texture = swapchain_tex;
+      screen_color_target.texture = swapchain_tex;
     }
+  }
 
-    pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, *depth_target);
+  // Main visible world render pass
+  {
+    depth_target := CreateDepthTargetInfo(GPU.tex_world_depth);
+    pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, *depth_target);
     GPU_RenderWorld(cmd, pass, .RENDER, .VISIBLE);
     SDL_EndGPURenderPass(pass);
   }
 
   // Outlines
   {
-    // Initial render
-    color_target := SDL_GPUColorTargetInfo.{
-      clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
-      load_op = .SDL_GPU_LOADOP_CLEAR,
-      store_op = .SDL_GPU_STOREOP_STORE,
-      texture = GPU.tex_outlines[0],
-      cycle = true,
-    };
-    pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
-    GPU_RenderWorld(cmd, pass, .RENDER, .OUTLINE);
-    SDL_EndGPURenderPass(pass);
+    // WORLD -> Background outline texture
+    {
+      color_target := SDL_GPUColorTargetInfo.{
+        clear_color = .{r = GPU_CLEAR_OUTLINES, g = GPU_CLEAR_OUTLINES},
+        load_op = .SDL_GPU_LOADOP_CLEAR,
+        store_op = .SDL_GPU_STOREOP_STORE,
+        texture = GPU.tex_outlines[0],
+        cycle = true,
+      };
+      pass := SDL_BeginGPURenderPass(cmd, *color_target, 1, null);
+      GPU_RenderWorld(cmd, pass, .RENDER, .OUTLINE);
+      SDL_EndGPURenderPass(pass);
+    }
+
+    // Background outline texture -> WORLD
+    {
+      pass := SDL_BeginGPURenderPass(cmd, *screen_color_target, 1, null);
+      SDL_BindGPUGraphicsPipeline(pass, GPU.pipeline_outline);
+      SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+      SDL_EndGPURenderPass(pass);
+    }
   }
 
   //

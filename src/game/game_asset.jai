@@ -8,6 +8,8 @@ ShaderType :: enum
   WORLD_PS;
   UI_VS;
   UI_PS;
+  OUTLINE_DRAW_VS;
+  OUTLINE_DRAW_PS;
 }
 
 AssetStream :: struct

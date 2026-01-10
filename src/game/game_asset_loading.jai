@@ -8,7 +8,7 @@ AST_LoadAssetFile :: ()
   if !AST.error {
     expected := EnumCount(ShaderType);
     if AST.shaders.count != expected {
-      AST_Error("Expected % shaders, found %.", AST.shaders.count, expected);
+      AST_Error("Expected % shaders, found %.", expected, AST.shaders.count);
     }
   }
   if !AST.error AST_LoadSkeletons();
