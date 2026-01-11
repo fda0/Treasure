@@ -774,7 +774,7 @@ GPU_Iterate :: ()
     }
 
     // Propagete: sdf_outline_texture -> sdf_outline_texture
-    for 0..16
+    for 0..2 // @todo calculate pass could based on outline width
     {
       prev_index := GPU.outline_texture_index;
       next_index := (GPU.outline_texture_index + 1) % 2;
