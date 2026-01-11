@@ -33,9 +33,7 @@ float4 FragmentShader(Fragment frag) : SV_Target0
   float2 frag_xy = frag.vertex_p.xy;
   float dist = length(frag_xy - outline_xy);
 
-  float4 color = float4(0.5, 0.5, 0.5, 1.0);
-  color.g = dist < 0.0 ? 1.0 : 0.0;
-  color.b = dist > 0.0 ? 1.0 : 0.0;
-  color.r = dist > 1.0 ? 1.0 : 0.0;
+  float4 color = float4(0.95, 0.02, 0.2, 1.0);
+  color.a *= smoothstep(4.0, 0.0, dist) * smoothstep(0.0, 0.01, dist);
   return color;
 }

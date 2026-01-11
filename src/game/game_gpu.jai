@@ -207,8 +207,19 @@ GPU_InitPipelines :: ()
     SDL_ReleaseGPUGraphicsPipeline(GPU.device, GPU.ui_pipeline);
   }
 
-  color_desc := SDL_GPUColorTargetDescription.{
+  default_color_desc := SDL_GPUColorTargetDescription.{
     format = SDL_GetGPUSwapchainTextureFormat(GPU.device, G.window),
+  };
+
+  default_blend_state := SDL_GPUColorTargetBlendState.{
+    src_color_blendfactor = .SRC_ALPHA,
+    dst_color_blendfactor = .ONE_MINUS_SRC_ALPHA,
+    color_blend_op = .ADD,
+    // use ONE, ONE instead?
+    src_alpha_blendfactor = .SRC_ALPHA,
+    dst_alpha_blendfactor = .ONE_MINUS_SRC_ALPHA,
+    alpha_blend_op = .ADD,
+    enable_blend = true,
   };
 
   // WORLD pipeline
@@ -269,7 +280,7 @@ GPU_InitPipelines :: ()
       },
       target_info = .{
         num_color_targets = 1,
-        color_target_descriptions = *color_desc,
+        color_target_descriptions = *default_color_desc,
         depth_stencil_format = .SDL_GPU_TEXTUREFORMAT_D16_UNORM,
         has_depth_stencil_target = true,
       },
@@ -363,6 +374,11 @@ GPU_InitPipelines :: ()
       fragment_shader = SDL_CreateGPUShader(GPU.device, *create_info);
     }
 
+    color_desc := SDL_GPUColorTargetDescription.{
+      format = default_color_desc.format,
+      blend_state = default_blend_state,
+    };
+
     pipeline := SDL_GPUGraphicsPipelineCreateInfo.{
       vertex_shader = vertex_shader,
       fragment_shader = fragment_shader,
@@ -414,7 +430,7 @@ GPU_InitPipelines :: ()
       primitive_type = .SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
       target_info = .{
         num_color_targets = 1,
-        color_target_descriptions = *color_desc,
+        color_target_descriptions = *default_color_desc,
       },
     };
     GPU.outline_propagate_pipeline = SDL_CreateGPUGraphicsPipeline(GPU.device, *pipeline);
@@ -463,17 +479,8 @@ GPU_InitPipelines :: ()
     }
 
     ui_color_desc := SDL_GPUColorTargetDescription.{
-      format = color_desc.format,
-      blend_state = .{
-        src_color_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-        dst_color_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        color_blend_op = .SDL_GPU_BLENDOP_ADD,
-        // use ONE, ONE instead?
-        src_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-        dst_alpha_blendfactor = .SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        alpha_blend_op = .SDL_GPU_BLENDOP_ADD,
-        enable_blend = true,
-      },
+      format = default_color_desc.format,
+      blend_state = default_blend_state,
     };
 
     pipeline := SDL_GPUGraphicsPipelineCreateInfo.{

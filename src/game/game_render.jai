@@ -326,7 +326,6 @@ RD_DrawGhost :: (ghost: Ghost)
   outline_batch := *RD.lanes[LaneIdx()].batches[RD_WorldGroup.OUTLINE];
 
   draw_outline := false;
-  if ghost.key == G.player_key then draw_outline = true;
 
   draw_model := OBJ_HasAnyFlag(ghost, .DRAW_MODEL);
   draw_colliders := OBJ_HasAnyFlag(ghost, .DRAW_COLLIDERS);
@@ -341,10 +340,7 @@ RD_DrawGhost :: (ghost: Ghost)
     hover_color := ColorWhite();
     if OBJ_HasAnyFlag(ghost, .CANT_DAMAGE) hover_color.y *= 0.2 + 0.6*Sin01(G.at*1.9);
     if (ghost.key == DEV.inspected_object) hover_color.xyz *= 0.2 + 0.8*Sin01(G.at*2.8);
-    if (ghost.key == G.hover_object) {
-      hover_color.x *= 0.25*Cos01(G.at*1.5);
-      draw_outline = true;
-    }
+    if (ghost.key == G.hover_object) draw_outline = true;
 
     instance := RD_WorldInstance.{
       transform = transform,

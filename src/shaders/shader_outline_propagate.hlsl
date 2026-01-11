@@ -38,7 +38,8 @@ float2 FragmentShader(Fragment frag) : SV_Target0
       float2 candidate_xy = Texture.Load(int3(frag_xy_int + int2(x, y), 0));
       if (candidate_xy.x >= 0.0)
       {
-        float candidate_distsq = dot(frag_xy, candidate_xy);
+        float2 delta = frag_xy - candidate_xy;
+        float candidate_distsq = dot(delta, delta);
         if (candidate_distsq < best_distsq)
         {
           best_xy = candidate_xy;
