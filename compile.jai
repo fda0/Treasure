@@ -197,7 +197,7 @@ Build :: (config: BuildConfig)
   }
   else
   {
-    options.backend = .X64;
+    // options.backend = .X64;
   }
 
   set_build_options(options, w);

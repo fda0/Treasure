@@ -917,7 +917,21 @@ G_InitLocalObjects :: ()
         if !OBJ_IsNil(tree)
         {
           tree.p = pos;
-          tree.model = .Tree;
+          tree.model = ifx RngBool(*G.rng) then .Tree else .Tree2;
+        }
+
+        for MakeRange(RngU32_MaxOpen(*G.rng, 8))
+        {
+          grass := G_CreateLocalGhost(.DRAW_MODEL);
+          if !OBJ_IsNil(grass)
+          {
+            grass.model = .Grass;
+            grass.p = pos;
+
+            offset := V2.{RngF_11(*G.rng), RngF_11(*G.rng)} * 2.5;
+            offset += V2.{Sign(offset.x), Sign(offset.y)} * 0.2;
+            grass.p.xy += offset;
+          }
         }
       }
     }

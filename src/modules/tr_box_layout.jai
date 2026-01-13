@@ -1,4 +1,16 @@
 /* @todo
+
+  BIG REFACTOR NEEDED
+
+  This library will have to be merged with the engine itself.
+  Making this a separate library was a beautiful idea which didn't pan out.
+  It made for more duplicated, more complex and less capable code.
+
+  Even in the library form all this layout code could be greatly simplified.
+  The concept of 3 separate (min/pref/max) sizing constraints is not needed. One size will be fine.
+  + There was a lot of evolution of the code and big refactor is needed. I expected the code
+  to be faster, smaller by 50% and more capable after the big refactor is done (someday).
+
 - remove unused boxes from table
 - cache text measurement
 - cache layer merging

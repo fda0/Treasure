@@ -22,31 +22,45 @@ B_ProcessAssets :: (thread: *Thread) -> s64
 
   // Load .gltf models
   {
+    loads: [..] B_GLTF_LoadSpec;
+    // @todo @size Detect duplicated skeleton & animations and reuse them.
+
+    Add :: (file_name: string, spec_: B_GLTF_LoadSpec) #expand
+    {
+      spec := spec_;
+      spec.file_path = join(pre, file_name);
+      array_add(*loads, spec);
+    }
+
     rot_x := RotationAroundAxis(AxisV3(.X), 0.25);
     rot_y := RotationAroundAxis(AxisV3(.Y), 0.25);
     rot_z := RotationAroundAxis(AxisV3(.Z), 0.25);
     rot_xz := rot_z * rot_x;
 
-    // @todo @size Detect duplicated skeleton & animations and reuse them.
+    pre := "../res/models/Other/";
+    Add("Flag/Flag.glb",            .{height = 1.0, rot = rot_x});
+    Add("tree_low-poly/scene.gltf", .{disable_z0 = true, height = 5.0, name = "Tree"});
 
-    all_loads := B_GLTF_LoadSpec.[
-      .{file_path = "../res/models/Quaternius/UniversalAnimationLibrary/Dude.glb", height = 1.7, rot = rot_xz},
-      .{file_path = "../res/models/Quaternius/ZombieApocalypseKit/Zombie.gltf", height = 1.0, rot = rot_xz},
-      .{file_path = "../res/models/Quaternius/MedievalVillage/Corner_ExteriorWide_Wood.gltf", height = 3.0, rot = rot_xz, name = "Plank"},
-      .{file_path = "../res/models/Quaternius/Fantasy/Potion_1.gltf", height = 0.2, rot = rot_xz, name = "Potion"},
-      .{file_path = "../res/models/Quaternius/Fantasy/Stool.gltf", height = 0.4, rot = rot_xz},
-      .{file_path = "../res/models/Quaternius/Fantasy/Carrot.gltf", height = 1.0, rot = rot_xz},
-      .{file_path = "../res/models/Quaternius/Fantasy/Bed_Twin2.gltf", height = 0.5, rot = rot_xz, name = "Bed"},
-      .{file_path = "../res/models/Quaternius/Fantasy/Dummy.gltf", height = 2.0, rot = rot_xz},
-      .{file_path = "../res/models/Quaternius/PirateKit/UI_Red_X.gltf", height = 0.05, rot = rot_xz, name = "Cross"},
-      .{file_path = "../res/models/Other/Flag/Flag.glb", height = 1.0, rot = rot_x},
-      .{file_path = "../res/models/Other/tree_low-poly/scene.gltf", disable_z0 = true, height = 5.0, name = "Tree"},
-    ];
+    pre = "../res/models/Quaternius/";
+    Add("PirateKit/UI_Red_X.gltf",                       .{height = 0.05, rot = rot_xz, name = "Cross"});
+    Add("UniversalAnimationLibrary/Dude.glb",            .{height = 1.7, rot = rot_xz});
+    Add("ZombieApocalypseKit/Zombie.gltf",               .{height = 1.0, rot = rot_xz});
+    Add("MedievalVillage/Corner_ExteriorWide_Wood.gltf", .{height = 3.0, rot = rot_xz, name = "Plank"});
 
-    per_lane_loads := LaneRange(all_loads);
-    // log("lane % has % loads", LaneIdx(), per_lane_loads.count);
-    for per_lane_loads
-    {
+    pre = "../res/models/Quaternius/Fantasy/";
+    Add("Potion_1.gltf",  .{height = 0.2, rot = rot_xz, name = "Potion"});
+    Add("Stool.gltf",     .{height = 0.4, rot = rot_xz});
+    Add("Carrot.gltf",    .{height = 1.0, rot = rot_xz});
+    Add("Bed_Twin2.gltf", .{height = 0.5, rot = rot_xz, name = "Bed"});
+    Add("Dummy.gltf",     .{height = 2.0, rot = rot_xz});
+    Add("Dummy.gltf",     .{height = 2.0, rot = rot_xz});
+
+    pre = "../res/models/Quaternius/StylizedNature/";
+    Add("Grass_Common_Short.gltf", .{height = 0.6, rot = rot_xz, name = "Grass"});
+    Add("CommonTree_2.gltf", .{height = 4.4, rot = rot_xz, name = "Tree2"});
+
+
+    for LaneRange(loads) {
       B_GLTF_Load(it);
     }
   }

@@ -21,7 +21,7 @@ B_GLTF_Mesh :: struct
   positions:     [..] float;
   normals:       [..] float;
   texcoords:     [..] float;
-  colors:        [..] u16;
+  colors:        [..] u8;
   joint_indices: [..] u8;
   weights:       [..] float;
 };
@@ -241,8 +241,26 @@ B_GLTF_Load :: (spec: B_GLTF_LoadSpec)
 
           case .cgltf_attribute_type_color;
           Check(comp_count == 4);
-          Check(accessor.component_type == .cgltf_component_type_r_16u);
-          B_GLTF_UnpackAccessor(accessor, *bk_mesh.colors);
+
+          if accessor.component_type == {
+            case; Check(false, "Unexpected color component type (%)", accessor.component_type);
+
+            case .cgltf_component_type_r_16u;
+            vals: [..] u16;
+            vals.allocator = temp;
+            B_GLTF_UnpackAccessor(accessor, *vals);
+            for vals {
+              array_add(*bk_mesh.colors, (it >> 8).(u8,trunc));
+            }
+
+            case .cgltf_component_type_r_32f;
+            vals: [..] float;
+            vals.allocator = temp;
+            B_GLTF_UnpackAccessor(accessor, *vals);
+            for vals {
+              array_add(*bk_mesh.colors, (it*255.0).(u8));
+            }
+          }
 
           case .cgltf_attribute_type_joints;
           Check(comp_count == 4);
@@ -564,12 +582,10 @@ B_GLTF_ExportModelToPie :: (baker_model: B_GLTF_Model)
       vert.color = U32_MAX;
       if baker_mesh.colors.count > 0
       {
-        color: Color;
-        color.x = baker_mesh.colors[vert_i*4 + 0].(float) / U16_MAX.(float);
-        color.y = baker_mesh.colors[vert_i*4 + 1].(float) / U16_MAX.(float);
-        color.z = baker_mesh.colors[vert_i*4 + 2].(float) / U16_MAX.(float);
-        color.w = baker_mesh.colors[vert_i*4 + 3].(float) / U16_MAX.(float);
-        vert.color = ColorPack(color);
+        vert.color = PackedRGBA(baker_mesh.colors[vert_i*4 + 0],
+                                baker_mesh.colors[vert_i*4 + 1],
+                                baker_mesh.colors[vert_i*4 + 2],
+                                baker_mesh.colors[vert_i*4 + 3]);
       }
 
       // SKINNED specific

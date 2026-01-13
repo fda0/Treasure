@@ -35,6 +35,7 @@ ModelAlias :: enum u16
   Dude;
   Flag;
   Tree;
+  Tree2;
   Zombie;
   Plank;
   Dummy;
@@ -42,6 +43,7 @@ ModelAlias :: enum u16
   Stool;
   Cross;
   Carrot;
+  Grass;
 }
 
 MaterialAlias :: enum u16
