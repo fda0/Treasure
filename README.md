@@ -51,3 +51,6 @@ Treasure.exe -server -client
 ## Shadow mapping
 - [Shadow maps, shadow volumes, deep shadow maps by Justin Solomon](https://www.youtube.com/watch?v=QCIKgyL3ePo) - MIT lecture overviewing shadow rendering techniques.
 - [Shadow Mapping - learnopengl.com](https://learnopengl.com/Advanced-Lighting/Shadows/Shadow-Mapping) - step-by-step tutorial with common pitfalls explained.
+
+## Outline rendering
+- [The Quest for Very Wide Outlines](https://bgolus.medium.com/the-quest-for-very-wide-outlines-ba82ed442cd9) - overview of different techniques + introduction to jump flood algorithm.

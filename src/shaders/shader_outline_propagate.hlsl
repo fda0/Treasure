@@ -31,6 +31,8 @@ float2 FragmentShader(Fragment frag) : SV_Target0
   float2 best_xy = float2(-1.0, -1.0);
   float best_distsq = 1024.0 * 1024.0 * 1024.0;
 
+  // @speed Internet says it's faster to use separate pass for vertical and horizontal propagation.
+  // This results in 2x more passes but 3x less texture loads (?).
   for (int y = -1; y <= 1; y++)
   {
     for (int x = -1; x <= 1; x++)
